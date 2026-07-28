@@ -42,6 +42,14 @@ export type BuildingCategory =
   | 'Defense'
   | 'Special'
 
+/**
+ * Slot-limiting axis, independent of `BuildingCategory` (which is just a display grouping).
+ * 'core' buildings always exist from game start; 'specialization' buildings must be claimed
+ * into one of a limited number of slots (see `SPECIALIZATION_SLOT_COUNT`) before they exist
+ * in `GameState.buildings` at all.
+ */
+export type BuildingSlotType = 'core' | 'specialization'
+
 export interface BuildingInstance {
   id: string
   category: BuildingCategory
@@ -307,7 +315,7 @@ export interface LoginStreakState {
 
 // --- Game state -----------------------------------------------------------
 
-export const SAVE_VERSION = 10
+export const SAVE_VERSION = 11
 
 export interface GameState {
   saveVersion: number

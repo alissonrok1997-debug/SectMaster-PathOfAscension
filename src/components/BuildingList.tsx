@@ -1,9 +1,24 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { getAllBuildingDefs } from '../game/data/buildingDefs'
+import { getCoreBuildingDefs, SPECIALIZATION_SLOT_COUNT } from '../game/data/buildingDefs'
+import { getClaimedSpecializationCount } from '../game/engine/specializationSlots'
+import { useGameStore } from '../game/state/store'
 import { BuildingTile } from './BuildingTile'
+import { EmptySlotTile } from './EmptySlotTile'
 import { BuildingDetailPanel } from './BuildingDetailPanel'
+import { SpecializationSlotPicker } from './SpecializationSlotPicker'
+
+const CLAIM_SLOT_PREFIX = '__claim-'
 
 export function BuildingList() {
+  const state = useGameStore((s) => s.state)
+  const claimedSpecializationIds = Object.keys(state.buildings).filter(
+    (id) => !getCoreBuildingDefs().some((def) => def.id === id),
+  )
+  const claimedCount = getClaimedSpecializationCount(state)
+  const emptySlotIds = Array.from(
+    { length: Math.max(0, SPECIALIZATION_SLOT_COUNT - claimedCount) },
+    (_, i) => `${CLAIM_SLOT_PREFIX}${i}`,
+  )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // The building whose detail is mounted. Set on open/switch and left in place when closed, so the
   // drawer can animate shut (and reopen instantly) without depending on an animation-complete event.
@@ -20,6 +35,14 @@ export function BuildingList() {
       setRenderedId(id)
     }
   }
+
+  // If the selected building gets demolished while its drawer is open, close the drawer
+  // instead of leaving it open over now-empty content.
+  useLayoutEffect(() => {
+    if (selectedId && !selectedId.startsWith(CLAIM_SLOT_PREFIX) && !state.buildings[selectedId]) {
+      setSelectedId(null)
+    }
+  }, [selectedId, state.buildings])
 
   // Animate the drawer with the Web Animations API: measure the current height, snap the resting
   // style to its next state (auto when open so content can grow freely, 0 when closed), measure
@@ -57,6 +80,9 @@ export function BuildingList() {
     return () => window.removeEventListener('resize', positionCaret)
   }, [selectedId])
 
+  const isClaimSlot = (id: string) => id.startsWith(CLAIM_SLOT_PREFIX)
+  const closeDrawer = () => setSelectedId(null)
+
   return (
     <section className="panel building-list-panel">
       <h2>Sect Buildings</h2>
@@ -64,15 +90,33 @@ export function BuildingList() {
         Single construction queue — only one upgrade can run at a time across the whole sect.
       </p>
 
-      <div className="building-tile-grid" ref={gridRef}>
-        {getAllBuildingDefs().map((def) => (
-          <BuildingTile key={def.id} buildingId={def.id} active={selectedId === def.id} onSelect={toggle} />
-        ))}
+      <div ref={gridRef}>
+        <p className="building-detail-section-title">Core Buildings</p>
+        <div className="building-tile-grid">
+          {getCoreBuildingDefs().map((def) => (
+            <BuildingTile key={def.id} buildingId={def.id} active={selectedId === def.id} onSelect={toggle} />
+          ))}
+        </div>
+
+        <p className="building-detail-section-title">
+          Specializations ({claimedCount}/{SPECIALIZATION_SLOT_COUNT})
+        </p>
+        <div className="building-tile-grid">
+          {claimedSpecializationIds.map((id) => (
+            <BuildingTile key={id} buildingId={id} active={selectedId === id} onSelect={toggle} />
+          ))}
+          {emptySlotIds.map((slotId) => (
+            <EmptySlotTile key={slotId} slotId={slotId} active={selectedId === slotId} onSelect={toggle} />
+          ))}
+        </div>
       </div>
 
       <div className={`building-drawer ${selectedId ? 'open' : ''}`} ref={drawerRef}>
         <div className="building-drawer-clip" ref={clipRef}>
-          {renderedId && <BuildingDetailPanel buildingId={renderedId} />}
+          {renderedId && isClaimSlot(renderedId) && <SpecializationSlotPicker onClaimed={closeDrawer} />}
+          {renderedId && !isClaimSlot(renderedId) && state.buildings[renderedId] && (
+            <BuildingDetailPanel buildingId={renderedId} />
+          )}
         </div>
       </div>
     </section>

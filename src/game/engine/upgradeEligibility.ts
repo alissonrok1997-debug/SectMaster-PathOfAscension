@@ -19,6 +19,11 @@ export interface UpgradeEligibility {
 export function getUpgradeEligibility(state: GameState, buildingId: string): UpgradeEligibility {
   const building = state.buildings[buildingId]
   const def = getBuildingDef(buildingId)
+
+  if (!building) {
+    return { canUpgrade: false, reason: 'Not yet built.', cost: {}, durationMs: 0, targetLevel: 1 }
+  }
+
   const targetLevel = building.level + 1
   const cost = getUpgradeCost(def, building.level)
   const durationMs = getUpgradeDurationMs(def, building.level)

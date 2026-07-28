@@ -53,9 +53,12 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   const state = useGameStore((s) => s.state)
   const startUpgrade = useGameStore((s) => s.startUpgrade)
   const assignDisciple = useGameStore((s) => s.assignDisciple)
+  const demolishSpecializationBuilding = useGameStore((s) => s.demolishSpecializationBuilding)
 
   const building = state.buildings[buildingId]
   const def = getBuildingDef(buildingId)
+
+  if (!building) return null
   const hallLevel = state.buildings[SECT_HALL_ID]?.level ?? 1
   const isOverLevel = buildingId !== SECT_HALL_ID && building.level > hallLevel
 
@@ -200,6 +203,20 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
             <p className="upgrade-blocked-reason">{eligibility.reason}</p>
           )}
         </div>
+      )}
+
+      {def.slotType === 'specialization' && !isConstructing && (
+        <button
+          type="button"
+          className="demolish-button"
+          onClick={() => {
+            if (window.confirm(`Demolish ${def.name}? Its levels are lost and its slot frees up for a different specialization.`)) {
+              demolishSpecializationBuilding(buildingId)
+            }
+          }}
+        >
+          Demolish
+        </button>
       )}
     </div>
   )
