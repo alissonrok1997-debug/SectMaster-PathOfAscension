@@ -9,5 +9,5 @@ dist-ssr
 HANDOFF.md
 PROJECT.md
 
-# local Claude Code settings
-.claude/settings.local.json
+# local tooling config, not pushed to GitHub
+.claude/
