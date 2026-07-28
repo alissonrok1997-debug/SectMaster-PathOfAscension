@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
+import { AssignDiscipleModal } from './AssignDiscipleModal'
 import { getBuildingDef, SECT_HALL_ID } from '../game/data/buildingDefs'
 import { getUpgradeEligibility } from '../game/engine/upgradeEligibility'
 import { computeStorageCaps } from '../game/engine/storage'
 import { computeDiscipleCapacity } from '../game/engine/discipleCapacity'
+import { getBuildingSlotCount } from '../game/engine/buildingAssignment'
 import { TRAINING_HALL_RATE_PER_LEVEL } from '../game/engine/cultivation'
 import { BOOST_COST, BOOST_DURATION_MS, BOOST_RATE_PER_SECOND } from '../game/engine/cultivationBoost'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
@@ -54,6 +57,7 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   const startUpgrade = useGameStore((s) => s.startUpgrade)
   const assignDisciple = useGameStore((s) => s.assignDisciple)
   const demolishSpecializationBuilding = useGameStore((s) => s.demolishSpecializationBuilding)
+  const [assignPickerOpen, setAssignPickerOpen] = useState(false)
 
   const building = state.buildings[buildingId]
   const def = getBuildingDef(buildingId)
@@ -71,9 +75,8 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   const nextRate = def.produces ? def.baseRatePerLevel! * (building.level + 1) : 0
 
   const assignedDisciples = state.disciples.filter((d) => d.assignedBuildingId === buildingId)
-  const assignableDisciples = state.disciples.filter(
-    (d) => d.awayUntil === undefined && d.assignedBuildingId !== buildingId,
-  )
+  const slotCount = getBuildingSlotCount(building.level)
+  const emptySlots = Math.max(0, slotCount - assignedDisciples.length)
   const canAssign = buildingId !== SECT_HALL_ID
   const costEntries = Object.entries(eligibility.cost) as [keyof Resources, number][]
   const effectRows = getBuildingEffectRows(buildingId, building.level, state)
@@ -142,38 +145,32 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
       {canAssign && (
         <div className="building-assignment">
           <p className="building-detail-section-title">
-            Assigned disciples
-            {buildingId === 'trainingHall' ? ' (cultivate faster here)' : ''}
+            Work slots ({assignedDisciples.length} / {slotCount})
+            {buildingId === 'trainingHall' ? ' — cultivate faster here' : ''}
           </p>
-          {assignedDisciples.length > 0 ? (
-            <ul className="building-assigned-list">
-              {assignedDisciples.map((d) => (
-                <li key={d.id}>
-                  <span>{d.name}</span>
-                  <button onClick={() => assignDisciple(d.id, undefined)}>Unassign</button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="panel-hint">None assigned.</p>
-          )}
-          {assignableDisciples.length > 0 && (
-            <select
-              value=""
-              onChange={(e) => {
-                if (e.target.value) assignDisciple(e.target.value, buildingId)
-              }}
-            >
-              <option value="">Assign disciple…</option>
-              {assignableDisciples.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                  {d.assignedBuildingId ? ` (from ${getBuildingDef(d.assignedBuildingId).name})` : ''}
-                </option>
-              ))}
-            </select>
-          )}
+          <div className="work-slot-grid">
+            {assignedDisciples.map((d) => (
+              <div key={d.id} className="building-tile work-slot-tile filled">
+                <span className="building-tile-name">{d.name}</span>
+                <button onClick={() => assignDisciple(d.id, undefined)}>Unassign</button>
+              </div>
+            ))}
+            {Array.from({ length: emptySlots }).map((_, i) => (
+              <button
+                key={`empty-${i}`}
+                type="button"
+                className="building-tile building-tile-empty work-slot-tile"
+                onClick={() => setAssignPickerOpen(true)}
+              >
+                <span className="building-tile-name">+ Assign disciple</span>
+              </button>
+            ))}
+          </div>
         </div>
+      )}
+
+      {assignPickerOpen && (
+        <AssignDiscipleModal buildingId={buildingId} onClose={() => setAssignPickerOpen(false)} />
       )}
 
       {isConstructing ? (

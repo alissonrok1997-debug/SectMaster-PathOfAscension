@@ -17,6 +17,7 @@ import { computeStorageCaps } from '../engine/storage'
 import { getBuildingDef, SECT_HALL_ID } from '../data/buildingDefs'
 import { applyCultivationTick } from '../engine/cultivation'
 import { computeDiscipleCapacity } from '../engine/discipleCapacity'
+import { getAssignEligibility } from '../engine/buildingAssignment'
 import { createRecruit, getRecruitmentCost } from '../engine/recruitment'
 import { BOOST_COST, BOOST_DURATION_MS, getBoostEligibility } from '../engine/cultivationBoost'
 import { applyOfflineCatchUp, emptyOfflineSummary, rewindStateClock, type OfflineSummary } from '../engine/offlineCatchup'
@@ -286,7 +287,8 @@ export const useGameStore = create<GameStore>((set) => ({
       const disciple = store.state.disciples.find((d) => d.id === discipleId)
       // Presence Requirement: an away disciple cannot be reassigned (doc 03, Section 8).
       if (!disciple || disciple.awayUntil !== undefined) return {}
-      if (buildingId !== undefined && !store.state.buildings[buildingId]) return {}
+      // Unassigning (undefined) is always allowed; assigning re-validates the work-slot cap.
+      if (buildingId !== undefined && !getAssignEligibility(store.state, discipleId, buildingId).canAssign) return {}
 
       return {
         state: {
