@@ -112,7 +112,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'sacredMountainShrine',
     name: 'Sacred Mountain Shrine',
     category: 'Production',
-    slotType: 'specialization',
+    slotType: 'core',
     description: "Draws Qi Stone from the mountain itself. Sets the sect's Qi Stone storage cap.",
     produces: 'qiStone',
     baseRatePerLevel: 0.2,
