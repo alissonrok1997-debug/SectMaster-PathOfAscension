@@ -1,5 +1,5 @@
 import { createInitialGameState, type BuildingInstance, type GameState } from '../types'
-import { getAllBuildingDefs } from '../data/buildingDefs'
+import { getCoreBuildingDefs } from '../data/buildingDefs'
 import { getRefreshedMissionBoard } from '../engine/missions'
 import { FACTION_DEFS } from '../data/factionDefs'
 
@@ -19,7 +19,7 @@ export function createNewGame(): GameState {
   const now = Date.now()
 
   const buildings: Record<string, BuildingInstance> = {}
-  for (const def of getAllBuildingDefs()) {
+  for (const def of getCoreBuildingDefs()) {
     buildings[def.id] = { id: def.id, category: def.category, level: 1 }
   }
 

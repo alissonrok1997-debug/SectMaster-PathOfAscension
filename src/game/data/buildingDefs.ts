@@ -1,9 +1,15 @@
-import type { BuildingCategory, Resources } from '../types'
+import type { BuildingCategory, BuildingSlotType, Resources } from '../types'
 
 export interface BuildingDefinition {
   id: string
   name: string
   category: BuildingCategory
+  /**
+   * 'core' buildings exist from game start and are never subject to the specialization
+   * slot limit. 'specialization' buildings must be claimed into one of
+   * SPECIALIZATION_SLOT_COUNT slots (engine/specializationSlots.ts) before they exist.
+   */
+  slotType: BuildingSlotType
   description: string
   /** Resource this building produces continuously. Absent for Sect Hall and non-production buildings. */
   produces?: keyof Resources
@@ -15,6 +21,9 @@ export interface BuildingDefinition {
   baseDurationMs: number
   durationGrowthMs: number
 }
+
+/** Fixed number of specialization buildings a sect may have claimed at once. */
+export const SPECIALIZATION_SLOT_COUNT = 6
 
 /** Cost to take `currentLevel` to `currentLevel + 1`. */
 export function getUpgradeCost(def: BuildingDefinition, currentLevel: number): Partial<Resources> {
@@ -37,6 +46,7 @@ export const SECT_HALL_DEF: BuildingDefinition = {
   id: SECT_HALL_ID,
   name: 'Sect Hall',
   category: 'Core',
+  slotType: 'core',
   description:
     "The seat of the Sect Master. No other building may be upgraded above the Sect Hall's level — it's the sect's default first investment.",
   baseCost: { spiritStones: 80, spiritWood: 20 },
@@ -50,6 +60,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'treasury',
     name: 'Treasury',
     category: 'Production',
+    slotType: 'core',
     description: "Generates Spirit Stones and sets the sect's Spirit Stone storage cap.",
     produces: 'spiritStones',
     baseRatePerLevel: 0.5,
@@ -62,6 +73,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'spiritGarden',
     name: 'Spirit Garden',
     category: 'Production',
+    slotType: 'specialization',
     description: 'Cultivates Spirit Herb.',
     produces: 'spiritHerb',
     baseRatePerLevel: 0.3,
@@ -74,6 +86,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'spiritGrove',
     name: 'Spirit Grove',
     category: 'Production',
+    slotType: 'specialization',
     description: 'Harvests Spirit Wood.',
     produces: 'spiritWood',
     baseRatePerLevel: 0.3,
@@ -86,6 +99,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'ironVeinMine',
     name: 'Iron Vein Mine',
     category: 'Production',
+    slotType: 'specialization',
     description: 'Extracts Iron Essence.',
     produces: 'ironEssence',
     baseRatePerLevel: 0.25,
@@ -98,6 +112,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'sacredMountainShrine',
     name: 'Sacred Mountain Shrine',
     category: 'Production',
+    slotType: 'specialization',
     description: "Draws Qi Stone from the mountain itself. Sets the sect's Qi Stone storage cap.",
     produces: 'qiStone',
     baseRatePerLevel: 0.2,
@@ -110,6 +125,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'warehouse',
     name: 'Warehouse',
     category: 'Support',
+    slotType: 'core',
     description: 'Expands storage capacity for Raw Materials and Knowledge.',
     baseCost: { spiritStones: 70, spiritWood: 20 },
     costGrowth: 1.5,
@@ -120,6 +136,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'dormitory',
     name: 'Dormitory',
     category: 'Support',
+    slotType: 'core',
     description: "Houses disciples. Sets the sect's disciple capacity.",
     baseCost: { spiritStones: 65, spiritWood: 18 },
     costGrowth: 1.5,
@@ -130,6 +147,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'trainingHall',
     name: 'Training Hall',
     category: 'Training',
+    slotType: 'specialization',
     description: 'Trains assigned disciples, speeding up their cultivation progress.',
     baseCost: { spiritStones: 40, spiritWood: 10 },
     costGrowth: 1.4,
@@ -140,6 +158,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'trainingGround',
     name: 'Training Ground',
     category: 'Training',
+    slotType: 'specialization',
     description:
       "Spend Qi Stone and Spirit Herb to grant an assigned disciple a temporary Active Cultivation Boost — at the cost of the sect's passive Qi Stone production for the duration.",
     baseCost: { spiritStones: 45, spiritWood: 10 },
@@ -151,6 +170,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'library',
     name: 'Library',
     category: 'Knowledge',
+    slotType: 'specialization',
     description: 'Generates Knowledge through study.',
     produces: 'knowledge',
     baseRatePerLevel: 0.25,
@@ -163,6 +183,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'researchInstitute',
     name: 'Research Institute',
     category: 'Knowledge',
+    slotType: 'specialization',
     description:
       "Conducts research projects that unlock permanent sect-wide bonuses — distinct from the Library's passive Knowledge generation.",
     baseCost: { spiritStones: 45, spiritWood: 12 },
@@ -174,6 +195,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'alchemyWorkshop',
     name: 'Alchemy Workshop',
     category: 'Crafting',
+    slotType: 'specialization',
     // doc 07 §11 — Inscription/Artifact Restoration have no dedicated building at MVP scope, so their outputs (talismans, manuals) are folded in here. Referenced by craftingRecipes.ts.
     description: 'Brews pills, and crafts accessories and manuals.',
     baseCost: { spiritStones: 40, spiritWood: 10 },
@@ -185,6 +207,7 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
     id: 'forge',
     name: 'Forge',
     category: 'Crafting',
+    slotType: 'specialization',
     description: 'Smiths weapons and armor from Iron Essence and Spirit Wood.',
     baseCost: { spiritStones: 45, ironEssence: 15 },
     costGrowth: 1.4,
@@ -202,4 +225,12 @@ export function getBuildingDef(id: string): BuildingDefinition {
 
 export function getAllBuildingDefs(): BuildingDefinition[] {
   return [SECT_HALL_DEF, ...BUILDING_DEFS]
+}
+
+export function getCoreBuildingDefs(): BuildingDefinition[] {
+  return getAllBuildingDefs().filter((def) => def.slotType === 'core')
+}
+
+export function getSpecializationBuildingDefs(): BuildingDefinition[] {
+  return getAllBuildingDefs().filter((def) => def.slotType === 'specialization')
 }

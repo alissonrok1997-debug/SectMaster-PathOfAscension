@@ -1,5 +1,5 @@
 import { useGameStore } from '../game/state/store'
-import { getAllBuildingDefs, SECT_HALL_ID } from '../game/data/buildingDefs'
+import { getBuildingDef, SECT_HALL_ID } from '../game/data/buildingDefs'
 import { getBoostEligibility } from '../game/engine/cultivationBoost'
 import { getDiscipleCultivationRate } from '../game/engine/cultivation'
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
@@ -13,8 +13,6 @@ import { getItemDef } from '../game/data/itemDefs'
 import { getItemQualityDef } from '../game/data/itemQualityDefs'
 import { formatCountdown, formatDurationAdaptive } from '../game/utils/formatDuration'
 import { CULTIVATION_REALMS, type DiscipleInstance, type EquipmentSlotId } from '../game/types'
-
-const ASSIGNABLE_BUILDINGS = getAllBuildingDefs().filter((def) => def.id !== SECT_HALL_ID)
 
 const INJURY_LABEL: Record<DiscipleInstance['injury'], string> = {
   none: '',
@@ -49,6 +47,10 @@ export function DiscipleCard({ discipleId }: { discipleId: string }) {
 
   const disciple = state.disciples.find((d) => d.id === discipleId)
   if (!disciple) return null
+
+  const assignableBuildings = Object.keys(state.buildings)
+    .filter((id) => id !== SECT_HALL_ID)
+    .map((id) => getBuildingDef(id))
 
   const isAway = disciple.awayUntil !== undefined
   const isInjured = disciple.injury !== 'none'
@@ -133,7 +135,7 @@ export function DiscipleCard({ discipleId }: { discipleId: string }) {
             onChange={(e) => assignDisciple(disciple.id, e.target.value || undefined)}
           >
             <option value="">Idle / Rest</option>
-            {ASSIGNABLE_BUILDINGS.map((def) => (
+            {assignableBuildings.map((def) => (
               <option key={def.id} value={def.id}>
                 {def.name}
               </option>

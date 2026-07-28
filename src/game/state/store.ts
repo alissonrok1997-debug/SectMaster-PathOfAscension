@@ -12,8 +12,9 @@ import { createNewGame } from './initialState'
 import { applyProductionTick } from '../engine/production'
 import { resolveCompletedConstruction } from '../engine/construction'
 import { getUpgradeEligibility } from '../engine/upgradeEligibility'
+import { getClaimSlotEligibility, getDemolishEligibility } from '../engine/specializationSlots'
 import { computeStorageCaps } from '../engine/storage'
-import { SECT_HALL_ID } from '../data/buildingDefs'
+import { getBuildingDef, SECT_HALL_ID } from '../data/buildingDefs'
 import { applyCultivationTick } from '../engine/cultivation'
 import { computeDiscipleCapacity } from '../engine/discipleCapacity'
 import { createRecruit, getRecruitmentCost } from '../engine/recruitment'
@@ -63,6 +64,8 @@ interface GameStore {
   /** Advances both clocks by real elapsed ms, applies production/cultivation, resolves finished construction. */
   tick: (deltaMs: number) => void
   startUpgrade: (buildingId: string) => void
+  claimSpecializationSlot: (buildingId: string) => void
+  demolishSpecializationBuilding: (buildingId: string) => void
   recruitDisciple: () => void
   assignDisciple: (discipleId: string, buildingId: string | undefined) => void
   activateCultivationBoost: (discipleId: string) => void
@@ -168,6 +171,52 @@ export const useGameStore = create<GameStore>((set) => ({
             ...store.state.buildings,
             [buildingId]: { ...building, constructionEndsAt: Date.now() + eligibility.durationMs },
           },
+        },
+      }
+    }),
+
+  claimSpecializationSlot: (buildingId) =>
+    set((store) => {
+      const eligibility = getClaimSlotEligibility(store.state, buildingId)
+      if (!eligibility.canClaim) return {}
+
+      const def = getBuildingDef(buildingId)
+      const resources = { ...store.state.resources }
+      for (const [key, amount] of Object.entries(eligibility.cost) as [keyof Resources, number][]) {
+        resources[key] -= amount
+      }
+
+      return {
+        state: {
+          ...store.state,
+          resources,
+          buildings: {
+            ...store.state.buildings,
+            [buildingId]: {
+              id: buildingId,
+              category: def.category,
+              level: 0,
+              constructionEndsAt: Date.now() + eligibility.durationMs,
+            },
+          },
+        },
+      }
+    }),
+
+  demolishSpecializationBuilding: (buildingId) =>
+    set((store) => {
+      const eligibility = getDemolishEligibility(store.state, buildingId)
+      if (!eligibility.canDemolish) return {}
+
+      const { [buildingId]: _removed, ...buildings } = store.state.buildings
+
+      return {
+        state: {
+          ...store.state,
+          buildings,
+          disciples: store.state.disciples.map((d) =>
+            d.assignedBuildingId === buildingId ? { ...d, assignedBuildingId: undefined } : d,
+          ),
         },
       }
     }),

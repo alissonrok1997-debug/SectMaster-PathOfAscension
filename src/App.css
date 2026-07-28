@@ -494,6 +494,59 @@ button.danger:hover {
   margin: 0.4rem 0 0;
 }
 
+.building-tile-empty {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  color: #8b889a;
+}
+
+.building-tile-empty .building-tile-name {
+  font-weight: 500;
+  color: #8b889a;
+}
+
+.specialization-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.specialization-picker-item {
+  padding: 0.75rem 0.9rem;
+  background: #12131a;
+  border: 1px solid #2c2e3d;
+  border-radius: 8px;
+}
+
+.specialization-picker-info {
+  margin-bottom: 0.5rem;
+}
+
+.specialization-picker-name {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.specialization-picker-item button {
+  width: 100%;
+}
+
+.demolish-button {
+  width: 100%;
+  margin-top: 0.5rem;
+  background: transparent;
+  border: 1px solid #7a3b3b;
+  color: #f0b3b3;
+}
+
+.demolish-button:hover {
+  background: #2a1717;
+}
+
 /* Disciples */
 
 .disciple-roster-panel {
