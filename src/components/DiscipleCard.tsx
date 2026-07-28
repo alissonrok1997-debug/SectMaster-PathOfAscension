@@ -2,6 +2,7 @@ import { useGameStore } from '../game/state/store'
 import { getBuildingDef, SECT_HALL_ID } from '../game/data/buildingDefs'
 import { getBoostEligibility } from '../game/engine/cultivationBoost'
 import { getDiscipleCultivationRate } from '../game/engine/cultivation'
+import { getAssignEligibility } from '../game/engine/buildingAssignment'
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
 import { getResearchCultivationRateMultiplier } from '../game/engine/research'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
@@ -135,11 +136,15 @@ export function DiscipleCard({ discipleId }: { discipleId: string }) {
             onChange={(e) => assignDisciple(disciple.id, e.target.value || undefined)}
           >
             <option value="">Idle / Rest</option>
-            {assignableBuildings.map((def) => (
-              <option key={def.id} value={def.id}>
-                {def.name}
-              </option>
-            ))}
+            {assignableBuildings.map((def) => {
+              const full = !getAssignEligibility(state, disciple.id, def.id).canAssign
+              return (
+                <option key={def.id} value={def.id} disabled={full}>
+                  {def.name}
+                  {full ? ' (slots full)' : ''}
+                </option>
+              )
+            })}
           </select>
         </label>
       )}
