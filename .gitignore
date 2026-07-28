@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+*.tsbuildinfo
+
+# project docs kept local-only, not pushed to GitHub
+HANDOFF.md
+PROJECT.md
+
+# local Claude Code settings
+.claude/settings.local.json
