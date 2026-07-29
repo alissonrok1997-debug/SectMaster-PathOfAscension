@@ -1,6 +1,7 @@
 import { createInitialGameState, type BuildingInstance, type GameState } from '../types'
 import { getCoreBuildingDefs } from '../data/buildingDefs'
 import { getRefreshedMissionBoard } from '../engine/missions'
+import { UPKEEP_INTERVAL_MS } from '../engine/upkeep'
 import { FACTION_DEFS } from '../data/factionDefs'
 
 /** Wave 1 starting stockpile — enough to test the first Sect Hall upgrade without a long wait. */
@@ -36,5 +37,6 @@ export function createNewGame(): GameState {
     factionRelationships,
     nextWorldEventAt: now + FIRST_WORLD_EVENT_DELAY_MS,
     nextEventAt: now + FIRST_NARRATIVE_EVENT_DELAY_MS,
+    nextUpkeepAt: now + UPKEEP_INTERVAL_MS,
   }
 }

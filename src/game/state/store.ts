@@ -15,7 +15,8 @@ import { getUpgradeEligibility } from '../engine/upgradeEligibility'
 import { getClaimSlotEligibility, getDemolishEligibility } from '../engine/specializationSlots'
 import { computeStorageCaps } from '../engine/storage'
 import { getBuildingDef, SECT_HALL_ID } from '../data/buildingDefs'
-import { applyCultivationTick } from '../engine/cultivation'
+import { applyCultivationTick, getBreakthroughEligibility, resolveBreakthrough } from '../engine/cultivation'
+import { resolveUpkeepDue } from '../engine/upkeep'
 import { computeDiscipleCapacity } from '../engine/discipleCapacity'
 import { getAssignEligibility } from '../engine/buildingAssignment'
 import { createRecruit, getRecruitmentCost } from '../engine/recruitment'
@@ -70,6 +71,7 @@ interface GameStore {
   recruitDisciple: () => void
   assignDisciple: (discipleId: string, buildingId: string | undefined) => void
   activateCultivationBoost: (discipleId: string) => void
+  attemptBreakthrough: (discipleId: string) => void
   dispatchMission: (offerId: string, squadDiscipleIds: string[]) => void
   startCraft: (recipeId: string) => void
   equipItem: (discipleId: string, instanceId: string) => void
@@ -136,13 +138,14 @@ export const useGameStore = create<GameStore>((set) => ({
       const { state: stateAfterTerritory } = resolveCompletedTerritoryClaim(stateAfterMissions, now)
       const { state: stateAfterWorldEvent } = resolveWorldEventLifecycle(stateAfterTerritory, now)
       const { state: stateAfterNarrativeEvent } = resolveEventLifecycle(stateAfterWorldEvent, now)
-      const resourcesAfterProduction = applyProductionTick(stateAfterNarrativeEvent, deltaMs)
-      const stateAfterProduction = { ...stateAfterNarrativeEvent, resources: resourcesAfterProduction }
+      const { state: stateAfterUpkeep } = resolveUpkeepDue(stateAfterNarrativeEvent, now)
+      const resourcesAfterProduction = applyProductionTick(stateAfterUpkeep, deltaMs)
+      const stateAfterProduction = { ...stateAfterUpkeep, resources: resourcesAfterProduction }
       const { disciples, resources } = applyCultivationTick(stateAfterProduction, deltaMs)
 
       return {
         state: {
-          ...stateAfterProduction,
+          ...stateAfterUpkeep,
           resources,
           disciples,
           simClock: { totalElapsedMs: store.state.simClock.totalElapsedMs + deltaMs },
@@ -324,6 +327,22 @@ export const useGameStore = create<GameStore>((set) => ({
           ),
         },
       }
+    }),
+
+  attemptBreakthrough: (discipleId) =>
+    set((store) => {
+      if (!getBreakthroughEligibility(store.state, discipleId).canBreakthrough) return {}
+      const disciple = store.state.disciples.find((d) => d.id === discipleId)
+      if (!disciple) return {}
+
+      const result = resolveBreakthrough(disciple, store.state.resources)
+      const nextState: GameState = {
+        ...store.state,
+        resources: result.resources,
+        disciples: store.state.disciples.map((d) => (d.id === discipleId ? result.disciple : d)),
+      }
+      saveGame(nextState)
+      return { state: nextState }
     }),
 
   dispatchMission: (offerId, squadDiscipleIds) =>

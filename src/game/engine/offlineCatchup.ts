@@ -4,6 +4,7 @@ import { getBuildingDef } from '../data/buildingDefs'
 import { resolveCompletedConstruction } from './construction'
 import { applyProductionTick } from './production'
 import { applyCultivationTick } from './cultivation'
+import { resolveUpkeepDue } from './upkeep'
 import { resolveCompletedMissions } from './missions'
 import { resolveCompletedCrafting } from './crafting'
 import { getItemDisplayName } from './itemQuality'
@@ -138,6 +139,7 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
     const narrativeEventResult = resolveEventLifecycle(working, simulatedNow)
     working = narrativeEventResult.state
     if (narrativeEventResult.logEntry) narrativeEventsResolved.push(narrativeEventResult.logEntry)
+    working = resolveUpkeepDue(working, simulatedNow).state
     const resourcesAfterProduction = applyProductionTick(working, step)
     working = { ...working, resources: resourcesAfterProduction }
     const { disciples, resources } = applyCultivationTick(working, step)
@@ -245,6 +247,7 @@ export function rewindStateClock(state: GameState, offsetMs: number): GameState 
     worldEvent: state.worldEvent && { ...state.worldEvent, endsAt: state.worldEvent.endsAt - offsetMs },
     nextWorldEventAt: state.nextWorldEventAt - offsetMs,
     nextEventAt: state.nextEventAt - offsetMs,
+    nextUpkeepAt: state.nextUpkeepAt - offsetMs,
     diplomaticActionCooldowns: Object.fromEntries(
       Object.entries(state.diplomaticActionCooldowns).map(([key, ts]) => [key, ts - offsetMs]),
     ),
