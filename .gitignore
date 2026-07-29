@@ -6,7 +6,6 @@ dist-ssr
 *.tsbuildinfo
 
 # project docs kept local-only, not pushed to GitHub
-HANDOFF.md
 PROJECT.md
 
 # local tooling config, not pushed to GitHub

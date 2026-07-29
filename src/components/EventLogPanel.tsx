@@ -12,7 +12,8 @@ export function EventLogPanel() {
       <ul className="mission-log-list">
         {eventLog.map((entry) => (
           <li key={entry.id} className={`mission-log-entry ${entry.source}`}>
-            <strong>{entry.name}</strong> &mdash; {entry.source === 'world' ? 'World Event' : 'Narrative Event'}
+            <strong>{entry.name}</strong> &mdash;{' '}
+            {entry.source === 'world' ? 'World Event' : entry.source === 'sect' ? 'Sect' : 'Narrative Event'}
             <br />
             <span className="panel-hint">{entry.text}</span>
           </li>

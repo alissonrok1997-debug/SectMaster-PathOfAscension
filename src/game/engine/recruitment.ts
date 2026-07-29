@@ -44,6 +44,7 @@ export function createRecruit(): DiscipleInstance {
     id: crypto.randomUUID(),
     name: generateDiscipleName(),
     realm: 'Body Tempering',
+    subRealm: 1,
     cultivationProgress: 0,
     talent: randomInRange(gradeRoll.talentRange),
     role,

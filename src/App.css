@@ -630,6 +630,96 @@ button.danger:hover {
   border-color: #7a3b3b;
 }
 
+.disciple-card.selectable {
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.disciple-card.selectable:hover {
+  border-color: #4a4d63;
+  background: #171923;
+}
+
+.disciple-card.active {
+  border-color: #8fd19e;
+  background: #171b1f;
+}
+
+.disciple-card-status {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #3d3f52;
+  color: #9a97a8;
+}
+
+.disciple-card-status.away {
+  color: #a9b4f5;
+  border-color: #6d7dd1;
+}
+
+.disciple-card-status.injured {
+  color: #f0b3b3;
+  border-color: #7a3b3b;
+}
+
+.disciple-card-status.boosted {
+  color: #f2d98a;
+  border-color: #6a5d2f;
+}
+
+/* Disciple detail modal with prev/next navigation */
+.disciple-modal {
+  max-width: 520px;
+}
+
+.disciple-modal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.disciple-modal-nav .panel-hint {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.disciple-modal-nav button {
+  min-width: 2.4rem;
+  padding: 0.25rem 0.7rem;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.disciple-detail-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.5rem;
+  border-bottom: 1px solid #2c2e3d;
+}
+
+.disciple-detail-tabs button {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: #9a97a8;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.disciple-detail-tabs button.active {
+  color: #e8e6df;
+  border-bottom-color: #8fd19e;
+}
+
 .disciple-card-header {
   display: flex;
   justify-content: space-between;
@@ -652,6 +742,26 @@ button.danger:hover {
 .disciple-realm {
   font-size: 0.9rem;
   margin-bottom: 0.35rem;
+}
+
+.disciple-substage {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: #c9a23f;
+  border: 1px solid #6a5d2f;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.15rem;
+}
+
+.breakthrough-controls button {
+  background: #4a3b1f;
+  border-color: #6a5d2f;
+  color: #f2d98a;
+}
+
+.breakthrough-controls button:not(:disabled):hover {
+  background: #5a4826;
 }
 
 .disciple-stat-row {

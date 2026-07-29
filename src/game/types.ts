@@ -94,7 +94,9 @@ export interface DiscipleInstance {
   id: string
   name: string
   realm: CultivationRealm
-  /** 0-100 progress toward the next realm's breakthrough. */
+  /** Current small realm (stage) within the major realm, 1-9. Advances automatically as cultivationProgress fills. */
+  subRealm: number
+  /** 0-100 progress toward the next small realm; at subRealm 9 it fills toward the player-triggered major breakthrough. */
   cultivationProgress: number
   talent: number
   role: DiscipleRole
@@ -287,7 +289,7 @@ export interface PendingEventState {
 /** A resolved world or narrative event, kept for the Sect Chronicle / Event Log (doc 05 Section 11). */
 export interface EventLogEntry {
   id: string
-  source: 'world' | 'narrative'
+  source: 'world' | 'narrative' | 'sect'
   defId: string
   name: string
   text: string
@@ -315,7 +317,7 @@ export interface LoginStreakState {
 
 // --- Game state -----------------------------------------------------------
 
-export const SAVE_VERSION = 12
+export const SAVE_VERSION = 14
 
 export interface GameState {
   saveVersion: number
@@ -363,6 +365,8 @@ export interface GameState {
   pendingEvent?: PendingEventState
   /** Epoch ms the next narrative event roll is due, once the slot is free. */
   nextEventAt: number
+  /** Epoch ms the next disciple upkeep charge is due (engine/upkeep.ts). */
+  nextUpkeepAt: number
   /** Resolved world + narrative events, newest first (doc 05 Section 11's Sect Chronicle / Event Log). */
   eventLog: EventLogEntry[]
   /** Consecutive-calendar-day login streak (doc 11 Section 19). */
@@ -392,6 +396,7 @@ export function createInitialGameState(): GameState {
     diplomaticActionCooldowns: {},
     nextWorldEventAt: 0,
     nextEventAt: 0,
+    nextUpkeepAt: 0,
     eventLog: [],
     loginStreak: { current: 0, longest: 0, lastLoginDate: '' },
   }
