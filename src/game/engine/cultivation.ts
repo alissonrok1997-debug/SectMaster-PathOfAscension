@@ -1,4 +1,4 @@
-import { CULTIVATION_REALMS, type DiscipleInstance, type GameState, type Resources } from '../types'
+import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type GameState, type Resources } from '../types'
 import { BOOST_RATE_PER_SECOND } from './cultivationBoost'
 import { getResearchCultivationRateMultiplier } from './research'
 import { getDoctrineModifiers } from './doctrine'
@@ -190,6 +190,35 @@ export function getBreakthroughEligibility(state: GameState, discipleId: string)
   return { canBreakthrough: true, cost, successChance }
 }
 
+export interface BreakthroughAllSummary {
+  /** Disciples waiting on a player-triggered breakthrough (small realm 9, not away). */
+  readyCount: number
+  /** Total Qi Stone to break through every ready disciple at once. */
+  totalCost: number
+  /** True only when the full batch is affordable — the "Break through all" button is all-or-nothing. */
+  canAffordAll: boolean
+}
+
+/** Disciples eligible for a player-triggered breakthrough right now (small realm 9, at the sect). */
+function getBreakthroughReadyDisciples(state: GameState): DiscipleInstance[] {
+  return state.disciples.filter((d) => d.awayUntil === undefined && isReadyForBreakthrough(d))
+}
+
+/**
+ * Batch summary for the "Break through all" button — how many disciples are ready and the total Qi
+ * Stone to advance all of them. `canAffordAll` gates the button: the batch runs all-or-nothing, never
+ * a partial run, so a shortfall disables it entirely.
+ */
+export function getBreakthroughAllSummary(state: GameState): BreakthroughAllSummary {
+  const ready = getBreakthroughReadyDisciples(state)
+  const totalCost = ready.reduce((sum, d) => sum + getBreakthroughCost(CULTIVATION_REALMS.indexOf(d.realm)), 0)
+  return {
+    readyCount: ready.length,
+    totalCost,
+    canAffordAll: ready.length > 0 && state.resources.qiStone >= totalCost,
+  }
+}
+
 export interface BreakthroughResult {
   disciple: DiscipleInstance
   resources: Resources
@@ -223,4 +252,50 @@ export function resolveBreakthrough(disciple: DiscipleInstance, resources: Resou
     resources: nextResources,
     success: false,
   }
+}
+
+export interface BreakthroughAllResult {
+  disciples: DiscipleInstance[]
+  resources: Resources
+  advanced: number
+  setback: number
+  /** One Sect Chronicle summary line, or undefined when no disciple was attempted. */
+  logEntry?: EventLogEntry
+}
+
+/**
+ * Batch of `resolveBreakthrough` over every ready disciple, threading a single Qi Stone pool through
+ * the attempts. Only runs when the whole batch is affordable (guarded by getBreakthroughAllSummary in
+ * the store), so each ready disciple is attempted. Returns the untouched arrays when none are ready.
+ */
+export function resolveBreakthroughAll(state: GameState): BreakthroughAllResult {
+  const ready = getBreakthroughReadyDisciples(state)
+  if (ready.length === 0) {
+    return { disciples: state.disciples, resources: state.resources, advanced: 0, setback: 0 }
+  }
+
+  const readyIds = new Set(ready.map((d) => d.id))
+  let resources = state.resources
+  let advanced = 0
+  let setback = 0
+
+  const disciples = state.disciples.map((disciple) => {
+    if (!readyIds.has(disciple.id)) return disciple
+    const result = resolveBreakthrough(disciple, resources)
+    resources = result.resources
+    if (result.success) advanced += 1
+    else setback += 1
+    return result.disciple
+  })
+
+  const logEntry: EventLogEntry = {
+    id: crypto.randomUUID(),
+    source: 'sect',
+    defId: 'massBreakthrough',
+    name: 'Mass breakthrough',
+    text: `${advanced} advanced${setback > 0 ? `, ${setback} setback` : ''}.`,
+    resolvedAt: Date.now(),
+  }
+
+  return { disciples, resources, advanced, setback, logEntry }
 }

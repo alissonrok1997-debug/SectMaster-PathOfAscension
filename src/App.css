@@ -608,6 +608,12 @@ button.danger:hover {
   margin: 0;
 }
 
+.disciple-roster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .disciple-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
