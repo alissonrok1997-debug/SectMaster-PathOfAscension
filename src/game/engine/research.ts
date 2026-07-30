@@ -3,6 +3,8 @@ import { getResearchProjectDef, RESEARCH_PROJECT_DEFS } from '../data/researchPr
 import { getBuildingDef } from '../data/buildingDefs'
 import { RESOURCE_LABELS } from '../data/resourceLabels'
 import type { CraftingRecipe } from '../data/craftingRecipes'
+import { getRequiredVeinTierForResearch } from '../data/world/spiritVeinDefs'
+import { getSpiritVeinTier } from './world/worldQueries'
 
 export interface ResearchEligibility {
   canResearch: boolean
@@ -21,6 +23,11 @@ export function getResearchEligibility(state: GameState, projectId: string): Res
   }
   if (!state.buildings[def.requiredBuildingId]) {
     return { canResearch: false, reason: `Requires the ${getBuildingDef(def.requiredBuildingId).name} to be built.` }
+  }
+  // Spirit-Vein unlock gate (§7.3) — inert until vein-gated research is authored.
+  const requiredVeinTier = getRequiredVeinTierForResearch(projectId)
+  if (requiredVeinTier !== undefined && getSpiritVeinTier(state) < requiredVeinTier) {
+    return { canResearch: false, reason: `Requires a Tier ${requiredVeinTier} Spirit Vein or higher.` }
   }
   const deficits = (Object.entries(def.cost) as [keyof Resources, number][])
     .filter(([key, amount]) => state.resources[key] < amount)

@@ -12,6 +12,7 @@ import { WorldScreen } from './components/screens/WorldScreen'
 import { SystemScreen } from './components/screens/SystemScreen'
 import { OfflineSummaryModal } from './components/OfflineSummaryModal'
 import { DecisionEventModal } from './components/DecisionEventModal'
+import { FoundingScreen } from './components/FoundingScreen'
 import { DEFAULT_SCREEN_TAB, type ScreenTabId } from './game/data/screenTabs'
 import { useGameStore } from './game/state/store'
 
@@ -38,8 +39,12 @@ function renderScreen(tab: ScreenTabId) {
 
 function App() {
   useGameLoop()
+  const isFounded = useGameStore((s) => s.state.sectLocation !== undefined)
   const offlineSummary = useGameStore((s) => s.offlineSummary)
   const [activeTab, setActiveTab] = useState<ScreenTabId>(DEFAULT_SCREEN_TAB)
+
+  // Pre-game: the founding flow renders instead of the whole game shell (§12.2).
+  if (!isFounded) return <FoundingScreen />
 
   return (
     <div className="app">

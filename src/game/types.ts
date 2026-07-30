@@ -317,7 +317,11 @@ export interface LoginStreakState {
 
 // --- Game state -----------------------------------------------------------
 
-export const SAVE_VERSION = 14
+// v15 (World Map Phase 2): added optional sectLocation + world. A pre-World-Map
+// save has no sectLocation and would be misread as unfounded, so the bump
+// discards it and routes the player into the FoundingScreen instead (§13.1). No
+// MIGRATIONS entry — discard is the intended path here.
+export const SAVE_VERSION = 15
 
 export interface GameState {
   saveVersion: number
@@ -371,6 +375,226 @@ export interface GameState {
   eventLog: EventLogEntry[]
   /** Consecutive-calendar-day login streak (doc 11 Section 19). */
   loginStreak: LoginStreakState
+  /**
+   * The permanent founding choice (WORLD_MAP_DESIGN §4.4). Undefined until the
+   * sect is founded — its presence is the "has this save been founded?" flag the
+   * app boots on (§12.2). Written once at founding and READ-ONLY FOREVER after;
+   * a future "relocate sect" wants its own system, not a mutation of this field.
+   */
+  sectLocation?: SectLocation
+  /**
+   * All mutable world-map runtime state (§9), created at founding alongside
+   * sectLocation. Undefined pre-founding. Namespaced so the diff against the flat
+   * GameState stays legible and future world systems have a home.
+   */
+  world?: WorldState
+}
+
+// --- World Map & Sect Placement (WORLD_MAP_DESIGN) -----------------------
+// Phase 1 adds cross-cutting id/enum/runtime shapes only. Per-file definition
+// interfaces (ProvinceDefinition, SectSiteDefinition, the location defs, the
+// archetype defs) live in their data/world/ file, mirroring how factionDefs.ts
+// owns FactionDefinition. GameState.sectLocation / GameState.world and the
+// Expedition model arrive with founding (Phase 2) and travel (Phase 4).
+
+export type ProvinceId = string
+export type SectSiteId = string
+export type LocationId = string
+
+export type ProvinceTheme =
+  | 'mountains'
+  | 'plains'
+  | 'forest'
+  | 'desert'
+  | 'islands'
+  | 'wetlands'
+  | 'wastes'
+  | 'karst'
+
+export type ClimateId = 'temperate' | 'arid' | 'humid' | 'frigid' | 'volcanic'
+
+export type ResourceArchetypeId =
+  | 'spiritIronMine'
+  | 'jadeQuarry'
+  | 'spiritHerbValley'
+  | 'beastHuntingGrounds'
+  | 'spiritCrystalCave'
+  | 'ancientForest'
+  | 'spiritSpring'
+
+export type ExplorationArchetypeId =
+  | 'ancientRuins'
+  | 'ancientBattlefield'
+  | 'dragonTomb'
+  | 'hiddenCave'
+  | 'immortalPavilion'
+  | 'secretRealmEntrance'
+
+/** Normalized 0–1 position for the hand-painted map; art only, never a simulation input (§8.2). */
+export interface MapPosition {
+  x: number
+  y: number
+}
+
+/** How a province becomes reachable (§2.1). Tagged union — "unlocked" means different things at different stages. */
+export type ProvinceUnlockRule =
+  | { kind: 'starter' }
+  | { kind: 'adjacent' }
+  | { kind: 'gated'; requiredSectRank: number }
+  | { kind: 'gated'; requiredResearchId: string }
+  | { kind: 'sealed' }
+
+/** How an exploration location becomes visible at all (§6.3). */
+export type LocationDiscoveryRule =
+  | { kind: 'visible' }
+  | { kind: 'surveyed'; minSurveyProgress: number }
+  | { kind: 'unlockedBy'; locationId: LocationId; minKnowledge: number }
+  | { kind: 'itemGated'; itemId: string }
+
+/** Generator input for a province's minor nodes (§5.4). Consumed by world generation in a later phase. */
+export interface NodeTemplateRoll {
+  templateId: string
+  weight: number
+  minCount: number
+  maxCount: number
+}
+
+/**
+ * One typed, uniform bundle of multiplicative modifiers (§4.2). Every field
+ * defaults to 1 and the same shape is reused by sect sites, Spirit Veins,
+ * owned outposts, and world events, so a single aggregation function
+ * (getWorldModifiers, §11.3) can fold them all instead of scattering bonus
+ * logic across the engine. `defenceMult` is declared now and stays inert until
+ * a conflict system exists (§14).
+ */
+export interface SiteModifierBundle {
+  cultivationSpeedMult: number
+  productionMultByResource: Partial<Record<keyof Resources, number>>
+  defenceMult: number
+  travelTimeMult: number
+  recruitmentRateMult: number
+  upkeepMult: number
+  buildTimeMult: number
+}
+
+/** Sparse per-province runtime (§2.2). Stored only once discovered; absent = pristine. */
+export interface ProvinceRuntime {
+  discovered: boolean
+  surveyProgress: number
+}
+
+/**
+ * Sparse per-location runtime (§5.2). Stored ONLY once the player has touched a
+ * location; a location with no entry is "pristine, undiscovered, full capacity"
+ * and the resolver supplies these defaults. Never store definition fields here
+ * (name, yields) — that is the single most important save-safety rule (§13.2).
+ */
+export interface LocationRuntime {
+  discovered: boolean
+  remainingCapacity: number
+  lastVisitedAt: number
+  visitCount: number
+  ownerId?: string
+  outpostLevel: number
+  knowledge: number
+  flags: string[]
+}
+
+/** The two ids + timestamp of the founding choice (§4.4). */
+export interface SectLocation {
+  provinceId: ProvinceId
+  sectSiteId: SectSiteId
+  foundedAt: number
+}
+
+/**
+ * A generated minor node, stored authoritatively in the save once written
+ * (§5.4) — the one deliberate exception to "store ids, never definitions",
+ * because re-deriving from the seed on load would silently mutate a player's
+ * world when a template's ranges are later edited. Field-compatible with a
+ * resource location so the resolver can present it as one (§3.2).
+ */
+export interface GeneratedNodeRecord {
+  id: LocationId
+  kind: 'resource'
+  provinceId: ProvinceId
+  archetypeId: ResourceArchetypeId
+  name: string
+  yieldPerVisit: Partial<Resources>
+  capacity: number
+  regenPerDay?: number
+  dangerTier: number
+  travelUnits: number
+  mapPosition: MapPosition
+  maxParty: number
+  onSiteDurationMs: number
+}
+
+// The Expedition model (§8). Shapes are defined here in Phase 2 so the whole
+// `world` container lands in a single save-version bump; the lifecycle,
+// resolver, and reward logic are built in the travel phase (§8.3).
+
+export type ExpeditionPurpose = 'gather' | 'explore' | 'survey' | 'claim'
+export type ExpeditionPhase = 'outbound' | 'onSite' | 'returning'
+
+/** Accrued in-flight, banked on arrival home (§8.1). */
+export interface ExpeditionPayload {
+  resources: Partial<Resources>
+  knowledgeGained: number
+  itemsGained: ItemInstance[]
+}
+
+/** An injury/event recorded for the arrival report (§8.1 / §8.4). */
+export interface ExpeditionIncident {
+  cycle: number
+  kind: string
+  discipleId?: string
+  description: string
+}
+
+export interface Expedition {
+  id: string
+  purpose: ExpeditionPurpose
+  targetLocationId: LocationId
+  discipleIds: string[]
+  phase: ExpeditionPhase
+  phaseEndsAt: number
+  dispatchedAt: number
+  /** Cached at dispatch so the return leg needs no recompute and can't drift from the outbound leg (§8.2). */
+  outboundMs: number
+  onSiteMs: number
+  cycleTarget: number
+  cyclesCompleted: number
+  payload: ExpeditionPayload
+  incidents: ExpeditionIncident[]
+}
+
+/** Newest-first arrival report, capped, mirroring missionLog (§9). */
+export interface ExpeditionLogEntry {
+  id: string
+  purpose: ExpeditionPurpose
+  targetLocationId: LocationId
+  locationName: string
+  discipleNames: string[]
+  payload: ExpeditionPayload
+  incidents: ExpeditionIncident[]
+  resolvedAt: number
+}
+
+/** All mutable world-map runtime state (§9). Every collection is sparse or empty at founding. */
+export interface WorldState {
+  /** Seed for the node generator — kept for debugging + lazy province generation (§5.4). */
+  seed: number
+  /** Sparse. Only provinces the player has discovered. */
+  provinces: Record<ProvinceId, ProvinceRuntime>
+  /** Sparse. Only locations the player has touched; absent = pristine defaults. */
+  locations: Record<LocationId, LocationRuntime>
+  /** Generated minor nodes, authoritative once written, keyed by province. */
+  generatedNodes: Record<ProvinceId, GeneratedNodeRecord[]>
+  /** Active expeditions. Multi-slot by design (§8.1). */
+  expeditions: Expedition[]
+  /** Newest-first arrival reports, capped. */
+  expeditionLog: ExpeditionLogEntry[]
 }
 
 /** Empty-shell state with no buildings and zeroed resources. `createNewGame` (state/initialState.ts) builds the real Wave 1 starting state on top of this. */

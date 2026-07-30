@@ -4,17 +4,17 @@ import { computeStorageCaps } from './storage'
 import { QI_PRODUCTION_PENALTY_MULTIPLIER } from './cultivationBoost'
 import { getDoctrineModifiers } from './doctrine'
 import { getTerritoryProductionBonus } from './territories'
-import { getWorldEventModifiers } from './worldEvents'
+import { getWorldModifiers } from './world/worldModifiers'
 
 /** A Scholar assigned to the Library improves its Knowledge output (doc 03 — Scholar "Improves Library and Research Institute output"). */
 const SCHOLAR_LIBRARY_BONUS = 1.3
 
-/** Current per-second production rate for every resource, factoring in the Over-Level Penalty, the Active Cultivation Boost's Qi Stone penalty, an assigned Scholar's Library bonus, Sect Doctrine, owned Territories (doc 08 §9), and any active World Event (doc 08 §10) — but not the storage cap, since a rate display shouldn't silently drop to 0 right at the cap. */
+/** Current per-second production rate for every resource, factoring in the Over-Level Penalty, the Active Cultivation Boost's Qi Stone penalty, an assigned Scholar's Library bonus, Sect Doctrine, owned Territories (doc 08 §9), and the aggregated world-map modifiers (sect site + active World Event, via getWorldModifiers) — but not the storage cap, since a rate display shouldn't silently drop to 0 right at the cap. */
 export function computeProductionRatesPerSecond(state: GameState): Resources {
   const hallLevel = state.buildings[SECT_HALL_ID]?.level ?? 1
   const qiPenaltyActive = (state.qiStoneProductionPenaltyUntil ?? 0) > Date.now()
   const doctrineMods = getDoctrineModifiers(state)
-  const worldEventMods = getWorldEventModifiers(state)
+  const worldMods = getWorldModifiers(state)
   const hasLibraryScholar = state.disciples.some((d) => d.role === 'Scholar' && d.assignedBuildingId === 'library')
   const rates = createEmptyResources()
 
@@ -28,7 +28,7 @@ export function computeProductionRatesPerSecond(state: GameState): Resources {
     const scholarBonus = def.id === 'library' && hasLibraryScholar ? SCHOLAR_LIBRARY_BONUS : 1
     const knowledgeDoctrineBonus = def.produces === 'knowledge' ? doctrineMods.knowledgeMult : 1
     const territoryBonus = getTerritoryProductionBonus(state, def.produces)
-    const worldEventBonus = worldEventMods.productionMult[def.produces] ?? 1
+    const worldBonus = worldMods.productionMultByResource[def.produces] ?? 1
     rates[def.produces] +=
       def.baseRatePerLevel *
       building.level *
@@ -38,7 +38,7 @@ export function computeProductionRatesPerSecond(state: GameState): Resources {
       doctrineMods.productionMult *
       knowledgeDoctrineBonus *
       territoryBonus *
-      worldEventBonus
+      worldBonus
   }
 
   return rates

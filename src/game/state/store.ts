@@ -25,7 +25,7 @@ import {
 import { resolveUpkeepDue } from '../engine/upkeep'
 import { computeDiscipleCapacity } from '../engine/discipleCapacity'
 import { getAssignEligibility } from '../engine/buildingAssignment'
-import { createRecruit, getRecruitmentCost } from '../engine/recruitment'
+import { createRecruit, getEffectiveRecruitmentCost } from '../engine/recruitment'
 import { BOOST_COST, BOOST_DURATION_MS, getBoostEligibility } from '../engine/cultivationBoost'
 import { applyOfflineCatchUp, emptyOfflineSummary, rewindStateClock, type OfflineSummary } from '../engine/offlineCatchup'
 import { resolveLoginStreak } from '../engine/loginStreak'
@@ -55,6 +55,9 @@ import { getTerritoryDef } from '../data/territoryDefs'
 import { applyDiplomaticAction } from '../engine/diplomacy'
 import { resolveWorldEventLifecycle } from '../engine/worldEvents'
 import { resolveEventChoice as applyEventChoice, resolveEventLifecycle } from '../engine/events'
+import { buildInitialWorldState, getFoundingEligibility } from '../engine/world/founding'
+import { getSectSiteDef } from '../data/world/sectSiteDefs'
+import { getSectSpiritVein } from '../engine/world/worldQueries'
 
 const DEBUG_RESOURCE_GRANT: Resources = {
   spiritStones: 200,
@@ -71,6 +74,8 @@ interface GameStore {
   dismissOfflineSummary: () => void
   /** Advances both clocks by real elapsed ms, applies production/cultivation, resolves finished construction. */
   tick: (deltaMs: number) => void
+  /** The one-time, irreversible founding choice (WORLD_MAP_DESIGN §12.2). */
+  foundSect: (provinceId: string, sectSiteId: string) => void
   startUpgrade: (buildingId: string) => void
   claimSpecializationSlot: (buildingId: string) => void
   demolishSpecializationBuilding: (buildingId: string) => void
@@ -133,6 +138,10 @@ export const useGameStore = create<GameStore>((set) => ({
 
   tick: (deltaMs) =>
     set((store) => {
+      // The simulation is frozen until the sect is founded — the FoundingScreen
+      // is pre-game and nothing (production, cultivation, events) should accrue
+      // against the not-yet-founded starting sect (§12.2).
+      if (!store.state.sectLocation) return {}
       const now = Date.now()
       const buildings = resolveCompletedConstruction(store.state.buildings, now)
       const stateAfterConstruction = { ...store.state, buildings }
@@ -159,6 +168,32 @@ export const useGameStore = create<GameStore>((set) => ({
           worldClock: { totalElapsedMs: store.state.worldClock.totalElapsedMs + deltaMs },
         },
       }
+    }),
+
+  foundSect: (provinceId, sectSiteId) =>
+    set((store) => {
+      // Read-only forever: once founded, this choice can never be re-made (§4.4).
+      if (store.state.sectLocation) return {}
+      if (!getFoundingEligibility(provinceId, sectSiteId).canFound) return {}
+
+      const now = Date.now()
+      const seed = Math.floor(Math.random() * 0x7fffffff)
+      const { sectLocation, world } = buildInitialWorldState(provinceId, sectSiteId, seed, now)
+
+      // Apply the site's one-time founding grant, clamped to storage caps like any resource grant (§4.1).
+      let resources = store.state.resources
+      const startingBonus = getSectSiteDef(sectSiteId).startingBonus
+      if (startingBonus) {
+        const caps = computeStorageCaps(store.state)
+        resources = { ...resources }
+        for (const [key, amount] of Object.entries(startingBonus) as [keyof Resources, number][]) {
+          resources[key] = Math.min(caps[key], resources[key] + amount)
+        }
+      }
+
+      const state: GameState = { ...store.state, sectLocation, world, resources }
+      saveGame(state)
+      return { state }
     }),
 
   startUpgrade: (buildingId) =>
@@ -280,14 +315,15 @@ export const useGameStore = create<GameStore>((set) => ({
       const capacity = computeDiscipleCapacity(store.state.buildings)
       if (store.state.disciples.length >= capacity) return {}
 
-      const cost = getRecruitmentCost(store.state.disciples.length)
+      const cost = getEffectiveRecruitmentCost(store.state)
       if (store.state.resources.spiritStones < cost) return {}
 
       return {
         state: {
           ...store.state,
           resources: { ...store.state.resources, spiritStones: store.state.resources.spiritStones - cost },
-          disciples: [...store.state.disciples, createRecruit()],
+          // Province Spirit Vein raises recruit quality (§7.1).
+          disciples: [...store.state.disciples, createRecruit(getSectSpiritVein(store.state).recruitQualityMult)],
         },
       }
     }),

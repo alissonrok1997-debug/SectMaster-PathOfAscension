@@ -1,4 +1,5 @@
 import { SectRankPanel } from '../SectRankPanel'
+import { SectIdentityPanel } from '../SectIdentityPanel'
 import { SimClockPanel } from '../SimClockPanel'
 import { WorldClockPanel } from '../WorldClockPanel'
 import { OnboardingChecklist } from '../OnboardingChecklist'
@@ -10,6 +11,7 @@ export function SectScreen() {
       <OnboardingChecklist />
       <div className="panel-grid">
         <SectRankPanel />
+        <SectIdentityPanel />
         <SimClockPanel />
         <WorldClockPanel />
       </div>

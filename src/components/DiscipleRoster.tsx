@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
 import { computeDiscipleCapacity } from '../game/engine/discipleCapacity'
 import { getBreakthroughAllSummary } from '../game/engine/cultivation'
-import { getRecruitmentCost } from '../game/engine/recruitment'
+import { getEffectiveRecruitmentCost } from '../game/engine/recruitment'
 import { getSectUpkeepPerCycle, isUpkeepAffordable } from '../game/engine/upkeep'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
 import { DiscipleCard } from './DiscipleCard'
@@ -15,7 +15,7 @@ export function DiscipleRoster() {
   const [openDiscipleId, setOpenDiscipleId] = useState<string | null>(null)
 
   const capacity = computeDiscipleCapacity(state.buildings)
-  const cost = getRecruitmentCost(state.disciples.length)
+  const cost = getEffectiveRecruitmentCost(state)
   const atCapacity = state.disciples.length >= capacity
   const canAfford = state.resources.spiritStones >= cost
   const upkeep = getSectUpkeepPerCycle(state)

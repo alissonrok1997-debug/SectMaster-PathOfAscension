@@ -1,9 +1,20 @@
-import type { DiscipleGrade, DiscipleInstance, DiscipleRole } from '../types'
+import type { DiscipleGrade, DiscipleInstance, DiscipleRole, GameState } from '../types'
 import { generateDiscipleName } from '../data/discipleNames'
+import { getWorldModifiers } from './world/worldModifiers'
 
 /** Spirit Stone recruitment cost, scaling with how many disciples are already recruited (doc 03, Section 6/7). */
 export function getRecruitmentCost(existingDiscipleCount: number): number {
   return 60 + existingDiscipleCount * 20
+}
+
+/**
+ * Recruitment cost after the sect site's recruitment-rate modifier (§4.2, e.g.
+ * Mistfen Hollow +15%) — a higher rate makes each recruit cheaper. Shared by the
+ * Recruit button and the store guard so the shown cost and the charged cost never
+ * drift, per the eligibility-function convention.
+ */
+export function getEffectiveRecruitmentCost(state: GameState): number {
+  return Math.ceil(getRecruitmentCost(state.disciples.length) / getWorldModifiers(state).recruitmentRateMult)
 }
 
 interface GradeRoll {
@@ -36,9 +47,11 @@ function randomInRange([min, max]: [number, number]): number {
   return Math.round(min + Math.random() * (max - min))
 }
 
-export function createRecruit(): DiscipleInstance {
+/** `talentMultiplier` folds in the province's Spirit Vein recruit-quality effect (§7.1, defaults to 1). */
+export function createRecruit(talentMultiplier: number = 1): DiscipleInstance {
   const gradeRoll = rollGrade()
   const role = ROLES[Math.floor(Math.random() * ROLES.length)]
+  const talent = Math.max(1, Math.min(100, Math.round(randomInRange(gradeRoll.talentRange) * talentMultiplier)))
 
   return {
     id: crypto.randomUUID(),
@@ -46,7 +59,7 @@ export function createRecruit(): DiscipleInstance {
     realm: 'Body Tempering',
     subRealm: 1,
     cultivationProgress: 0,
-    talent: randomInRange(gradeRoll.talentRange),
+    talent,
     role,
     grade: gradeRoll.grade,
     loyalty: 70,

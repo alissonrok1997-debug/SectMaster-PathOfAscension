@@ -2,7 +2,7 @@ import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type Gam
 import { BOOST_RATE_PER_SECOND } from './cultivationBoost'
 import { getResearchCultivationRateMultiplier } from './research'
 import { getDoctrineModifiers } from './doctrine'
-import { getWorldEventModifiers } from './worldEvents'
+import { getWorldModifiers } from './world/worldModifiers'
 import { INJURY_RECOVERY_MS } from './injury'
 
 /**
@@ -96,10 +96,12 @@ export function applyCultivationTick(state: GameState, deltaMs: number): Cultiva
   const now = Date.now()
   const deltaSeconds = deltaMs / 1000
   const trainingHallLevel = state.buildings.trainingHall?.level ?? 0
+  // getWorldModifiers folds the sect site's cultivation bonus, the province's
+  // Spirit Vein, and any active world event into one cultivationSpeedMult (§11.3).
   const rateMultiplier =
     getResearchCultivationRateMultiplier(state) *
     getDoctrineModifiers(state).cultivationRateMult *
-    getWorldEventModifiers(state).cultivationRateMult
+    getWorldModifiers(state).cultivationSpeedMult
 
   let resources = state.resources
   let anyChanged = false

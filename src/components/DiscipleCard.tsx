@@ -3,6 +3,7 @@ import { getDiscipleCultivationRate, isReadyForBreakthrough } from '../game/engi
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
 import { getResearchCultivationRateMultiplier } from '../game/engine/research'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
+import { getWorldModifiers } from '../game/engine/world/worldModifiers'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
 
 interface DiscipleCardProps {
@@ -23,7 +24,11 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
   const isBoosted = disciple.activeBoostUntil !== undefined && disciple.activeBoostUntil > Date.now()
   const trainingHallLevel = state.buildings.trainingHall?.level ?? 0
   const doctrineMods = getDoctrineModifiers(state)
-  const cultivationRateMultiplier = getResearchCultivationRateMultiplier(state) * doctrineMods.cultivationRateMult
+  // Mirrors applyCultivationTick's rate multiplier so the displayed rate matches the tick (site + vein + world event via getWorldModifiers).
+  const cultivationRateMultiplier =
+    getResearchCultivationRateMultiplier(state) *
+    doctrineMods.cultivationRateMult *
+    getWorldModifiers(state).cultivationSpeedMult
   const cultivationRate = getDiscipleCultivationRate(disciple, trainingHallLevel, cultivationRateMultiplier)
   const pointsRemaining = Math.max(0, 100 - disciple.cultivationProgress)
   const etaToNextStage = cultivationRate > 0 ? formatDurationAdaptive(pointsRemaining / cultivationRate) : null

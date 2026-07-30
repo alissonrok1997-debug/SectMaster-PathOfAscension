@@ -1,5 +1,6 @@
 import type { GameState } from '../types'
 import { SECT_HALL_ID } from '../data/buildingDefs'
+import { getDiscipleAvailability } from './discipleAvailability'
 
 /** Work slots a building offers for disciple assignment: floor(level / 2) + 1. */
 export function getBuildingSlotCount(level: number): number {
@@ -24,7 +25,9 @@ export function getAssignEligibility(state: GameState, discipleId: string, build
   const disciple = state.disciples.find((d) => d.id === discipleId)
   if (!disciple) return { canAssign: false, reason: 'Disciple not found.' }
   // Presence Requirement: an away disciple cannot be reassigned (doc 03, Section 8).
-  if (disciple.awayUntil !== undefined) return { canAssign: false, reason: 'Away on a mission.' }
+  // Routed through the unified availability check (WORLD_MAP_DESIGN §8.5).
+  const availability = getDiscipleAvailability(state, discipleId)
+  if (!availability.available) return { canAssign: false, reason: availability.label }
   const building = state.buildings[buildingId]
   if (!building) return { canAssign: false, reason: 'Building not built.' }
   if (buildingId === SECT_HALL_ID) return { canAssign: false, reason: 'The Sect Hall has no work assignments.' }

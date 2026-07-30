@@ -8,6 +8,10 @@ import {
   type BuildingDefinition,
 } from '../data/buildingDefs'
 import { isConstructionQueueBusy } from './construction'
+import { getWorldModifiers } from './world/worldModifiers'
+import { getBuildingSlotUsage } from './world/siteCapacity'
+import { getSpiritVeinTier } from './world/worldQueries'
+import { getRequiredVeinTierForBuilding } from '../data/world/spiritVeinDefs'
 
 export function getClaimedSpecializationCount(state: GameState): number {
   return Object.keys(state.buildings).filter((id) => getBuildingDef(id).slotType === 'specialization').length
@@ -34,7 +38,8 @@ export interface ClaimSlotEligibility {
 export function getClaimSlotEligibility(state: GameState, buildingId: string): ClaimSlotEligibility {
   const def = getBuildingDef(buildingId)
   const cost = getUpgradeCost(def, 1)
-  const durationMs = getUpgradeDurationMs(def, 1)
+  // Sect-site build-time modifier (§4.2) applies to a claim's level 0→1 build too.
+  const durationMs = getUpgradeDurationMs(def, 1) * getWorldModifiers(state).buildTimeMult
 
   const fail = (reason: string): ClaimSlotEligibility => ({ canClaim: false, reason, cost, durationMs })
 
@@ -49,6 +54,16 @@ export function getClaimSlotEligibility(state: GameState, buildingId: string): C
   }
   if (getClaimedSpecializationCount(state) >= SPECIALIZATION_SLOT_COUNT) {
     return fail(`All ${SPECIALIZATION_SLOT_COUNT} specialization slots are occupied.`)
+  }
+  // Sect-site building-slot cap (§4.3) — a claim adds a building, so it can hit the site's 'noBuildingSlots' limit.
+  const slots = getBuildingSlotUsage(state)
+  if (slots.used >= slots.total) {
+    return fail(`No building slots left — this site supports ${slots.total} buildings.`)
+  }
+  // Spirit-Vein unlock gate (§7.3) — inert until vein-gated buildings are authored.
+  const requiredVeinTier = getRequiredVeinTierForBuilding(buildingId)
+  if (requiredVeinTier !== undefined && getSpiritVeinTier(state) < requiredVeinTier) {
+    return fail(`Requires a Tier ${requiredVeinTier} Spirit Vein or higher.`)
   }
   for (const [key, amount] of Object.entries(cost) as [keyof Resources, number][]) {
     if (state.resources[key] < amount) {
