@@ -3,6 +3,42 @@ import { createNewGame } from '../state/initialState'
 
 const STORAGE_KEY = 'sect-master-save'
 
+/**
+ * Save migrations keyed by the version they upgrade *from*: each takes a raw save
+ * at version N and returns it reshaped so its `saveVersion` reads N+1 (or higher).
+ * Applied in ascending order by `runMigrations`; if the chain from the save's
+ * version up to SAVE_VERSION has a gap, the save is discarded — the pre-existing
+ * no-migration behaviour, now the explicit fallback rather than the only path.
+ *
+ * Empty today. The seam exists ahead of need (WORLD_MAP_DESIGN §13.3): the World
+ * Map wave introduces the first irreversible player choice (the founding
+ * decision), so losing a save to a later version bump becomes materially worse
+ * than losing a pre-World-Map one — the cheapest moment to add the hook is now,
+ * while a discard still costs nothing.
+ */
+const MIGRATIONS: Record<number, (raw: unknown) => unknown> = {}
+
+/**
+ * Walks a raw parsed save up to SAVE_VERSION through MIGRATIONS. Returns the
+ * upgraded save, or null when no path exists (→ discard, as before). Kept
+ * defensive: a migration that fails to advance the version is treated as a gap
+ * rather than looped on forever.
+ */
+function runMigrations(raw: { saveVersion?: number }): GameState | null {
+  let version = raw.saveVersion
+  let current: unknown = raw
+  while (version !== SAVE_VERSION) {
+    if (version === undefined) return null
+    const migrate = MIGRATIONS[version]
+    if (!migrate) return null
+    current = migrate(current)
+    const nextVersion = (current as { saveVersion?: number }).saveVersion
+    if (nextVersion === undefined || nextVersion <= version) return null
+    version = nextVersion
+  }
+  return current as GameState
+}
+
 export function saveGame(state: GameState): void {
   const toStore: GameState = { ...state, lastSavedAt: Date.now() }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore))
@@ -13,13 +49,10 @@ export function loadGame(): GameState | null {
   if (!raw) return null
 
   try {
-    const parsed = JSON.parse(raw) as GameState
-    if (parsed.saveVersion !== SAVE_VERSION) {
-      // No migrations exist yet in Wave 0 — start fresh rather than risk
-      // hydrating a shape the rest of the app doesn't expect.
-      return null
-    }
-    return parsed
+    const parsed = JSON.parse(raw) as { saveVersion?: number }
+    // Version match returns the save as-is; a mismatch routes through the
+    // migration chain, which discards when no upgrade path exists (§13.3).
+    return runMigrations(parsed)
   } catch {
     return null
   }

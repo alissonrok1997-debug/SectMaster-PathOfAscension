@@ -12,6 +12,7 @@ import { getMissionDef, MISSION_DEFS, type MissionDefinition } from '../data/mis
 import { getSquadCombatPower } from './combatPower'
 import { INJURY_RECOVERY_MS, rollInjurySeverity } from './injury'
 import { getDoctrineModifiers } from './doctrine'
+import { getDiscipleAvailability } from './discipleAvailability'
 
 /** Mission Board (doc 04 §8): a limited, periodically-refreshing set of available missions. */
 export const MISSION_BOARD_SIZE = 4
@@ -138,7 +139,8 @@ export function getMissionDispatchEligibility(
   for (const id of squadDiscipleIds) {
     const disciple = state.disciples.find((d) => d.id === id)
     if (!disciple) return { canDispatch: false, reason: 'Disciple not found.' }
-    if (disciple.awayUntil !== undefined) {
+    // Routed through the unified availability check (WORLD_MAP_DESIGN §8.5).
+    if (!getDiscipleAvailability(state, id).available) {
       return { canDispatch: false, reason: `${disciple.name} is already away.` }
     }
   }

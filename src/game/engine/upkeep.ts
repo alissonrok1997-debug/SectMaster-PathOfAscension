@@ -1,4 +1,5 @@
 import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type GameState } from '../types'
+import { getWorldModifiers } from './world/worldModifiers'
 
 /**
  * Disciple upkeep (doc 03, Section 7's deferred "Treasury upkeep gate", pulled in as a real ongoing
@@ -29,12 +30,16 @@ export function getDiscipleUpkeep(disciple: DiscipleInstance): { spiritStones: n
   }
 }
 
-/** Total Spirit Stone + Qi Stone the whole roster owes each cycle — the number the UI displays. */
+/** Total Spirit Stone + Qi Stone the whole roster owes each cycle — the number the UI displays. Scaled by the sect site's upkeep modifier (§4.2, e.g. Mistfen Hollow -10%). */
 export function getSectUpkeepPerCycle(state: GameState): { spiritStones: number; qiStone: number } {
+  const upkeepMult = getWorldModifiers(state).upkeepMult
   return state.disciples.reduce(
     (sum, d) => {
       const cost = getDiscipleUpkeep(d)
-      return { spiritStones: sum.spiritStones + cost.spiritStones, qiStone: sum.qiStone + cost.qiStone }
+      return {
+        spiritStones: sum.spiritStones + cost.spiritStones * upkeepMult,
+        qiStone: sum.qiStone + cost.qiStone * upkeepMult,
+      }
     },
     { spiritStones: 0, qiStone: 0 },
   )
@@ -74,12 +79,17 @@ export function resolveUpkeepDue(state: GameState, now: number): { state: GameSt
   let disciples = state.disciples
   let eventLog = state.eventLog
   let nextUpkeepAt = state.nextUpkeepAt
+  // Sect-site upkeep modifier (§4.2). Constant over the loop — sectLocation never changes — so it's read once.
+  const upkeepMult = getWorldModifiers(state).upkeepMult
 
   while (now >= nextUpkeepAt) {
     const cost = disciples.reduce(
       (sum, d) => {
         const c = getDiscipleUpkeep(d)
-        return { spiritStones: sum.spiritStones + c.spiritStones, qiStone: sum.qiStone + c.qiStone }
+        return {
+          spiritStones: sum.spiritStones + c.spiritStones * upkeepMult,
+          qiStone: sum.qiStone + c.qiStone * upkeepMult,
+        }
       },
       { spiritStones: 0, qiStone: 0 },
     )

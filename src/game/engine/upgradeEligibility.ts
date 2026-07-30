@@ -2,6 +2,7 @@ import type { GameState, Resources } from '../types'
 import { getBuildingDef, getUpgradeCost, getUpgradeDurationMs, SECT_HALL_ID } from '../data/buildingDefs'
 import { computeSectRank } from './sectRank'
 import { isConstructionQueueBusy } from './construction'
+import { getWorldModifiers } from './world/worldModifiers'
 
 export interface UpgradeEligibility {
   canUpgrade: boolean
@@ -26,7 +27,8 @@ export function getUpgradeEligibility(state: GameState, buildingId: string): Upg
 
   const targetLevel = building.level + 1
   const cost = getUpgradeCost(def, building.level)
-  const durationMs = getUpgradeDurationMs(def, building.level)
+  // Sect-site build-time modifier (§4.2, e.g. Cinder Terrace -15%). Snapshotted at start like every duration here.
+  const durationMs = getUpgradeDurationMs(def, building.level) * getWorldModifiers(state).buildTimeMult
   const hallLevel = state.buildings[SECT_HALL_ID]?.level ?? 1
   const rank = computeSectRank(hallLevel)
   const isHall = buildingId === SECT_HALL_ID
