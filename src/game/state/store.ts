@@ -15,7 +15,13 @@ import { getUpgradeEligibility } from '../engine/upgradeEligibility'
 import { getClaimSlotEligibility, getDemolishEligibility } from '../engine/specializationSlots'
 import { computeStorageCaps } from '../engine/storage'
 import { getBuildingDef, SECT_HALL_ID } from '../data/buildingDefs'
-import { applyCultivationTick, getBreakthroughEligibility, resolveBreakthrough } from '../engine/cultivation'
+import {
+  applyCultivationTick,
+  getBreakthroughAllSummary,
+  getBreakthroughEligibility,
+  resolveBreakthrough,
+  resolveBreakthroughAll,
+} from '../engine/cultivation'
 import { resolveUpkeepDue } from '../engine/upkeep'
 import { computeDiscipleCapacity } from '../engine/discipleCapacity'
 import { getAssignEligibility } from '../engine/buildingAssignment'
@@ -72,6 +78,7 @@ interface GameStore {
   assignDisciple: (discipleId: string, buildingId: string | undefined) => void
   activateCultivationBoost: (discipleId: string) => void
   attemptBreakthrough: (discipleId: string) => void
+  attemptBreakthroughAll: () => void
   dispatchMission: (offerId: string, squadDiscipleIds: string[]) => void
   startCraft: (recipeId: string) => void
   equipItem: (discipleId: string, instanceId: string) => void
@@ -340,6 +347,22 @@ export const useGameStore = create<GameStore>((set) => ({
         ...store.state,
         resources: result.resources,
         disciples: store.state.disciples.map((d) => (d.id === discipleId ? result.disciple : d)),
+      }
+      saveGame(nextState)
+      return { state: nextState }
+    }),
+
+  attemptBreakthroughAll: () =>
+    set((store) => {
+      // All-or-nothing: only run when every ready disciple's breakthrough is affordable.
+      if (!getBreakthroughAllSummary(store.state).canAffordAll) return {}
+
+      const result = resolveBreakthroughAll(store.state)
+      const nextState: GameState = {
+        ...store.state,
+        resources: result.resources,
+        disciples: result.disciples,
+        eventLog: result.logEntry ? [result.logEntry, ...store.state.eventLog].slice(0, 10) : store.state.eventLog,
       }
       saveGame(nextState)
       return { state: nextState }
