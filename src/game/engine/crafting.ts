@@ -10,10 +10,18 @@ export interface CraftEligibility {
   reason?: string
 }
 
-/** Single source of truth for whether a recipe can be started — shared by the Crafting Panel and the store guard, same pattern as getUpgradeEligibility. */
-export function getCraftEligibility(state: GameState, recipeId: string): CraftEligibility {
+/**
+ * Single source of truth for whether a recipe can be started — shared by the
+ * Crafting Panel and the store guard, same pattern as getUpgradeEligibility. A
+ * batch of `quantity` charges its whole cost upfront, so affordability is checked
+ * against `cost × quantity`.
+ */
+export function getCraftEligibility(state: GameState, recipeId: string, quantity = 1): CraftEligibility {
   const recipe = getRecipe(recipeId)
 
+  if (quantity < 1) {
+    return { canCraft: false, reason: 'Choose at least one item to craft.' }
+  }
   if (state.craftingQueue !== undefined) {
     return { canCraft: false, reason: 'Crafting queue is busy — only one item can be crafted at a time.' }
   }
@@ -21,8 +29,8 @@ export function getCraftEligibility(state: GameState, recipeId: string): CraftEl
     return { canCraft: false, reason: `Requires the ${getBuildingDef(recipe.requiredBuildingId).name} to be built.` }
   }
   const deficits = (Object.entries(recipe.cost) as [keyof Resources, number][])
-    .filter(([key, amount]) => state.resources[key] < amount)
-    .map(([key, amount]) => `${amount} ${RESOURCE_LABELS[key]}`)
+    .filter(([key, amount]) => state.resources[key] < amount * quantity)
+    .map(([key, amount]) => `${amount * quantity} ${RESOURCE_LABELS[key]}`)
   if (deficits.length > 0) {
     return { canCraft: false, reason: `Need ${deficits.join(', ')}.` }
   }
@@ -67,29 +75,46 @@ export function removeItemFromInventory(items: ItemInstance[], itemDefId: string
 }
 
 /**
- * Resolves an in-progress craft once its timer elapses, granting one unit
- * of the recipe's item. Single-slot sweep — same "sweep whatever's due"
- * shape as resolveCompletedConstruction/resolveCompletedMissions, callable
- * from both the live tick and the offline catch-up loop.
+ * Resolves an in-progress craft once its timer elapses. Drains every batch item
+ * whose scheduled completion has already passed (so a fast recipe or a long
+ * offline gap produces the right count in one call, not one-per-tick), granting a
+ * fresh unit each time and chaining the next item's timer off the previous one.
+ * Same "sweep whatever's due" shape as resolveCompletedConstruction, callable from
+ * both the live tick and the offline catch-up loop.
  */
 export function resolveCompletedCrafting(
   state: GameState,
   now: number,
-): { state: GameState; itemCrafted?: string; craftedQuality?: ItemQuality } {
+): { state: GameState; craftedItems: { itemDefId: string; quality?: ItemQuality }[] } {
   const queue = state.craftingQueue
-  if (queue === undefined || queue.endsAt > now) return { state }
+  if (queue === undefined || queue.endsAt > now) return { state, craftedItems: [] }
 
   const recipe = getRecipe(queue.recipeId)
   const itemDef = getItemDef(recipe.itemDefId)
-  const quality = itemDef.category === 'Equipment' ? rollItemQuality() : undefined
-  const items =
-    quality !== undefined
-      ? addEquipmentInstance(state.items, recipe.itemDefId, quality)
-      : addStackableItem(state.items, recipe.itemDefId, itemDef.category)
+  const itemDurationMs = queue.itemDurationMs ?? 0
 
-  return {
-    state: { ...state, items, craftingQueue: undefined },
-    itemCrafted: recipe.itemDefId,
-    craftedQuality: quality,
+  let items = state.items
+  let remaining = queue.remaining ?? 1
+  let endsAt = queue.endsAt
+  const craftedItems: { itemDefId: string; quality?: ItemQuality }[] = []
+
+  // Produce each item whose completion time has already elapsed. A non-positive
+  // itemDurationMs (legacy single-item queues) can't schedule a successor, so the
+  // loop naturally stops after one — matching the old single-item behaviour.
+  while (remaining > 0 && endsAt <= now) {
+    const quality = itemDef.category === 'Equipment' ? rollItemQuality() : undefined
+    items =
+      quality !== undefined
+        ? addEquipmentInstance(items, recipe.itemDefId, quality)
+        : addStackableItem(items, recipe.itemDefId, itemDef.category)
+    craftedItems.push({ itemDefId: recipe.itemDefId, quality })
+    remaining -= 1
+    if (remaining > 0 && itemDurationMs > 0) endsAt += itemDurationMs
+    else break
   }
+
+  const craftingQueue =
+    remaining > 0 ? { recipeId: queue.recipeId, endsAt, remaining, itemDurationMs } : undefined
+
+  return { state: { ...state, items, craftingQueue }, craftedItems }
 }

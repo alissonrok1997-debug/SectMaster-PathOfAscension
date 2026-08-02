@@ -33,8 +33,8 @@ const MISSION_INJURY_MULTIPLIER: Record<DiscipleInstance['injury'], number> = {
   critical: 0.3,
 }
 
-/** Per-disciple contribution to a non-combat mission's success chance — Talent and Realm, the same inputs doc 04 §4 calls out, minus what doesn't exist yet (Equipment, Technique, Doctrine). */
-function getDisciplePowerRating(disciple: DiscipleInstance): number {
+/** Per-disciple contribution to a non-combat mission's success chance — Talent and Realm, the same inputs doc 04 §4 calls out, minus what doesn't exist yet (Equipment, Technique, Doctrine). Exposed so the squad picker can rank disciples by their fit for a non-combat mission. */
+export function getDisciplePowerRating(disciple: DiscipleInstance): number {
   const realmIndex = CULTIVATION_REALMS.indexOf(disciple.realm)
   const rating = disciple.talent * 0.5 + realmIndex * 8
   return rating * MISSION_INJURY_MULTIPLIER[disciple.injury]

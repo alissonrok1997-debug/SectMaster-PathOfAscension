@@ -1,4 +1,5 @@
 import type { Resources, ResourceArchetypeId } from '../../types'
+import type { NumberRange } from '../../engine/rng'
 
 /**
  * Generator templates for minor resource nodes (WORLD_MAP_DESIGN §5.4 / §10). A
@@ -10,11 +11,6 @@ import type { Resources, ResourceArchetypeId } from '../../types'
  * yet. The content scale-out phase (§16 Phase 6) fills both sides in — with no
  * engine or type change required, which is the property that phase tests.
  */
-export interface NumberRange {
-  min: number
-  max: number
-}
-
 export interface ResourceNodeTemplate {
   id: string
   archetypeId: ResourceArchetypeId

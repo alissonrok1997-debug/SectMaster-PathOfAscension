@@ -13,6 +13,7 @@ import { SystemScreen } from './components/screens/SystemScreen'
 import { OfflineSummaryModal } from './components/OfflineSummaryModal'
 import { DecisionEventModal } from './components/DecisionEventModal'
 import { FoundingScreen } from './components/FoundingScreen'
+import { RelocationPruneModal } from './components/RelocationPruneModal'
 import { DEFAULT_SCREEN_TAB, type ScreenTabId } from './game/data/screenTabs'
 import { useGameStore } from './game/state/store'
 
@@ -40,11 +41,14 @@ function renderScreen(tab: ScreenTabId) {
 function App() {
   useGameLoop()
   const isFounded = useGameStore((s) => s.state.sectLocation !== undefined)
+  const pendingRelocation = useGameStore((s) => s.state.pendingRelocation)
   const offlineSummary = useGameStore((s) => s.offlineSummary)
   const [activeTab, setActiveTab] = useState<ScreenTabId>(DEFAULT_SCREEN_TAB)
 
   // Pre-game: the founding flow renders instead of the whole game shell (§12.2).
   if (!isFounded) return <FoundingScreen />
+  // A winning seat-claim over building capacity gates the shell the same way, until pruned (FIRST_REALM_PLAN §4.2/§7).
+  if (pendingRelocation) return <RelocationPruneModal />
 
   return (
     <div className="app">

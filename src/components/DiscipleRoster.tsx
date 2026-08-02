@@ -62,9 +62,11 @@ export function DiscipleRoster() {
         <p className="panel-hint">No disciples yet. Recruit one to start filling the sect.</p>
       ) : (
         <div className="disciple-grid">
-          {state.disciples.map((d) => (
-            <DiscipleCard key={d.id} discipleId={d.id} onSelect={setOpenDiscipleId} />
-          ))}
+          {[...state.disciples]
+            .sort((a, b) => b.talent - a.talent)
+            .map((d) => (
+              <DiscipleCard key={d.id} discipleId={d.id} onSelect={setOpenDiscipleId} />
+            ))}
         </div>
       )}
 

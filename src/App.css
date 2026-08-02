@@ -196,8 +196,13 @@ button {
   font-size: 0.9rem;
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background: #3d3f52;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 button.danger {
@@ -586,8 +591,14 @@ button.danger:hover {
   color: #f0b3b3;
 }
 
-.demolish-button:hover {
+.demolish-button:hover:not(:disabled) {
   background: #2a1717;
+}
+
+.disciple-expel {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #3d3f52;
 }
 
 /* Disciples */
@@ -1400,4 +1411,191 @@ button.secondary {
 
 .modifier-list li.mod-bad {
   color: #e29a9a;
+}
+
+/* --- World Map (WORLD_MAP_DESIGN Phase 4) --- */
+.world-subnav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.world-subnav button {
+  padding: 0.4rem 1rem;
+  font-size: 0.9rem;
+}
+
+.world-subnav button.active {
+  background: #3a3550;
+  color: #f2d98a;
+  border-color: #f2d98a;
+}
+
+.world-map-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.world-map-svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  background: radial-gradient(circle at 50% 40%, #1b2430, #12131a 70%);
+  border-radius: 8px;
+}
+
+.world-map-edge {
+  stroke: #3a3f4d;
+  stroke-width: 3;
+  stroke-dasharray: 8 6;
+}
+
+.world-map-node circle {
+  fill: #232735;
+  stroke: #4a4f60;
+  stroke-width: 3;
+  transition: fill 0.15s, stroke 0.15s;
+}
+
+.world-map-node.reachable circle {
+  fill: #2a3245;
+  stroke: #6b7794;
+  stroke-dasharray: 5 4;
+}
+
+.world-map-node.discovered circle {
+  fill: #2c3a2f;
+  stroke: #7fae86;
+}
+
+.world-map-node.sect circle {
+  fill: #3a3320;
+  stroke: #f2d98a;
+  stroke-width: 4;
+}
+
+.world-map-node.locked circle {
+  fill: #1a1b22;
+  stroke: #33353f;
+}
+
+.world-map-node:not(.locked):hover circle {
+  stroke: #f2d98a;
+}
+
+.world-map-label {
+  fill: #e8e6df;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.world-map-icon {
+  fill: #f2d98a;
+  font-size: 26px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.world-map-node.locked .world-map-label {
+  fill: #6b6d78;
+}
+
+/* First Realm sect-site ownership colouring (FIRST_REALM_PLAN §7). */
+.world-map-node.owner-player circle {
+  fill: #3a3320;
+  stroke: #f2d98a;
+  stroke-width: 4;
+}
+
+.world-map-node.owner-npc circle {
+  fill: #3a2320;
+  stroke: #d97a6b;
+}
+
+.world-map-node.owner-neutral circle {
+  fill: #223420;
+  stroke: #7fae86;
+  stroke-dasharray: 5 4;
+}
+
+.world-map-node.site-tier-good circle {
+  stroke-width: 5;
+}
+
+.world-map-node.selected circle {
+  stroke: #ffffff;
+}
+
+.world-map-node:hover circle {
+  filter: brightness(1.2);
+}
+
+.standings-card.declining {
+  opacity: 0.6;
+}
+
+.world-map-influence {
+  fill: rgba(242, 217, 138, 0.08);
+  stroke: rgba(242, 217, 138, 0.35);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  pointer-events: none;
+}
+
+.world-back-button {
+  margin-bottom: 0.6rem;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.assign-disciple-choice.selected {
+  background: #2c3a2f;
+  border-color: #7fae86;
+}
+
+.dispatch-cycle-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+}
+
+.dispatch-cycle-stepper button {
+  padding: 0.2rem 0.7rem;
+  font-size: 1rem;
+}
+
+.dispatch-preview {
+  background: #1b1c24;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+}
+
+.dispatch-preview p {
+  margin: 0.25rem 0;
+}
+
+.dispatch-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.location-card button {
+  margin-top: 0.4rem;
+}
+
+/* --- World Map Phase 5A: outposts --- */
+.location-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.outpost-line {
+  color: #b7c9a8;
+  margin: 0.3rem 0 0;
 }

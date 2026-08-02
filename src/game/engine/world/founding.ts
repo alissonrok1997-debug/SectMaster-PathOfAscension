@@ -1,5 +1,7 @@
 import type {
   GeneratedNodeRecord,
+  LocationRuntime,
+  NpcSect,
   ProvinceId,
   ProvinceRuntime,
   SectLocation,
@@ -9,8 +11,11 @@ import type {
 import { WORLD_DEF } from '../../data/world/worldDef'
 import { getProvinceDef, type ProvinceDefinition } from '../../data/world/provinceDefs'
 import { getSectSitesForProvince, type SectSiteDefinition } from '../../data/world/sectSiteDefs'
+import { NPC_SECT_DEFS, getOccupiedPoorSeatIds } from '../../data/world/npcSectDefs'
 import { getNeighbours } from '../../data/world/worldGraph'
 import { generateProvinceNodes } from './worldGeneration'
+import { NPC_BASE_ACTION_INTERVAL_MS, NPC_EMERGENCE_INTERVAL_MS } from './npcSimulation'
+import { hashString, mulberry32 } from '../rng'
 
 /**
  * The pre-game founding decision (WORLD_MAP_DESIGN §12.2). Eligibility is a pure
@@ -18,6 +23,9 @@ import { generateProvinceNodes } from './worldGeneration'
  * store action (to re-validate before mutating), same pattern as every other
  * gated action. `buildInitialWorldState` is the seed-in / world-out step the
  * store commits once, irreversibly.
+ *
+ * FIRST_REALM_PLAN §1 restricts founding to a free Poor seat: safe (never
+ * conquerable) and not already occupied by a seeded minor NPC sect (§4.4).
  */
 
 export interface FoundingProvinceOption {
@@ -25,11 +33,12 @@ export interface FoundingProvinceOption {
   sites: SectSiteDefinition[]
 }
 
-/** The provinces selectable at founding (§1.1) — the starter subset, each with its sites. */
+/** The provinces selectable at founding (§1.1), each offering only its free Poor sites. */
 export function getFoundingOptions(): FoundingProvinceOption[] {
+  const occupied = new Set(getOccupiedPoorSeatIds())
   return WORLD_DEF.foundingProvinceIds.map((id) => ({
     province: getProvinceDef(id),
-    sites: getSectSitesForProvince(id),
+    sites: getSectSitesForProvince(id).filter((s) => s.tier === 'poor' && !occupied.has(s.id)),
   }))
 }
 
@@ -43,8 +52,15 @@ export function getFoundingEligibility(provinceId: ProvinceId, sectSiteId: SectS
     return { canFound: false, reason: 'This province cannot be chosen at founding.' }
   }
   const sites = getSectSitesForProvince(provinceId)
-  if (!sites.some((s) => s.id === sectSiteId)) {
+  const site = sites.find((s) => s.id === sectSiteId)
+  if (!site) {
     return { canFound: false, reason: 'That site is not in the chosen province.' }
+  }
+  if (site.tier !== 'poor') {
+    return { canFound: false, reason: 'Only a Poor site can be founded on.' }
+  }
+  if (getOccupiedPoorSeatIds().includes(sectSiteId)) {
+    return { canFound: false, reason: 'That site is already held by another sect.' }
   }
   return { canFound: true }
 }
@@ -54,6 +70,13 @@ export function getFoundingEligibility(provinceId: ProvinceId, sectSiteId: SectS
  * for the founding province and its neighbours (for map preview, §5.4) but marks
  * only the founding province `discovered` — ProvinceRuntime stays sparse (§2.2),
  * so neighbours have generated nodes without a runtime entry until visited.
+ *
+ * Also seeds the NPC-sect roster (FIRST_REALM_PLAN §4.4): every prestige seat
+ * (Normal/Good) and a subset of Poor seats get a live `NpcSect` plus a
+ * `LocationRuntime.ownerId`/`garrison` entry on their seat. Free Poor seats get
+ * no entry at all — sparse storage already means "no entry" = neutral (§2.2).
+ * The founding seat itself is written as player-owned; its defensive strength
+ * is derived from the home disciple roster (§4.1), not stored here.
  */
 export function buildInitialWorldState(
   provinceId: ProvinceId,
@@ -70,13 +93,58 @@ export function buildInitialWorldState(
     generatedNodes[pid] = generateProvinceNodes(pid, seed)
   }
 
+  const locations: Record<string, LocationRuntime> = {}
+  for (const npcDef of NPC_SECT_DEFS) {
+    locations[npcDef.seatSiteId] = {
+      discovered: false,
+      remainingCapacity: Infinity,
+      lastVisitedAt: 0,
+      visitCount: 0,
+      ownerId: npcDef.id,
+      outpostLevel: 0,
+      knowledge: 0,
+      flags: [],
+      garrison: { strength: npcDef.strength },
+    }
+  }
+  locations[sectSiteId] = {
+    discovered: true,
+    remainingCapacity: Infinity,
+    lastVisitedAt: now,
+    visitCount: 1,
+    ownerId: 'player',
+    outpostLevel: 0,
+    knowledge: 0,
+    flags: [],
+  }
+
+  const npcSects: NpcSect[] = NPC_SECT_DEFS.map((def) => {
+    // Jittered per-entity, seeded off the world seed + id so every sect starts on its own rhythm from turn one (§4.3).
+    const rng = mulberry32((hashString(def.id) ^ seed) >>> 0)
+    return {
+      id: def.id,
+      name: def.name,
+      tier: def.tier,
+      regionId: def.regionId,
+      seatSiteId: def.seatSiteId,
+      strength: def.strength,
+      stockpile: { ...def.stockpile },
+      aggression: def.aggression,
+      status: 'active',
+      nextActionAt: now + NPC_BASE_ACTION_INTERVAL_MS * (0.7 + rng() * 0.6),
+      seatSince: now,
+    }
+  })
+
   const world: WorldState = {
     seed,
     provinces,
-    locations: {},
+    locations,
     generatedNodes,
     expeditions: [],
     expeditionLog: [],
+    npcSects,
+    nextNpcEmergenceAt: now + NPC_EMERGENCE_INTERVAL_MS,
   }
 
   return { sectLocation: { provinceId, sectSiteId, foundedAt: now }, world }

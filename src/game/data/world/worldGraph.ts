@@ -73,9 +73,14 @@ const locationToProvince: Record<LocationId, ProvinceId> = {}
 for (const landmark of LANDMARK_DEFS) {
   locationToProvince[landmark.id] = landmark.provinceId
 }
+// Sect sites carry no `provinceId` of their own (FIRST_REALM_PLAN §1 — the
+// world is one province); derive the reverse index from each province's
+// `sectSiteIds` instead, same source worldGraph already trusts for validation.
 const sectSiteToProvince: Record<SectSiteId, ProvinceId> = {}
-for (const site of SECT_SITE_DEFS) {
-  sectSiteToProvince[site.id] = site.provinceId
+for (const province of PROVINCE_DEFS) {
+  for (const siteId of province.sectSiteIds) {
+    sectSiteToProvince[siteId] = province.id
+  }
 }
 
 export function getNeighbours(provinceId: ProvinceId): ProvinceId[] {

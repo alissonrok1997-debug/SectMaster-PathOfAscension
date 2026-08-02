@@ -12,8 +12,14 @@ import { INJURY_RECOVERY_MS } from './injury'
  * into the same tick as everything else for this prototype's scale.
  */
 
-export const TRAINING_HALL_RATE_PER_LEVEL = 1.0 // % cultivation progress per second, per Training Hall level, at talentFactor 1
-const BACKGROUND_RATE = 0.12 // % per second for disciples not in the Training Hall — cultivation never fully stops
+// Calibrated so the theoretical fastest disciple — talent 100 (×1.5), a level-10
+// Training Hall (the current sect-rank level cap), morale in the ≥90 band (×1.1),
+// no research/doctrine/vein bonuses, never injured — fills all 63 small realms
+// (7 major realms × 900 pts) in ~30 real days. Background keeps the original
+// 0.12:1 trickle ratio to the Training Hall (a disciple left to self-cultivate is
+// dramatically slower — the Training Hall is the point).
+export const TRAINING_HALL_RATE_PER_LEVEL = 0.0001473 // % cultivation progress per second, per Training Hall level, at talentFactor 1
+const BACKGROUND_RATE = 0.00001768 // % per second for disciples not in the Training Hall — cultivation never fully stops
 
 /** Small realms (stages) per major realm (doc 03, Section 2). Stages 1-9 fill automatically; stage 9 → next realm is a player-triggered breakthrough. */
 export const MAX_SMALL_REALM = 9

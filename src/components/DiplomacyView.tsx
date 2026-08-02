@@ -1,18 +1,21 @@
 import { useGameStore } from '../game/state/store'
 import { FACTION_DEFS } from '../game/data/factionDefs'
-import { TERRITORY_DEFS } from '../game/data/territoryDefs'
 import { DIPLOMATIC_ACTION_DEFS } from '../game/data/diplomaticActionDefs'
 import { getWorldEventDef } from '../game/data/worldEventDefs'
 import { getRelationshipTier, getReputationTier } from '../game/engine/factions'
 import { getDiplomaticActionEligibility } from '../game/engine/diplomacy'
-import { getTerritoryClaimEligibility } from '../game/engine/territories'
 import { formatCountdown } from '../game/utils/formatDuration'
 import { formatResourceCost } from '../game/utils/formatResources'
 
-export function WorldPanel() {
+/**
+ * The diplomacy sub-view of the World tab (WORLD_MAP_DESIGN §12.1). Was `WorldPanel`;
+ * the Territories section it used to carry is gone in Phase 5A — territories are now
+ * location outposts claimed on the map — leaving reputation, factions/diplomacy, and
+ * the active world event here.
+ */
+export function DiplomacyView() {
   // Subscribing to the whole state so relationship/reputation/countdowns re-render every tick.
   const state = useGameStore((s) => s.state)
-  const claimTerritory = useGameStore((s) => s.claimTerritory)
   const performDiplomaticAction = useGameStore((s) => s.performDiplomaticAction)
 
   const activeWorldEventDef = state.worldEvent ? getWorldEventDef(state.worldEvent.defId) : undefined
@@ -21,8 +24,7 @@ export function WorldPanel() {
     <section className="panel world-panel">
       <h2>World &amp; Diplomacy</h2>
       <p className="panel-hint">
-        Reputation: <strong>{Math.round(state.reputation)}</strong> ({getReputationTier(state.reputation)}) &middot;
-        Owned territories: {state.ownedTerritories.length}/{TERRITORY_DEFS.length}
+        Reputation: <strong>{Math.round(state.reputation)}</strong> ({getReputationTier(state.reputation)})
       </p>
 
       {activeWorldEventDef && state.worldEvent && (
@@ -83,41 +85,6 @@ export function WorldPanel() {
                   )
                 })}
               </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <h3 className="doctrine-section-title">Territories</h3>
-      <div className="recipe-grid">
-        {TERRITORY_DEFS.map((territory) => {
-          const isOwned = state.ownedTerritories.includes(territory.id)
-          const isClaiming = state.territoryClaimQueue?.territoryId === territory.id
-          const eligibility = getTerritoryClaimEligibility(state, territory.id)
-          return (
-            <div className={`recipe-card ${isOwned ? 'selected' : ''}`} key={territory.id}>
-              <div className="recipe-card-header">
-                <h3>{territory.name}</h3>
-              </div>
-              <p className="panel-hint">{territory.description}</p>
-              <p className="recipe-meta">
-                {formatResourceCost(territory.claimCost)} &middot; {Math.round(territory.claimDurationMs / 1000)}s
-                &middot; requires {territory.requiredReputation} reputation
-              </p>
-              {isOwned ? (
-                <button disabled>Owned</button>
-              ) : isClaiming && state.territoryClaimQueue ? (
-                <button disabled>Claiming &middot; {formatCountdown(state.territoryClaimQueue.endsAt - Date.now())}</button>
-              ) : (
-                <>
-                  <button disabled={!eligibility.canClaim} onClick={() => claimTerritory(territory.id)}>
-                    Claim
-                  </button>
-                  {!eligibility.canClaim && eligibility.reason && (
-                    <p className="upgrade-blocked-reason">{eligibility.reason}</p>
-                  )}
-                </>
-              )}
             </div>
           )
         })}

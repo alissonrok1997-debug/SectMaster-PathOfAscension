@@ -1,6 +1,7 @@
 import type { GeneratedNodeRecord, ProvinceId, Resources } from '../../types'
 import { getProvinceDef } from '../../data/world/provinceDefs'
-import { getNodeTemplate, type NumberRange, type ResourceNodeTemplate } from '../../data/world/resourceNodeTemplates'
+import { getNodeTemplate, type ResourceNodeTemplate } from '../../data/world/resourceNodeTemplates'
+import { hashString, mulberry32, rollInt } from '../rng'
 
 /**
  * Seeded, deterministic minor-node generation (WORLD_MAP_DESIGN §5.4 / §11).
@@ -11,35 +12,10 @@ import { getNodeTemplate, type NumberRange, type ResourceNodeTemplate } from '..
  * re-derived on load — so a later edit to template ranges can't retroactively
  * mutate an existing world (§5.4).
  *
- * Produces nothing until templates + per-province weights are authored (Phase 6);
- * the machinery is complete now so that phase is pure data.
+ * The First Realm build hand-authors its 52 resource nodes as landmarks
+ * instead (FIRST_REALM_PLAN §3b), so this stays unused (empty templates/
+ * weights) for now; the machinery is kept intact for future procedural content.
  */
-
-/** Deterministic 32-bit hash of a province id, mixed with the world seed. */
-function hashString(str: string): number {
-  let hash = 2166136261
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
-  }
-  return hash >>> 0
-}
-
-/** mulberry32 — a small, fast, well-distributed seeded PRNG returning [0, 1). */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function rollInt(rng: () => number, range: NumberRange): number {
-  return Math.floor(range.min + rng() * (range.max - range.min + 1))
-}
 
 function buildNode(
   provinceId: ProvinceId,
