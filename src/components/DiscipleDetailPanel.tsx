@@ -4,6 +4,7 @@ import { getBuildingDef, SECT_HALL_ID } from '../game/data/buildingDefs'
 import { getBoostEligibility } from '../game/engine/cultivationBoost'
 import { getBreakthroughEligibility, getMoraleCultivationMultiplier, isReadyForBreakthrough } from '../game/engine/cultivation'
 import { getAssignEligibility } from '../game/engine/buildingAssignment'
+import { getExpelEligibility } from '../game/engine/recruitment'
 import { getDiscoveredTechniques, getTeachEligibility } from '../game/engine/techniques'
 import { getTechniqueDef } from '../game/data/techniqueDefs'
 import { EQUIPMENT_SLOTS } from '../game/engine/equipment'
@@ -46,6 +47,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   const unequipItem = useGameStore((s) => s.unequipItem)
   const useConsumable = useGameStore((s) => s.useConsumable)
   const teachTechnique = useGameStore((s) => s.teachTechnique)
+  const expelDisciple = useGameStore((s) => s.expelDisciple)
 
   const [tab, setTab] = useState<DetailTab>('equipment')
 
@@ -64,6 +66,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   const boostEligibility = getBoostEligibility(state, disciple.id)
   const readyForBreakthrough = isReadyForBreakthrough(disciple)
   const breakthroughEligibility = getBreakthroughEligibility(state, disciple.id)
+  const expelEligibility = getExpelEligibility(state, disciple.id)
 
   const discoveredTechniques = getDiscoveredTechniques(state)
   const knownTechniqueDefs = disciple.knownTechniques.map((id) => getTechniqueDef(id))
@@ -283,6 +286,28 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
           )}
         </div>
       )}
+
+      <div className="disciple-expel">
+        <button
+          type="button"
+          className="demolish-button"
+          disabled={!expelEligibility.canExpel}
+          onClick={() => {
+            if (
+              window.confirm(
+                `Expel ${disciple.name} from the sect? They leave permanently; any equipped gear returns to your inventory.`,
+              )
+            ) {
+              expelDisciple(disciple.id)
+            }
+          }}
+        >
+          Expel Disciple
+        </button>
+        {!expelEligibility.canExpel && expelEligibility.reason && (
+          <p className="panel-hint">{expelEligibility.reason}</p>
+        )}
+      </div>
     </div>
   )
 }

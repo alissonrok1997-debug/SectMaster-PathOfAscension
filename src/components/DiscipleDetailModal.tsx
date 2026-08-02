@@ -9,7 +9,9 @@ export function DiscipleDetailModal({
   initialDiscipleId: string
   onClose: () => void
 }) {
-  const disciples = useGameStore((s) => s.state.disciples)
+  // Step through disciples in the same talent-sorted order the roster grid shows,
+  // so the prev/next arrows follow the on-screen order rather than store order.
+  const disciples = [...useGameStore((s) => s.state.disciples)].sort((a, b) => b.talent - a.talent)
   const [selectedId, setSelectedId] = useState(initialDiscipleId)
 
   let index = disciples.findIndex((d) => d.id === selectedId)

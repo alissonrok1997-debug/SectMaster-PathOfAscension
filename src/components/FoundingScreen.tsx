@@ -20,9 +20,13 @@ type Step = 'province' | 'site' | 'confirm'
 export function FoundingScreen() {
   const foundSect = useGameStore((s) => s.foundSect)
   const options = useMemo(() => getFoundingOptions(), [])
+  // The First Realm is a single self-contained province (FIRST_REALM_PLAN §1) —
+  // there is nothing to choose between, so the province step collapses away
+  // and the player lands straight on site selection (§6).
+  const singleProvinceId = options.length === 1 ? options[0].province.id : undefined
 
-  const [step, setStep] = useState<Step>('province')
-  const [provinceId, setProvinceId] = useState<string | undefined>(undefined)
+  const [step, setStep] = useState<Step>(singleProvinceId ? 'site' : 'province')
+  const [provinceId, setProvinceId] = useState<string | undefined>(singleProvinceId)
   const [sectSiteId, setSectSiteId] = useState<string | undefined>(undefined)
 
   const selectedOption = options.find((o) => o.province.id === provinceId)
@@ -35,9 +39,9 @@ export function FoundingScreen() {
           Where your sect takes root shapes the entire path of ascension. This choice is permanent for this save.
         </p>
         <ol className="founding-steps">
-          <li className={step === 'province' ? 'active' : provinceId ? 'done' : ''}>1 · Province</li>
-          <li className={step === 'site' ? 'active' : sectSiteId ? 'done' : ''}>2 · Sect Site</li>
-          <li className={step === 'confirm' ? 'active' : ''}>3 · Confirm</li>
+          {!singleProvinceId && <li className={step === 'province' ? 'active' : provinceId ? 'done' : ''}>1 · Province</li>}
+          <li className={step === 'site' ? 'active' : sectSiteId ? 'done' : ''}>{singleProvinceId ? '1' : '2'} · Sect Site</li>
+          <li className={step === 'confirm' ? 'active' : ''}>{singleProvinceId ? '2' : '3'} · Confirm</li>
         </ol>
       </header>
 
@@ -70,9 +74,11 @@ export function FoundingScreen() {
           <p className="panel-hint">Same Spirit Vein — pick the shape of your trade-offs.</p>
           <SectSiteSelectStep sites={selectedOption.sites} selectedSiteId={sectSiteId} onSelect={setSectSiteId} />
           <div className="founding-nav">
-            <button className="secondary" onClick={() => setStep('province')}>
-              Back
-            </button>
+            {!singleProvinceId && (
+              <button className="secondary" onClick={() => setStep('province')}>
+                Back
+              </button>
+            )}
             <button disabled={!sectSiteId} onClick={() => setStep('confirm')}>
               Next: Confirm
             </button>
@@ -89,7 +95,7 @@ export function FoundingScreen() {
             return (
               <div className="founding-confirm">
                 <p>
-                  <strong>{site.name}</strong>, in the <strong>{province.name}</strong>.
+                  <strong>{site.name}</strong> — <strong>{province.name}</strong>.
                 </p>
                 <p>
                   <SpiritVeinBadge tier={province.spiritVeinTier} />

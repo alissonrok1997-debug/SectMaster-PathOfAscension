@@ -8,17 +8,22 @@ import type {
   MapPosition,
   SectSiteId,
 } from '../../types'
+import { SECT_SITE_DEFS } from './sectSiteDefs'
+import { LANDMARK_DEFS } from './landmarkDefs'
 
 /**
- * Provinces (WORLD_MAP_DESIGN §2) — the navigational unit and the carrier of the
- * shared properties (Spirit Vein tier, climate, difficulty, faction control) that
- * would otherwise repeat on every location. `neighbours` is the undirected travel
- * graph (validated symmetric in worldGraph.ts). Phase 1 authors the starter set
- * only; more provinces are pure data added later with no engine change (§13.2).
+ * Provinces (WORLD_MAP_DESIGN §2). The First Realm collapses the old 3-province
+ * starter world into a single self-contained province (FIRST_REALM_PLAN §1):
+ * `neighbours: []` makes the worldGraph symmetric-check trivially pass, and
+ * regions (Spirit Mountain / Ancient Forest / Desert / Forgotten Ruins) are a
+ * flavour tag on sites/nodes, not a second navigational unit — every hop stays
+ * intra-province, so `hubTravelUnits`/inter-province travel math goes inert and
+ * distance is carried entirely by each site's `travelUnitOffset` and each
+ * node's `travelUnits` (engine/world/travel.ts).
  *
- * `spiritVeinTier` / `difficultyTier` are raw numbers, not labels — the vein tier
- * resolves through spiritVeinDefs.ts. `nodeTemplateWeights` feeds minor-node
- * generation in a later phase and is empty here.
+ * `sectSiteIds`/`landmarkIds` are derived from the def arrays rather than
+ * hand-listed, so the 32 sites + 52 nodes can never drift out of sync with
+ * worldGraph's validation.
  */
 export interface ProvinceDefinition {
   id: ProvinceId
@@ -41,55 +46,21 @@ export interface ProvinceDefinition {
 
 export const PROVINCE_DEFS: ProvinceDefinition[] = [
   {
-    id: 'azureMountains',
-    name: 'Azure Mountains',
+    id: 'firstRealm',
+    name: 'The First Realm',
     theme: 'mountains',
     climate: 'temperate',
-    description: 'Cloud-wrapped peaks with a steady spirit vein — a forgiving cradle for a young sect.',
+    description:
+      'One vast, self-contained realm of Spirit Mountain, Ancient Forest, Desert, and Forgotten Ruins — 32 sect sites held by rival cultivators, waiting for someone to claim them.',
     spiritVeinTier: 2,
-    difficultyTier: 1,
-    neighbours: ['verdantBasin'],
-    mapPosition: { x: 0.25, y: 0.35 },
-    mapShapeId: 'azureMountains',
-    hubTravelUnits: 2,
-    sectSiteIds: ['hiddenValley', 'cliffPlateau', 'sacredPeak'],
-    landmarkIds: ['azureMountains.spiritIronMine', 'azureMountains.frostCrystalCave', 'azureMountains.cloudpierceRuins'],
-    nodeTemplateWeights: [],
-    unlockRule: { kind: 'starter' },
-  },
-  {
-    id: 'verdantBasin',
-    name: 'Verdant Basin',
-    theme: 'wetlands',
-    climate: 'humid',
-    description: 'A green river basin thick with spirit herbs and old-growth timber; gentle, but its vein runs shallow.',
-    spiritVeinTier: 1,
-    difficultyTier: 1,
-    neighbours: ['azureMountains', 'emberWastes'],
+    difficultyTier: 2,
+    neighbours: [],
     mapPosition: { x: 0.5, y: 0.5 },
-    mapShapeId: 'verdantBasin',
-    hubTravelUnits: 3,
-    sectSiteIds: ['riverBasin', 'mistfenHollow'],
-    landmarkIds: ['verdantBasin.herbValley', 'verdantBasin.elderwoodGrove', 'verdantBasin.sunkenPavilion'],
+    mapShapeId: 'firstRealm',
+    hubTravelUnits: 0,
+    sectSiteIds: SECT_SITE_DEFS.map((s) => s.id),
+    landmarkIds: LANDMARK_DEFS.map((l) => l.id),
     nodeTemplateWeights: [],
-    unlockRule: { kind: 'starter' },
-  },
-  {
-    id: 'emberWastes',
-    name: 'Ember Wastes',
-    theme: 'wastes',
-    climate: 'volcanic',
-    description: 'Scorched volcanic flats over a powerful vein — high reward, high danger, and contested by the Bloodmoon Cult.',
-    spiritVeinTier: 3,
-    difficultyTier: 3,
-    neighbours: ['verdantBasin'],
-    mapPosition: { x: 0.75, y: 0.6 },
-    mapShapeId: 'emberWastes',
-    hubTravelUnits: 4,
-    sectSiteIds: ['cinderTerrace', 'obsidianSpire'],
-    landmarkIds: ['emberWastes.jadeQuarry', 'emberWastes.beastHuntingGrounds', 'emberWastes.ashenBattlefield'],
-    nodeTemplateWeights: [],
-    controllingFactionId: 'bloodmoonCult',
     unlockRule: { kind: 'starter' },
   },
 ]

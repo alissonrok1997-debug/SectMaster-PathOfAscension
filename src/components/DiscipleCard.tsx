@@ -32,6 +32,14 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
   const cultivationRate = getDiscipleCultivationRate(disciple, trainingHallLevel, cultivationRateMultiplier)
   const pointsRemaining = Math.max(0, 100 - disciple.cultivationProgress)
   const etaToNextStage = cultivationRate > 0 ? formatDurationAdaptive(pointsRemaining / cultivationRate) : null
+  // Cultivation is a multi-day grind, so a per-second rate rounds to 0.00 — show
+  // the largest unit that reads above zero (per hour / per minute / per second).
+  const rateLabel =
+    cultivationRate <= 0
+      ? null
+      : cultivationRate < 0.1
+        ? `+${(cultivationRate * 3600).toFixed(1)} pts/hr`
+        : `+${cultivationRate.toFixed(2)} pts/s`
   const readyForBreakthrough = isReadyForBreakthrough(disciple)
   const combatPower = getDiscipleCombatPower(disciple, doctrineMods.combatPowerMult)
 
@@ -78,7 +86,7 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
             ? `${etaToNextStage} to next stage`
             : 'Not cultivating'}
         <br />
-        {cultivationRate > 0 && `+${cultivationRate.toFixed(2)} pts/s`}
+        {rateLabel}
       </p>
 
       <div className="disciple-stat-row">

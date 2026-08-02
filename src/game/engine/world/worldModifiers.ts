@@ -1,5 +1,6 @@
 import type { GameState, Resources, SiteModifierBundle } from '../../types'
 import { getSectSiteDef } from '../../data/world/sectSiteDefs'
+import { getLandmarkDef } from '../../data/world/landmarkDefs'
 import { getWorldEventModifiers } from '../worldEvents'
 import { getSectSpiritVein } from './worldQueries'
 
@@ -33,6 +34,17 @@ function multiplyResourceMap(
   }
 }
 
+/** Merges a partial bundle (an outpost / future province-control contribution) into the aggregate. */
+function mergeBundle(into: SiteModifierBundle, from: Partial<SiteModifierBundle>): void {
+  if (from.cultivationSpeedMult) into.cultivationSpeedMult *= from.cultivationSpeedMult
+  if (from.defenceMult) into.defenceMult *= from.defenceMult
+  if (from.travelTimeMult) into.travelTimeMult *= from.travelTimeMult
+  if (from.recruitmentRateMult) into.recruitmentRateMult *= from.recruitmentRateMult
+  if (from.upkeepMult) into.upkeepMult *= from.upkeepMult
+  if (from.buildTimeMult) into.buildTimeMult *= from.buildTimeMult
+  if (from.productionMultByResource) multiplyResourceMap(into.productionMultByResource, from.productionMultByResource)
+}
+
 export function getWorldModifiers(state: GameState): SiteModifierBundle {
   const bundle = identityBundle()
 
@@ -57,6 +69,19 @@ export function getWorldModifiers(state: GameState): SiteModifierBundle {
   bundle.cultivationSpeedMult *= event.cultivationRateMult
   multiplyResourceMap(bundle.productionMultByResource, event.productionMult)
 
-  // Phase 5 folds owned-outpost contributions in here too (§5.3 / §11.3).
+  // Owned outposts (§5.3 / §11.3): every claimed location (outpostLevel ≥ 1) folds
+  // its upgradePath bonus in here — the single pipe that replaced the retired
+  // getTerritoryProductionBonus. Iterates only the SPARSE touched-location runtime,
+  // never all location defs, so it stays O(claimed), not O(world) (§9.3).
+  if (state.world) {
+    for (const [locationId, runtime] of Object.entries(state.world.locations)) {
+      if (runtime.outpostLevel < 1) continue
+      const def = getLandmarkDef(locationId)
+      if (def && def.kind === 'resource' && def.upgradePath) {
+        mergeBundle(bundle, def.upgradePath.level1.bonus)
+      }
+    }
+  }
+
   return bundle
 }

@@ -25,7 +25,7 @@ import {
 import { resolveUpkeepDue } from '../engine/upkeep'
 import { computeDiscipleCapacity } from '../engine/discipleCapacity'
 import { getAssignEligibility } from '../engine/buildingAssignment'
-import { createRecruit, getEffectiveRecruitmentCost } from '../engine/recruitment'
+import { createRecruit, expelDisciple, getEffectiveRecruitmentCost } from '../engine/recruitment'
 import { BOOST_COST, BOOST_DURATION_MS, getBoostEligibility } from '../engine/cultivationBoost'
 import { applyOfflineCatchUp, emptyOfflineSummary, rewindStateClock, type OfflineSummary } from '../engine/offlineCatchup'
 import { resolveLoginStreak } from '../engine/loginStreak'
@@ -50,14 +50,24 @@ import {
 import { getResearchProjectDef } from '../data/researchProjectDefs'
 import { getTeachEligibility, resolveCompletedTeaching } from '../engine/techniques'
 import { getTechniqueDef } from '../data/techniqueDefs'
-import { getTerritoryClaimEligibility, resolveCompletedTerritoryClaim } from '../engine/territories'
-import { getTerritoryDef } from '../data/territoryDefs'
 import { applyDiplomaticAction } from '../engine/diplomacy'
 import { resolveWorldEventLifecycle } from '../engine/worldEvents'
 import { resolveEventChoice as applyEventChoice, resolveEventLifecycle } from '../engine/events'
 import { buildInitialWorldState, getFoundingEligibility } from '../engine/world/founding'
 import { getSectSiteDef } from '../data/world/sectSiteDefs'
-import { getSectSpiritVein } from '../engine/world/worldQueries'
+import { getExpeditionTargetMeta, getLocation, getSectSpiritVein } from '../engine/world/worldQueries'
+import {
+  emptyPayload,
+  getClaimKind,
+  getDispatchEligibility,
+  recallExpedition as recallExpeditionPure,
+  resolveCompletedExpeditions,
+} from '../engine/world/expeditions'
+import { getTravelTime } from '../engine/world/travel'
+import { generateProvinceNodes } from '../engine/world/worldGeneration'
+import { garrisonSite as garrisonSitePure, getGarrisonEligibility, ungarrisonSite as ungarrisonSitePure } from '../engine/world/territory'
+import { MAX_NPC_ACTIONS_PER_TICK, resolveNpcActions } from '../engine/world/npcSimulation'
+import type { Expedition, ExpeditionPurpose } from '../types'
 
 const DEBUG_RESOURCE_GRANT: Resources = {
   spiritStones: 200,
@@ -76,23 +86,41 @@ interface GameStore {
   tick: (deltaMs: number) => void
   /** The one-time, irreversible founding choice (WORLD_MAP_DESIGN §12.2). */
   foundSect: (provinceId: string, sectSiteId: string) => void
+  /** Sends a party to a world location on a timed expedition (WORLD_MAP_DESIGN §8). `leaderId` (FIRST_REALM_PLAN §2.6) only matters for Claim/Raid. */
+  dispatchExpedition: (
+    purpose: ExpeditionPurpose,
+    locationId: string,
+    discipleIds: string[],
+    cycleTarget: number,
+    leaderId?: string,
+  ) => void
+  /** Recalls an in-flight expedition, keeping the payload accrued so far (§8.4). */
+  recallExpedition: (expeditionId: string) => void
+  /** Marks a reachable province discovered, generating its minor nodes on first view (§5.4). */
+  discoverProvince: (provinceId: string) => void
+  /** Stations disciples at a player-held outpost as its garrison (FIRST_REALM_PLAN §4.1); the seat defends itself automatically and cannot be garrisoned. */
+  garrisonSite: (locationId: string, discipleIds: string[]) => void
+  /** Recalls every disciple garrisoned at a location, leaving it undefended. */
+  ungarrisonSite: (locationId: string) => void
+  /** Resolves a pending post-relocation building prune (FIRST_REALM_PLAN §4.2/§7) by demolishing the given specialization buildings down to the new seat's cap. */
+  resolveRelocationPrune: (buildingIdsToRemove: string[]) => void
   startUpgrade: (buildingId: string) => void
   claimSpecializationSlot: (buildingId: string) => void
   demolishSpecializationBuilding: (buildingId: string) => void
   recruitDisciple: () => void
+  expelDisciple: (discipleId: string) => void
   assignDisciple: (discipleId: string, buildingId: string | undefined) => void
   activateCultivationBoost: (discipleId: string) => void
   attemptBreakthrough: (discipleId: string) => void
   attemptBreakthroughAll: () => void
   dispatchMission: (offerId: string, squadDiscipleIds: string[]) => void
-  startCraft: (recipeId: string) => void
+  startCraft: (recipeId: string, quantity?: number) => void
   equipItem: (discipleId: string, instanceId: string) => void
   unequipItem: (discipleId: string, slot: EquipmentSlotId) => void
   useConsumable: (discipleId: string, itemDefId: string) => void
   startResearch: (projectId: string) => void
   teachTechnique: (discipleId: string, techniqueId: string) => void
   chooseDoctrine: (doctrineId: SectDoctrineId) => void
-  claimTerritory: (territoryId: string) => void
   performDiplomaticAction: (factionId: string, actionId: DiplomaticActionId) => void
   resolveEventChoice: (choiceIndex: number) => void
   saveNow: () => void
@@ -151,8 +179,14 @@ export const useGameStore = create<GameStore>((set) => ({
       const stateAfterTeaching = { ...stateAfterResearch, disciples: disciplesAfterTeaching }
       const stateAfterMissionBoard = resolveMissionBoardRefresh(stateAfterTeaching, now)
       const { state: stateAfterMissions } = resolveCompletedMissions(stateAfterMissionBoard, now)
-      const { state: stateAfterTerritory } = resolveCompletedTerritoryClaim(stateAfterMissions, now)
-      const { state: stateAfterWorldEvent } = resolveWorldEventLifecycle(stateAfterTerritory, now)
+      // Expeditions resolve where territory claims used to sit (§11.2): a one-shot
+      // completion resolver, run after missions (so a freed disciple is consistent)
+      // and before production/cultivation (a returning claim expedition establishes
+      // an outpost whose bonus those accumulators consume this same tick).
+      const { state: stateAfterExpeditions } = resolveCompletedExpeditions(stateAfterMissions, now)
+      // The living NPC world (FIRST_REALM_PLAN §4.3): drains only genuinely-due sects, bounded per tick.
+      const { state: stateAfterNpcSim } = resolveNpcActions(stateAfterExpeditions, now, MAX_NPC_ACTIONS_PER_TICK)
+      const { state: stateAfterWorldEvent } = resolveWorldEventLifecycle(stateAfterNpcSim, now)
       const { state: stateAfterNarrativeEvent } = resolveEventLifecycle(stateAfterWorldEvent, now)
       const { state: stateAfterUpkeep } = resolveUpkeepDue(stateAfterNarrativeEvent, now)
       const resourcesAfterProduction = applyProductionTick(stateAfterUpkeep, deltaMs)
@@ -194,6 +228,141 @@ export const useGameStore = create<GameStore>((set) => ({
       const state: GameState = { ...store.state, sectLocation, world, resources }
       saveGame(state)
       return { state }
+    }),
+
+  dispatchExpedition: (purpose, locationId, discipleIds, cycleTarget, leaderId) =>
+    set((store) => {
+      const state = store.state
+      if (!state.world) return {}
+      if (!getDispatchEligibility(state, locationId, discipleIds, purpose, cycleTarget).canDispatch) return {}
+
+      const now = Date.now()
+      const meta = getExpeditionTargetMeta(state, locationId, purpose)
+      if (!meta) return {}
+      const outboundMs = getTravelTime(state, locationId, purpose)
+
+      // gather runs cycleTarget cycles; every other purpose is a single on-site cycle
+      // (a battle, a scan, or a build) — timing comes from getExpeditionTargetMeta.
+      const isGather = purpose === 'gather'
+      const onSiteMs = meta.onSiteDurationMs
+      const effectiveCycleTarget = isGather ? cycleTarget : 1
+
+      // Only a plain (uncontested) outpost build pays a cost up front — seizing an
+      // enemy outpost or conquering a seat is paid for in battle, not spirit stones (§4.2).
+      let resources = state.resources
+      if (purpose === 'claim' && getClaimKind(state, locationId) === 'buildOutpost') {
+        const location = getLocation(state, locationId)
+        if (location?.kind === 'resource' && location.upgradePath) {
+          resources = { ...resources }
+          for (const [key, amount] of Object.entries(location.upgradePath.level1.claimCost) as [keyof Resources, number][]) {
+            resources[key] -= amount
+          }
+        }
+      }
+
+      // awayUntil is an upper-bound estimate (full order runs to completion); the
+      // resolver frees the party at the real arrival, which is never later than this.
+      const estimatedAwayMs = outboundMs * 2 + onSiteMs * effectiveCycleTarget
+
+      const expedition: Expedition = {
+        id: crypto.randomUUID(),
+        purpose,
+        targetLocationId: locationId,
+        discipleIds,
+        phase: 'outbound',
+        phaseEndsAt: now + outboundMs,
+        dispatchedAt: now,
+        outboundMs,
+        onSiteMs,
+        cycleTarget: effectiveCycleTarget,
+        cyclesCompleted: 0,
+        payload: emptyPayload(),
+        incidents: [],
+        leaderId: leaderId && discipleIds.includes(leaderId) ? leaderId : undefined,
+      }
+
+      return {
+        state: {
+          ...state,
+          resources,
+          world: { ...state.world, expeditions: [...state.world.expeditions, expedition] },
+          disciples: state.disciples.map((d) =>
+            discipleIds.includes(d.id) ? { ...d, assignedBuildingId: undefined, awayUntil: now + estimatedAwayMs } : d,
+          ),
+        },
+      }
+    }),
+
+  garrisonSite: (locationId, discipleIds) =>
+    set((store) => {
+      const state = store.state
+      if (!state.world) return {}
+      if (!getGarrisonEligibility(state, locationId, discipleIds).canGarrison) return {}
+      return { state: { ...state, world: { ...state.world, locations: garrisonSitePure(state, locationId, discipleIds) } } }
+    }),
+
+  ungarrisonSite: (locationId) =>
+    set((store) => {
+      const state = store.state
+      if (!state.world) return {}
+      return { state: { ...state, world: { ...state.world, locations: ungarrisonSitePure(state, locationId) } } }
+    }),
+
+  resolveRelocationPrune: (buildingIdsToRemove) =>
+    set((store) => {
+      const state = store.state
+      const pending = state.pendingRelocation
+      if (!pending) return {}
+      const newCap = getSectSiteDef(pending.newSiteId).buildingSlots
+      const remainingCount = Object.keys(state.buildings).length - buildingIdsToRemove.length
+      if (remainingCount > newCap) return {} // must remove enough to fit
+
+      const buildings = { ...state.buildings }
+      for (const id of buildingIdsToRemove) delete buildings[id]
+
+      return {
+        state: {
+          ...state,
+          buildings,
+          pendingRelocation: undefined,
+          disciples: state.disciples.map((d) =>
+            d.assignedBuildingId && buildingIdsToRemove.includes(d.assignedBuildingId)
+              ? { ...d, assignedBuildingId: undefined }
+              : d,
+          ),
+        },
+      }
+    }),
+
+  recallExpedition: (expeditionId) =>
+    set((store) => {
+      const world = store.state.world
+      if (!world) return {}
+      const expeditions = recallExpeditionPure(world.expeditions, expeditionId, Date.now())
+      if (expeditions === world.expeditions) return {}
+      return { state: { ...store.state, world: { ...world, expeditions } } }
+    }),
+
+  discoverProvince: (provinceId) =>
+    set((store) => {
+      const world = store.state.world
+      if (!world || world.provinces[provinceId]?.discovered) return {}
+      const generatedNodes = world.generatedNodes[provinceId]
+        ? world.generatedNodes
+        : { ...world.generatedNodes, [provinceId]: generateProvinceNodes(provinceId, world.seed) }
+      return {
+        state: {
+          ...store.state,
+          world: {
+            ...world,
+            provinces: {
+              ...world.provinces,
+              [provinceId]: { discovered: true, surveyProgress: world.provinces[provinceId]?.surveyProgress ?? 0 },
+            },
+            generatedNodes,
+          },
+        },
+      }
     }),
 
   startUpgrade: (buildingId) =>
@@ -328,6 +497,14 @@ export const useGameStore = create<GameStore>((set) => ({
       }
     }),
 
+  expelDisciple: (discipleId) =>
+    set((store) => {
+      const nextState = expelDisciple(store.state, discipleId)
+      if (nextState === store.state) return {}
+      saveGame(nextState)
+      return { state: nextState }
+    }),
+
   assignDisciple: (discipleId, buildingId) =>
     set((store) => {
       const disciple = store.state.disciples.find((d) => d.id === discipleId)
@@ -432,23 +609,26 @@ export const useGameStore = create<GameStore>((set) => ({
       }
     }),
 
-  startCraft: (recipeId) =>
+  startCraft: (recipeId, quantity = 1) =>
     set((store) => {
-      const eligibility = getCraftEligibility(store.state, recipeId)
+      const batch = Math.max(1, Math.floor(quantity))
+      const eligibility = getCraftEligibility(store.state, recipeId, batch)
       if (!eligibility.canCraft) return {}
 
       const recipe = getRecipe(recipeId)
+      // The whole batch is paid upfront (see getCraftEligibility), then produced
+      // one item per itemDurationMs by resolveCompletedCrafting.
       const resources = { ...store.state.resources }
       for (const [key, amount] of Object.entries(recipe.cost) as [keyof Resources, number][]) {
-        resources[key] -= amount
+        resources[key] -= amount * batch
       }
-      const durationMs = recipe.durationMs * getResearchCraftingDurationMultiplier(store.state, recipe.discipline)
+      const itemDurationMs = recipe.durationMs * getResearchCraftingDurationMultiplier(store.state, recipe.discipline)
 
       return {
         state: {
           ...store.state,
           resources,
-          craftingQueue: { recipeId, endsAt: Date.now() + durationMs },
+          craftingQueue: { recipeId, endsAt: Date.now() + itemDurationMs, remaining: batch, itemDurationMs },
         },
       }
     }),
@@ -595,26 +775,6 @@ export const useGameStore = create<GameStore>((set) => ({
       // Permanent, one-time choice (doc 10 §11) — Doctrine Evolution is out of MVP scope.
       if (store.state.doctrine !== undefined) return {}
       return { state: { ...store.state, doctrine: doctrineId } }
-    }),
-
-  claimTerritory: (territoryId) =>
-    set((store) => {
-      const eligibility = getTerritoryClaimEligibility(store.state, territoryId)
-      if (!eligibility.canClaim) return {}
-
-      const def = getTerritoryDef(territoryId)
-      const resources = { ...store.state.resources }
-      for (const [key, amount] of Object.entries(def.claimCost) as [keyof Resources, number][]) {
-        resources[key] -= amount
-      }
-
-      return {
-        state: {
-          ...store.state,
-          resources,
-          territoryClaimQueue: { territoryId, endsAt: Date.now() + def.claimDurationMs },
-        },
-      }
     }),
 
   performDiplomaticAction: (factionId, actionId) =>

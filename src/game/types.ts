@@ -208,6 +208,10 @@ export type EquipmentSlotId = 'weapon' | 'bodyArmor' | 'accessory1' | 'accessory
 export interface CraftingQueueState {
   recipeId: string
   endsAt: number
+  /** Batch crafting: items still to produce, including the one in progress. Absent on legacy saves = a single item. */
+  remaining?: number
+  /** Per-item duration, locked at batch start, used to schedule each successive item. Absent on legacy saves. */
+  itemDurationMs?: number
 }
 
 // --- Research, Techniques & Sect Doctrine (doc 10) ------------------------
@@ -265,12 +269,6 @@ export type ReputationTierName = 'Infamous' | 'Unknown' | 'Respected' | 'Famous'
  */
 export type DiplomaticActionId = 'tribute' | 'refusal' | 'knowledgeExchange' | 'tradeAgreement'
 
-/** In-progress territory claim (doc 08 Section 9); single-slot, mirrors CraftingQueueState/ResearchQueueState. */
-export interface TerritoryClaimQueueState {
-  territoryId: string
-  endsAt: number
-}
-
 /** The one currently-active large-scale world event (doc 08 Section 10); undefined when none is active. */
 export interface WorldEventState {
   defId: string
@@ -289,7 +287,7 @@ export interface PendingEventState {
 /** A resolved world or narrative event, kept for the Sect Chronicle / Event Log (doc 05 Section 11). */
 export interface EventLogEntry {
   id: string
-  source: 'world' | 'narrative' | 'sect'
+  source: 'world' | 'narrative' | 'sect' | 'npcSim'
   defId: string
   name: string
   text: string
@@ -321,7 +319,20 @@ export interface LoginStreakState {
 // save has no sectLocation and would be misread as unfounded, so the bump
 // discards it and routes the player into the FoundingScreen instead (§13.1). No
 // MIGRATIONS entry — discard is the intended path here.
-export const SAVE_VERSION = 15
+// v16 (World Map Phase 5A): the Wave-7 territory system was absorbed into
+// location outposts, removing the required `ownedTerritories` / `territoryClaimQueue`
+// fields. A v15 save still carries them and has no outpost data, so the bump
+// discards it (no MIGRATIONS entry — a clean re-founding was the chosen path).
+// v17 (The First Realm, Wave A): the 3-province/7-site starter world is fully
+// replaced by a single 32-site tiered province with an NPC-sect roster
+// (FIRST_REALM_PLAN §1-§3). Every province/site/landmark id changes, so a v16
+// save's `sectLocation`/`world` point at ids that no longer exist — the bump
+// discards it (no MIGRATIONS entry — clean re-founding, same precedent as v16).
+// v18 (The First Realm, Wave C): the living NPC world adds required scheduling
+// fields (`NpcSect.nextActionAt`/`seatSince`, `WorldState.nextNpcEmergenceAt`)
+// that a v17 save's npcSects/world don't carry — the bump discards it (no
+// MIGRATIONS entry, same precedent as v16/v17).
+export const SAVE_VERSION = 18
 
 export interface GameState {
   saveVersion: number
@@ -355,10 +366,6 @@ export interface GameState {
   reputation: number
   /** Per-faction Relationship value (doc 08 Section 6), keyed by faction id. Seeded to 0 for every FACTION_DEFS entry at new-game. */
   factionRelationships: Record<string, number>
-  /** Territory def ids the sect currently owns (doc 08 Section 9). Ownership is permanent at MVP scope — territory conflict/loss is Wave 9 backlog. */
-  ownedTerritories: string[]
-  /** Undefined when no territory claim is in progress. */
-  territoryClaimQueue?: TerritoryClaimQueueState
   /** Per-faction-per-action cooldown, keyed by `${factionId}:${actionId}`, value is the epoch ms it next becomes available. */
   diplomaticActionCooldowns: Record<string, number>
   /** Undefined when no large-scale world event is currently active (doc 08 Section 10). */
@@ -388,6 +395,24 @@ export interface GameState {
    * GameState stays legible and future world systems have a home.
    */
   world?: WorldState
+  /**
+   * Set the instant a winning seat-claim relocates the sect but the new seat's
+   * `buildingSlots` can't fit every current building (FIRST_REALM_PLAN §4.2/§7).
+   * The relocation itself (seat swap, ownership, NPC destruction, outpost
+   * abandonment) already happened — this only gates the RelocationPruneModal,
+   * which the player must resolve (picking which buildings survive) before
+   * anything else renders, mirroring the FoundingScreen app-gate.
+   */
+  pendingRelocation?: PendingRelocationState
+}
+
+/** FIRST_REALM_PLAN §4.2/§7/§9 — the "must prune buildings after a relocation" gate. */
+export interface PendingRelocationState {
+  newSiteId: SectSiteId
+  oldSiteId: SectSiteId
+  defeatedNpcSectId: string
+  /** How many buildings must still be removed to fit the new site's `buildingSlots` cap. */
+  requiredRemovals: number
 }
 
 // --- World Map & Sect Placement (WORLD_MAP_DESIGN) -----------------------
@@ -412,6 +437,20 @@ export type ProvinceTheme =
   | 'karst'
 
 export type ClimateId = 'temperate' | 'arid' | 'humid' | 'frigid' | 'volcanic'
+
+/**
+ * A sect site's prestige tier (FIRST_REALM_PLAN §1). Poor sites are the safe
+ * founding/fallback pool (never conquerable); Normal and Good sites are the
+ * conquerable prestige seats that scarcity makes worth fighting over.
+ */
+export type SectSiteTier = 'poor' | 'normal' | 'good'
+
+/**
+ * A flavour/clustering tag on sites and resource nodes (FIRST_REALM_PLAN §1) —
+ * NOT a navigational unit like ProvinceId; the whole world is one province.
+ * Used for identity and for region-partitioned NPC decision-making (§4.3).
+ */
+export type RegionId = 'spiritMountain' | 'ancientForest' | 'desert' | 'forgottenRuins'
 
 export type ResourceArchetypeId =
   | 'spiritIronMine'
@@ -477,6 +516,26 @@ export interface SiteModifierBundle {
   buildTimeMult: number
 }
 
+/**
+ * The outpost upgrade path on a resource location (§5.3 / §14) — the pipe the
+ * absorbed Wave-7 territories flow through. Claiming builds level 1 via a `claim`
+ * expedition; an owned outpost (`LocationRuntime.outpostLevel` ≥ 1) then folds its
+ * `bonus` into getWorldModifiers passively (§11.3), so the old territory production
+ * multipliers keep working through the one aggregation seam instead of a parallel
+ * `getTerritoryProductionBonus`. Only level 1 exists at MVP scope; higher levels
+ * are future content and cost no save bump (optional field).
+ */
+export interface OutpostUpgradePath {
+  level1: {
+    claimCost: Partial<Resources>
+    requiredReputation: number
+    /** On-site build duration of the `claim` expedition (the old claimDurationMs). */
+    claimDurationMs: number
+    /** Folded into getWorldModifiers while outpostLevel ≥ 1. */
+    bonus: Partial<SiteModifierBundle>
+  }
+}
+
 /** Sparse per-province runtime (§2.2). Stored only once discovered; absent = pristine. */
 export interface ProvinceRuntime {
   discovered: boolean
@@ -484,10 +543,28 @@ export interface ProvinceRuntime {
 }
 
 /**
+ * Defensive power on a sect seat or resource outpost (FIRST_REALM_PLAN §2.2 /
+ * §4.1). NPC sites (and the player's derived seat strength) use the scalar
+ * `strength`; a player-held site additionally lists the real disciples
+ * stationed there. Optional so a save with no conquest yet needs no migration.
+ */
+export interface Garrison {
+  strength: number
+  discipleIds?: string[]
+  /** Future: defensive-formation building tie-in. */
+  formationLevel?: number
+}
+
+/**
  * Sparse per-location runtime (§5.2). Stored ONLY once the player has touched a
  * location; a location with no entry is "pristine, undiscovered, full capacity"
  * and the resolver supplies these defaults. Never store definition fields here
  * (name, yields) — that is the single most important save-safety rule (§13.2).
+ *
+ * Also used for sect sites (FIRST_REALM_PLAN §2.2): `ownerId` on a sect site is
+ * `'player' | <npcSectId> | undefined` (neutral), and `garrison` carries its
+ * defensive strength. `outpostLevel`/`knowledge` stay meaningless for sites and
+ * simply go unused there, same as they do for exploration locations today.
  */
 export interface LocationRuntime {
   discovered: boolean
@@ -498,6 +575,7 @@ export interface LocationRuntime {
   outpostLevel: number
   knowledge: number
   flags: string[]
+  garrison?: Garrison
 }
 
 /** The two ids + timestamp of the founding choice (§4.4). */
@@ -534,7 +612,7 @@ export interface GeneratedNodeRecord {
 // `world` container lands in a single save-version bump; the lifecycle,
 // resolver, and reward logic are built in the travel phase (§8.3).
 
-export type ExpeditionPurpose = 'gather' | 'explore' | 'survey' | 'claim'
+export type ExpeditionPurpose = 'gather' | 'explore' | 'survey' | 'claim' | 'raid'
 export type ExpeditionPhase = 'outbound' | 'onSite' | 'returning'
 
 /** Accrued in-flight, banked on arrival home (§8.1). */
@@ -567,6 +645,42 @@ export interface Expedition {
   cyclesCompleted: number
   payload: ExpeditionPayload
   incidents: ExpeditionIncident[]
+  /** One of `discipleIds` (FIRST_REALM_PLAN §2.6) — set only for Claim/Raid; feeds a combat power bonus in the battle simulator. */
+  leaderId?: string
+}
+
+/**
+ * A wound dealt to one of the PLAYER's own disciples during a battle
+ * (FIRST_REALM_PLAN §4.7). NPC-side casualties are never tracked per-unit —
+ * NPCs are an abstract `strength` scalar, chipped instead (§4.2).
+ */
+export interface BattleWoundResult {
+  discipleId: string
+  severity: Exclude<InjurySeverity, 'none'>
+}
+
+/**
+ * The stored outcome of a Claim/Raid battle (FIRST_REALM_PLAN §2.6). Only the
+ * outcome + seed persist — the round-by-round narrative is regenerated
+ * deterministically from `seed`/`attackerPower`/`defenderPower` + the
+ * (already-stored) party names on demand by BattleReportView, never stored
+ * itself (§4.7).
+ */
+export interface BattleResult {
+  /** True if the player's dispatched party won. The player is always the attacker in Wave B (FIRST_REALM_PLAN §4.7 — NPC-initiated attacks on the player are Wave C's npcSimulation). */
+  won: boolean
+  seed: number
+  rounds: number
+  attackerPower: number
+  defenderPower: number
+  wounds: BattleWoundResult[]
+  /** Snapshot for accurate narrative regeneration (BattleReportView re-invokes the simulator with these same names). */
+  leaderName?: string
+  defenderName: string
+  /** Resources stolen from the defender's stockpile on a winning Raid (banked via the normal expedition payload). */
+  lootedResources?: Partial<Resources>
+  /** Human-readable territorial consequence, e.g. "Conquered Sacred Peak" or "Seized Whitecrag Iron Mine". */
+  outcomeSummary: string
 }
 
 /** Newest-first arrival report, capped, mirroring missionLog (§9). */
@@ -579,6 +693,39 @@ export interface ExpeditionLogEntry {
   payload: ExpeditionPayload
   incidents: ExpeditionIncident[]
   resolvedAt: number
+  /** Present only for Claim/Raid arrivals that went through combat (FIRST_REALM_PLAN §4.7). */
+  battleResult?: BattleResult
+}
+
+/** An NPC sect's growth/decline standing (FIRST_REALM_PLAN §2.3 / §4.3). */
+export type NpcSectTier = 'minor' | 'regional' | 'major' | 'legendary'
+
+/**
+ * A live NPC sect entity (FIRST_REALM_PLAN §2.3). Occupies exactly ONE seat
+ * (the one-seat rule, §1) — conquest mutates `seatSiteId` (relocation) or
+ * splices the sect out of `WorldState.npcSects` entirely (destroyed).
+ * `LocationRuntime.ownerId` on the seat stays the authoritative source of
+ * truth; `seatSiteId` is the reverse index only.
+ */
+export interface NpcSect {
+  id: string
+  name: string
+  tier: NpcSectTier
+  regionId: RegionId
+  seatSiteId: SectSiteId
+  /** Abstract defensive/offensive power; grows/shrinks over time (§4.3). */
+  strength: number
+  /** Resource outposts this sect holds; abandoned if it relocates. */
+  outpostIds?: LocationId[]
+  /** What a Raid can steal. */
+  stockpile: Partial<Resources>
+  /** 0..1 AI temperament driving how readily it climbs/raids. */
+  aggression: number
+  status: 'active' | 'declining'
+  /** Epoch ms this sect's next autonomous pulse is due (FIRST_REALM_PLAN §4.3) — jittered per-entity so 24-32 sects don't all fire the same tick. */
+  nextActionAt: number
+  /** Epoch ms this sect settled its CURRENT seat — drives time-held strength growth (§4.3); reset on every relocation (climb, or refounded by emergence). */
+  seatSince: number
 }
 
 /** All mutable world-map runtime state (§9). Every collection is sparse or empty at founding. */
@@ -595,6 +742,10 @@ export interface WorldState {
   expeditions: Expedition[]
   /** Newest-first arrival reports, capped. */
   expeditionLog: ExpeditionLogEntry[]
+  /** Every living NPC sect (FIRST_REALM_PLAN §2.3), one per occupied prestige/minor seat. */
+  npcSects: NpcSect[]
+  /** Epoch ms the emergence mechanic next tries to spawn a minor sect onto a free Poor seat (§4.3), gated on ≥4 free seats. */
+  nextNpcEmergenceAt: number
 }
 
 /** Empty-shell state with no buildings and zeroed resources. `createNewGame` (state/initialState.ts) builds the real Wave 1 starting state on top of this. */
@@ -616,7 +767,6 @@ export function createInitialGameState(): GameState {
     completedResearch: [],
     reputation: 0,
     factionRelationships: {},
-    ownedTerritories: [],
     diplomaticActionCooldowns: {},
     nextWorldEventAt: 0,
     nextEventAt: 0,

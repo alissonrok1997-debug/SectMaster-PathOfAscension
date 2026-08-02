@@ -7,6 +7,9 @@ dist-ssr
 
 # project docs kept local-only, not pushed to GitHub
 PROJECT.md
+CLAUDE.md
+FIRST_REALM_PLAN.md
+WORLD_MAP_DESIGN.md
 
 # local tooling config, not pushed to GitHub
 .claude/

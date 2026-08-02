@@ -1,4 +1,4 @@
-import type { EventLogEntry, GameState, MissionLogEntry, Resources } from '../types'
+import type { EventLogEntry, ExpeditionLogEntry, GameState, MissionLogEntry, Resources } from '../types'
 import { createEmptyResources } from '../types'
 import { getBuildingDef } from '../data/buildingDefs'
 import { resolveCompletedConstruction } from './construction'
@@ -11,8 +11,8 @@ import { getItemDisplayName } from './itemQuality'
 import { resolveCompletedResearch } from './research'
 import { getResearchProjectDef } from '../data/researchProjectDefs'
 import { resolveCompletedTeaching, type TeachingCompletion } from './techniques'
-import { resolveCompletedTerritoryClaim } from './territories'
-import { getTerritoryDef } from '../data/territoryDefs'
+import { resolveCompletedExpeditions } from './world/expeditions'
+import { OFFLINE_MAX_NPC_PULSES, resolveNpcActions } from './world/npcSimulation'
 import { resolveWorldEventLifecycle } from './worldEvents'
 import { resolveEventLifecycle } from './events'
 
@@ -38,7 +38,8 @@ export interface OfflineSummary {
   itemsCrafted: string[]
   researchCompleted: string[]
   techniquesTaught: TeachingCompletion[]
-  territoriesClaimed: string[]
+  expeditionsResolved: ExpeditionLogEntry[]
+  npcSimResolved: EventLogEntry[]
   worldEventsResolved: EventLogEntry[]
   narrativeEventsResolved: EventLogEntry[]
   /** Set only when the calendar day advanced since the last login (doc 11 Section 19) — independent of how long the offline gap itself was. */
@@ -60,7 +61,8 @@ export function emptyOfflineSummary(): OfflineSummary {
     itemsCrafted: [],
     researchCompleted: [],
     techniquesTaught: [],
-    territoriesClaimed: [],
+    expeditionsResolved: [],
+    npcSimResolved: [],
     worldEventsResolved: [],
     narrativeEventsResolved: [],
   }
@@ -110,7 +112,7 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
   const itemsCrafted: string[] = []
   const researchCompleted: string[] = []
   const techniquesTaught: TeachingCompletion[] = []
-  const territoriesClaimed: string[] = []
+  const expeditionsResolved: ExpeditionLogEntry[] = []
   const worldEventsResolved: EventLogEntry[] = []
   const narrativeEventsResolved: EventLogEntry[] = []
   while (remaining > 0) {
@@ -120,7 +122,9 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
     working = { ...working, buildings }
     const craftResult = resolveCompletedCrafting(working, simulatedNow)
     working = craftResult.state
-    if (craftResult.itemCrafted) itemsCrafted.push(getItemDisplayName(craftResult.itemCrafted, craftResult.craftedQuality))
+    for (const crafted of craftResult.craftedItems) {
+      itemsCrafted.push(getItemDisplayName(crafted.itemDefId, crafted.quality))
+    }
     const researchResult = resolveCompletedResearch(working, simulatedNow)
     working = researchResult.state
     if (researchResult.projectCompleted) researchCompleted.push(getResearchProjectDef(researchResult.projectCompleted).name)
@@ -130,9 +134,9 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
     const missionResult = resolveCompletedMissions(working, simulatedNow)
     working = missionResult.state
     missionOutcomes.push(...missionResult.logEntries)
-    const territoryResult = resolveCompletedTerritoryClaim(working, simulatedNow)
-    working = territoryResult.state
-    if (territoryResult.territoryClaimed) territoriesClaimed.push(getTerritoryDef(territoryResult.territoryClaimed).name)
+    const expeditionResult = resolveCompletedExpeditions(working, simulatedNow)
+    working = expeditionResult.state
+    expeditionsResolved.push(...expeditionResult.logEntries)
     const worldEventResult = resolveWorldEventLifecycle(working, simulatedNow)
     working = worldEventResult.state
     if (worldEventResult.logEntry) worldEventsResolved.push(worldEventResult.logEntry)
@@ -146,6 +150,15 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
     working = { ...working, disciples, resources }
     remaining -= step
   }
+
+  // The living NPC world (FIRST_REALM_PLAN §4.3) is a ONE-SHOT bounded settle,
+  // not a per-chunk resolver: each sect's rescheduled `nextActionAt` is always
+  // `> now`, so it can pulse at most once regardless of how long the gap was —
+  // calling it once here (against the real post-gap `now`, not `simulatedNow`)
+  // is what keeps this "capped, batched settling" rather than a literal replay.
+  const npcSimResult = resolveNpcActions(working, now, OFFLINE_MAX_NPC_PULSES)
+  working = npcSimResult.state
+  const npcSimResolved = npcSimResult.logEntries
 
   working = { ...working, lastSavedAt: now }
 
@@ -195,7 +208,8 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
       itemsCrafted,
       researchCompleted,
       techniquesTaught,
-      territoriesClaimed,
+      expeditionsResolved,
+      npcSimResolved,
       worldEventsResolved,
       narrativeEventsResolved,
     },
@@ -240,14 +254,21 @@ export function rewindStateClock(state: GameState, offsetMs: number): GameState 
     missionBoard: { ...state.missionBoard, nextRefreshAt: state.missionBoard.nextRefreshAt - offsetMs },
     craftingQueue: state.craftingQueue && { ...state.craftingQueue, endsAt: state.craftingQueue.endsAt - offsetMs },
     researchQueue: state.researchQueue && { ...state.researchQueue, endsAt: state.researchQueue.endsAt - offsetMs },
-    territoryClaimQueue: state.territoryClaimQueue && {
-      ...state.territoryClaimQueue,
-      endsAt: state.territoryClaimQueue.endsAt - offsetMs,
-    },
     worldEvent: state.worldEvent && { ...state.worldEvent, endsAt: state.worldEvent.endsAt - offsetMs },
     nextWorldEventAt: state.nextWorldEventAt - offsetMs,
+    // territoryClaimQueue removed in Phase 5A — outpost claims are expeditions now.
     nextEventAt: state.nextEventAt - offsetMs,
     nextUpkeepAt: state.nextUpkeepAt - offsetMs,
+    world: state.world && {
+      ...state.world,
+      expeditions: state.world.expeditions.map((e) => ({
+        ...e,
+        phaseEndsAt: e.phaseEndsAt - offsetMs,
+        dispatchedAt: e.dispatchedAt - offsetMs,
+      })),
+      npcSects: state.world.npcSects.map((n) => ({ ...n, nextActionAt: n.nextActionAt - offsetMs })),
+      nextNpcEmergenceAt: state.world.nextNpcEmergenceAt - offsetMs,
+    },
     diplomaticActionCooldowns: Object.fromEntries(
       Object.entries(state.diplomaticActionCooldowns).map(([key, ts]) => [key, ts - offsetMs]),
     ),

@@ -23,7 +23,8 @@ export function OfflineSummaryModal() {
     summary.itemsCrafted.length > 0 ||
     summary.researchCompleted.length > 0 ||
     summary.techniquesTaught.length > 0 ||
-    summary.territoriesClaimed.length > 0 ||
+    summary.expeditionsResolved.length > 0 ||
+    summary.npcSimResolved.length > 0 ||
     summary.worldEventsResolved.length > 0 ||
     summary.narrativeEventsResolved.length > 0 ||
     summary.loginStreakBonus !== undefined
@@ -141,12 +142,39 @@ export function OfflineSummaryModal() {
                 />
               </section>
             )}
-            {summary.territoriesClaimed.length > 0 && (
+            {summary.expeditionsResolved.length > 0 && (
               <section>
-                <h3>Territories</h3>
+                <h3>Expeditions</h3>
                 <CollapsibleList
-                  items={summary.territoriesClaimed.map((name, i) => (
-                    <li key={i}>{name} claimed</li>
+                  items={summary.expeditionsResolved.map((entry) => {
+                    if (entry.battleResult) {
+                      return <li key={entry.id}>{entry.locationName} &mdash; {entry.battleResult.outcomeSummary}</li>
+                    }
+                    if (entry.purpose === 'survey') {
+                      return <li key={entry.id}>{entry.locationName} &mdash; surveyed</li>
+                    }
+                    if (entry.purpose === 'claim') {
+                      return <li key={entry.id}>{entry.locationName} &mdash; outpost established</li>
+                    }
+                    const gains = (Object.entries(entry.payload.resources) as [keyof Resources, number][])
+                      .map(([key, amount]) => `+${Math.floor(amount)} ${RESOURCE_LABELS[key]}`)
+                      .join(', ')
+                    return (
+                      <li key={entry.id}>
+                        {entry.locationName} &mdash; {gains || 'no haul'}
+                        {entry.incidents.length > 0 && ` · ${entry.incidents.length} incident${entry.incidents.length > 1 ? 's' : ''}`}
+                      </li>
+                    )
+                  })}
+                />
+              </section>
+            )}
+            {summary.npcSimResolved.length > 0 && (
+              <section>
+                <h3>The Wider World</h3>
+                <CollapsibleList
+                  items={summary.npcSimResolved.map((entry) => (
+                    <li key={entry.id}>{entry.text}</li>
                   ))}
                 />
               </section>
