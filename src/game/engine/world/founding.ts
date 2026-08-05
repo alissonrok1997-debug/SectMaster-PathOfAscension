@@ -4,6 +4,7 @@ import type {
   NpcSect,
   ProvinceId,
   ProvinceRuntime,
+  RegionId,
   SectLocation,
   SectSiteId,
   WorldState,
@@ -27,6 +28,43 @@ import { hashString, mulberry32 } from '../rng'
  * FIRST_REALM_PLAN §1 restricts founding to a free Poor seat: safe (never
  * conquerable) and not already occupied by a seeded minor NPC sect (§4.4).
  */
+
+/**
+ * Seed same-region rivalries (FIRST_REALM_PLAN §8 Wave D). Within each region the
+ * sects are shuffled deterministically and linked in a ring, so every sect in a
+ * multi-sect region gets a mutual rival (two, in regions of 3+) it preferentially
+ * climbs/raids. Rivalry is asymmetric only through decline: a fallen rival becomes
+ * easy prey. Dangling ids left by a destroyed rival are simply ignored downstream.
+ */
+function assignRivalries(sects: NpcSect[], seed: number): NpcSect[] {
+  const rivals = new Map<string, Set<string>>()
+  const byRegion = new Map<RegionId, NpcSect[]>()
+  for (const s of sects) {
+    const group = byRegion.get(s.regionId)
+    if (group) group.push(s)
+    else byRegion.set(s.regionId, [s])
+  }
+  for (const [region, group] of byRegion) {
+    if (group.length < 2) continue
+    const rng = mulberry32((hashString(`rivalry:${region}`) ^ seed) >>> 0)
+    const order = [...group]
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1))
+      ;[order[i], order[j]] = [order[j], order[i]]
+    }
+    for (let i = 0; i < order.length; i++) {
+      const a = order[i].id
+      const b = order[(i + 1) % order.length].id
+      if (a === b) continue
+      ;(rivals.get(a) ?? rivals.set(a, new Set()).get(a)!).add(b)
+      ;(rivals.get(b) ?? rivals.set(b, new Set()).get(b)!).add(a)
+    }
+  }
+  return sects.map((s) => {
+    const set = rivals.get(s.id)
+    return set && set.size > 0 ? { ...s, rivalIds: [...set] } : s
+  })
+}
 
 export interface FoundingProvinceOption {
   province: ProvinceDefinition
@@ -118,23 +156,26 @@ export function buildInitialWorldState(
     flags: [],
   }
 
-  const npcSects: NpcSect[] = NPC_SECT_DEFS.map((def) => {
-    // Jittered per-entity, seeded off the world seed + id so every sect starts on its own rhythm from turn one (§4.3).
-    const rng = mulberry32((hashString(def.id) ^ seed) >>> 0)
-    return {
-      id: def.id,
-      name: def.name,
-      tier: def.tier,
-      regionId: def.regionId,
-      seatSiteId: def.seatSiteId,
-      strength: def.strength,
-      stockpile: { ...def.stockpile },
-      aggression: def.aggression,
-      status: 'active',
-      nextActionAt: now + NPC_BASE_ACTION_INTERVAL_MS * (0.7 + rng() * 0.6),
-      seatSince: now,
-    }
-  })
+  const npcSects: NpcSect[] = assignRivalries(
+    NPC_SECT_DEFS.map((def) => {
+      // Jittered per-entity, seeded off the world seed + id so every sect starts on its own rhythm from turn one (§4.3).
+      const rng = mulberry32((hashString(def.id) ^ seed) >>> 0)
+      return {
+        id: def.id,
+        name: def.name,
+        tier: def.tier,
+        regionId: def.regionId,
+        seatSiteId: def.seatSiteId,
+        strength: def.strength,
+        stockpile: { ...def.stockpile },
+        aggression: def.aggression,
+        status: 'active',
+        nextActionAt: now + NPC_BASE_ACTION_INTERVAL_MS * (0.7 + rng() * 0.6),
+        seatSince: now,
+      }
+    }),
+    seed,
+  )
 
   const world: WorldState = {
     seed,

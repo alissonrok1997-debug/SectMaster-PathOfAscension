@@ -1,5 +1,5 @@
 import type { EventLogEntry, ExpeditionLogEntry, GameState, MissionLogEntry, Resources } from '../types'
-import { createEmptyResources } from '../types'
+import { createEmptyResources, CULTIVATION_REALMS } from '../types'
 import { getBuildingDef } from '../data/buildingDefs'
 import { resolveCompletedConstruction } from './construction'
 import { applyProductionTick } from './production'
@@ -15,6 +15,8 @@ import { resolveCompletedExpeditions } from './world/expeditions'
 import { OFFLINE_MAX_NPC_PULSES, resolveNpcActions } from './world/npcSimulation'
 import { resolveWorldEventLifecycle } from './worldEvents'
 import { resolveEventLifecycle } from './events'
+import { getInjurySeverity } from './injury'
+import { resolveDownedDisciples } from './downed'
 
 /** Offline Time Cap (doc 09, Section 5) — the recommended MVP default. */
 export const OFFLINE_CAP_MS = 8 * 60 * 60 * 1000
@@ -33,6 +35,8 @@ export interface OfflineSummary {
   buildingsCompleted: string[]
   discipleBreakthroughs: { name: string; fromRealm: string; toRealm: string }[]
   injuriesRecovered: string[]
+  /** Disciples who died (or were crippled/captured out of the sect) across the gap (HEALTH_SYSTEM_PLAN Phase 5) — surfaced first in the summary. */
+  deaths: string[]
   disciplesReturned: string[]
   missionOutcomes: MissionLogEntry[]
   itemsCrafted: string[]
@@ -56,6 +60,7 @@ export function emptyOfflineSummary(): OfflineSummary {
     buildingsCompleted: [],
     discipleBreakthroughs: [],
     injuriesRecovered: [],
+    deaths: [],
     disciplesReturned: [],
     missionOutcomes: [],
     itemsCrafted: [],
@@ -115,6 +120,7 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
   const expeditionsResolved: ExpeditionLogEntry[] = []
   const worldEventsResolved: EventLogEntry[] = []
   const narrativeEventsResolved: EventLogEntry[] = []
+  const deaths: string[] = []
   while (remaining > 0) {
     const step = Math.min(CATCHUP_CHUNK_MS, remaining)
     simulatedNow += step
@@ -137,6 +143,10 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
     const expeditionResult = resolveCompletedExpeditions(working, simulatedNow)
     working = expeditionResult.state
     expeditionsResolved.push(...expeditionResult.logEntries)
+    // Disciples can die offline (Phase 5): resolve any wounded to 0 this chunk, no safety net.
+    const downedResult = resolveDownedDisciples(working, simulatedNow, simulatedNow >>> 0)
+    working = downedResult.state
+    deaths.push(...downedResult.deaths)
     const worldEventResult = resolveWorldEventLifecycle(working, simulatedNow)
     working = worldEventResult.state
     if (worldEventResult.logEntry) worldEventsResolved.push(worldEventResult.logEntry)
@@ -159,6 +169,10 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
   const npcSimResult = resolveNpcActions(working, now, OFFLINE_MAX_NPC_PULSES)
   working = npcSimResult.state
   const npcSimResolved = npcSimResult.logEntries
+  // The NPC settle can wound the player's defenders to 0 — resolve those downs too.
+  const npcDowned = resolveDownedDisciples(working, now, now >>> 0)
+  working = npcDowned.state
+  deaths.push(...npcDowned.deaths)
 
   working = { ...working, lastSavedAt: now }
 
@@ -182,10 +196,11 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
   for (const after of working.disciples) {
     const before = disciplesBefore.find((d) => d.id === after.id)
     if (!before) continue
-    if (before.realm !== after.realm) {
+    // Only an ADVANCE is a breakthrough — a crippled disciple's realm can now regress (Phase 5), which is reported via the death/loss channel, not here.
+    if (CULTIVATION_REALMS.indexOf(after.realm) > CULTIVATION_REALMS.indexOf(before.realm)) {
       discipleBreakthroughs.push({ name: after.name, fromRealm: before.realm, toRealm: after.realm })
     }
-    if (before.injury !== 'none' && after.injury === 'none') {
+    if (getInjurySeverity(before) !== 'none' && getInjurySeverity(after) === 'none') {
       injuriesRecovered.push(after.name)
     }
     if (before.awayUntil !== undefined && after.awayUntil === undefined) {
@@ -203,6 +218,7 @@ export function applyOfflineCatchUp(state: GameState): { state: GameState; summa
       buildingsCompleted,
       discipleBreakthroughs,
       injuriesRecovered,
+      deaths,
       disciplesReturned,
       missionOutcomes,
       itemsCrafted,
@@ -241,8 +257,8 @@ export function rewindStateClock(state: GameState, offsetMs: number): GameState 
     ),
     disciples: state.disciples.map((disciple) => ({
       ...disciple,
-      injuryRecoversAt: shift(disciple.injuryRecoversAt),
       awayUntil: shift(disciple.awayUntil),
+      downedUntil: shift(disciple.downedUntil),
       activeBoostUntil: shift(disciple.activeBoostUntil),
       learningTechniqueUntil: shift(disciple.learningTechniqueUntil),
     })),

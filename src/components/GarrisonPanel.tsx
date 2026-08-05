@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
 import { getLocationDefFromState } from '../game/engine/world/worldQueries'
 import { compareDisciplesForSelection, getDiscipleAvailability } from '../game/engine/discipleAvailability'
+import { getInjurySeverity } from '../game/engine/injury'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { getGarrisonEligibility } from '../game/engine/world/territory'
 import { DiscipleSelectList } from './DiscipleSelectList'
@@ -17,9 +18,12 @@ export function GarrisonPanel({ locationId, onClose }: { locationId: string; onC
   const state = useGameStore((s) => s.state)
   const garrisonSite = useGameStore((s) => s.garrisonSite)
   const ungarrisonSite = useGameStore((s) => s.ungarrisonSite)
+  const setGarrisonReturnWhenWounded = useGameStore((s) => s.setGarrisonReturnWhenWounded)
 
-  const currentGarrisonIds = state.world?.locations[locationId]?.garrison?.discipleIds ?? []
+  const currentGarrison = state.world?.locations[locationId]?.garrison
+  const currentGarrisonIds = currentGarrison?.discipleIds ?? []
   const [selectedIds, setSelectedIds] = useState<string[]>(currentGarrisonIds)
+  const [returnWhenWounded, setReturnWhenWounded] = useState<boolean>(currentGarrison?.returnWhenWounded ?? false)
 
   const locationDef = getLocationDefFromState(state, locationId)
   const combatPowerMult = getDoctrineModifiers(state).combatPowerMult
@@ -38,7 +42,14 @@ export function GarrisonPanel({ locationId, onClose }: { locationId: string; onC
     if (selectedIds.length === 0) {
       ungarrisonSite(locationId)
     } else {
+      // Stationing a critical-band disciple exposes them to death in a raid (Phase 5) — confirm explicitly.
+      const critical = state.disciples.filter((d) => selectedIds.includes(d.id) && getInjurySeverity(d) === 'critical')
+      if (critical.length > 0) {
+        const names = critical.map((d) => d.name).join(', ')
+        if (!window.confirm(`${names} ${critical.length > 1 ? 'are' : 'is'} critically wounded — stationing them here risks death if the outpost is raided. Garrison anyway?`)) return
+      }
       garrisonSite(locationId, selectedIds)
+      setGarrisonReturnWhenWounded(locationId, returnWhenWounded)
     }
     onClose()
   }
@@ -58,6 +69,13 @@ export function GarrisonPanel({ locationId, onClose }: { locationId: string; onC
           combatPowerMult={combatPowerMult}
           onToggle={toggle}
         />
+
+        {selectedIds.length > 0 && (
+          <label className="garrison-recall-toggle">
+            <input type="checkbox" checked={returnWhenWounded} onChange={(e) => setReturnWhenWounded(e.target.checked)} />
+            Auto-recall a disciple to the sect when wounded (frees the slot; shrinks their death risk)
+          </label>
+        )}
 
         {selectedIds.length > 0 && !eligibility.canGarrison && eligibility.reason && (
           <p className="upgrade-blocked-reason">{eligibility.reason}</p>

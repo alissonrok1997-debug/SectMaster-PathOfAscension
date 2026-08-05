@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { DiscipleInstance } from '../game/types'
 import { useGameStore } from '../game/state/store'
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
+import { getInjurySeverity } from '../game/engine/injury'
 import { describeDiscipleActivity } from '../game/engine/discipleAvailability'
 
 const DEFAULT_PAGE_SIZE = 5
@@ -50,10 +51,11 @@ export function DiscipleSelectList({
       <div className="assign-disciple-choices">
         {pageItems.map((d) => {
           const selected = selectedIds.includes(d.id)
+          const severity = getInjurySeverity(d)
           return (
             <button
               key={d.id}
-              className={`assign-disciple-choice ${selected ? 'selected' : ''}`}
+              className={`assign-disciple-choice ${selected ? 'selected' : ''} ${severity === 'critical' ? 'critical' : ''}`}
               disabled={!selected && !isSelectable(d.id)}
               onClick={() => onToggle(d.id)}
             >
@@ -65,8 +67,11 @@ export function DiscipleSelectList({
                 {d.realm} &middot; {d.role} &middot;{' '}
                 {formatMetric ? formatMetric(d) : `${getDiscipleCombatPower(d, combatPowerMult)} CP`} &middot;{' '}
                 {describeDiscipleActivity(state, d.id)}
-                {d.injury !== 'none' ? ` · ${d.injury} injury` : ''}
+                {severity !== 'none' ? ` · ${severity} injury` : ''}
               </span>
+              {severity === 'critical' && (
+                <span className="assign-disciple-warning">⚠ Critical — risks death if dispatched</span>
+              )}
             </button>
           )
         })}

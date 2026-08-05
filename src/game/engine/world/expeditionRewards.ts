@@ -78,13 +78,13 @@ export function resolveGatherCycle(
     }
   }
 
-  // Injure an as-yet-uninjured party member; if all are already hurt, downgrade to a setback.
-  const healthy = squad.filter((d) => d.injury === 'none')
-  const victim = healthy[Math.floor(rng() * healthy.length)]
+  // Injure a party member — any of them, since wounds now stack (HEALTH_SYSTEM_PLAN Phase 2). The empty-party guard is
+  // defensive only; an expedition always dispatches at least one disciple.
+  const victim = squad[Math.floor(rng() * squad.length)]
   if (!victim) {
     return {
       resources: scaleYield(yieldPerVisit, REDUCED_YIELD_MULT),
-      incident: { kind: 'setback', description: 'The already-battered party pressed on for a reduced haul.' },
+      incident: { kind: 'setback', description: 'A setback on site cut the haul short.' },
       forceReturn: false,
     }
   }

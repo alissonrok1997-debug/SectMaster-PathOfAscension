@@ -22,6 +22,7 @@ export function StandingsView() {
   const state = useGameStore((s) => s.state)
   const npcSects = state.world?.npcSects ?? []
   const freePoorSeats = state.world ? getFreePoorSeatIds(state.world.locations) : []
+  const nameById = new Map(npcSects.map((s) => [s.id, s.name]))
 
   return (
     <section className="panel standings-view">
@@ -52,6 +53,11 @@ export function StandingsView() {
               Strength: {sect.strength}
               {sect.status === 'declining' ? ' · declining' : ''}
             </p>
+            {(() => {
+              // Rivalries (FIRST_REALM_PLAN §8 Wave D); dangling ids (rival destroyed) resolve to nothing and drop out.
+              const rivals = (sect.rivalIds ?? []).map((id) => nameById.get(id)).filter((n): n is string => !!n)
+              return rivals.length > 0 ? <p className="recipe-meta">Rivals: {rivals.join(', ')}</p> : null
+            })()}
           </div>
         ))}
       </div>

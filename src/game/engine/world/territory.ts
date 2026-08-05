@@ -1,7 +1,9 @@
 import type { DiscipleInstance, GameState, LocationId, LocationRuntime } from '../../types'
-import { getSquadCombatPower } from '../combatPower'
+import { getSquadCombatPower, highestGradeLeaderId } from '../combatPower'
 import { getDoctrineModifiers } from '../doctrine'
 import { getGarrisonLocationId } from '../discipleAvailability'
+import { getInjurySeverity } from '../injury'
+import { isDowned } from '../downed'
 import { getWorldModifiers } from './worldModifiers'
 
 /**
@@ -22,10 +24,29 @@ export function getHomeDisciples(state: GameState): DiscipleInstance[] {
   return state.disciples.filter((d) => d.awayUntil === undefined && getGarrisonLocationId(state, d.id) === undefined)
 }
 
+/**
+ * Who actually defends the seat (HEALTH_SYSTEM_PLAN Phase 5): healthy home disciples first — a wounded disciple
+ * never fights while a fit one sits at home. The whole home roster is conscripted only when nobody is healthy
+ * (someone must defend). Also excludes the downed, who are incapacitated. Drives both defence power and the
+ * battle's real participants, so power and wound-exposure stay consistent.
+ */
+export function getSeatDefenders(state: GameState): DiscipleInstance[] {
+  const now = Date.now()
+  const home = getHomeDisciples(state).filter((d) => !isDowned(d, now))
+  const healthy = home.filter((d) => getInjurySeverity(d) === 'none')
+  return healthy.length > 0 ? healthy : home
+}
+
 export function getSeatDefensePower(state: GameState): number {
-  const home = getHomeDisciples(state)
-  const cp = getSquadCombatPower(home, getDoctrineModifiers(state).combatPowerMult)
+  const cp = getSquadCombatPower(getSeatDefenders(state), getDoctrineModifiers(state).combatPowerMult)
   return Math.round(cp * getWorldModifiers(state).defenceMult)
+}
+
+/** The disciple who commands seat defense (Phase 6): the player's saved choice if still among the defenders, else the highest-grade defender. Undefined only if nobody defends. */
+export function getSeatDefenseLeaderId(state: GameState): string | undefined {
+  const defenders = getSeatDefenders(state)
+  if (state.defenseLeaderId && defenders.some((d) => d.id === state.defenseLeaderId)) return state.defenseLeaderId
+  return highestGradeLeaderId(defenders)
 }
 
 export function getOutpostGarrisonDisciples(state: GameState, locationId: LocationId): DiscipleInstance[] {
@@ -74,6 +95,7 @@ export function getGarrisonEligibility(state: GameState, locationId: LocationId,
     const disciple = state.disciples.find((d) => d.id === id)
     if (!disciple) return { canGarrison: false, reason: 'Disciple not found.' }
     if (disciple.awayUntil !== undefined) return { canGarrison: false, reason: `${disciple.name} is away.` }
+    if (isDowned(disciple, Date.now())) return { canGarrison: false, reason: `${disciple.name} is downed and recovering.` }
     const existing = getGarrisonLocationId(state, id)
     if (existing !== undefined && existing !== locationId) {
       return { canGarrison: false, reason: `${disciple.name} is already garrisoned elsewhere.` }
@@ -82,11 +104,37 @@ export function getGarrisonEligibility(state: GameState, locationId: LocationId,
   return { canGarrison: true }
 }
 
-/** Pure: stations `discipleIds` at `locationId`, replacing any prior garrison there. Caller re-validates via getGarrisonEligibility. */
+/** Pure: stations `discipleIds` at `locationId`, replacing any prior garrison there (preserving its return-when-wounded setting). Caller re-validates via getGarrisonEligibility. */
 export function garrisonSite(state: GameState, locationId: LocationId, discipleIds: string[]): Record<LocationId, LocationRuntime> {
   const world = state.world!
   const existing = world.locations[locationId]!
-  return { ...world.locations, [locationId]: { ...existing, garrison: { strength: 0, discipleIds } } }
+  return { ...world.locations, [locationId]: { ...existing, garrison: { strength: 0, discipleIds, returnWhenWounded: existing.garrison?.returnWhenWounded } } }
+}
+
+/** Pure: toggles a player outpost's "return when wounded" auto-recall (HEALTH_SYSTEM_PLAN Phase 5). No-op if the site has no garrison entry. */
+export function setGarrisonReturnWhenWounded(state: GameState, locationId: LocationId, value: boolean): Record<LocationId, LocationRuntime> {
+  const world = state.world!
+  const existing = world.locations[locationId]
+  if (!existing?.garrison) return world.locations
+  return { ...world.locations, [locationId]: { ...existing, garrison: { ...existing.garrison, returnWhenWounded: value } } }
+}
+
+/**
+ * If a player outpost's garrison has auto-recall enabled, pulls out every member who is now wounded (or already
+ * gone) — freeing the slot and letting them regenerate at home, and shrinking their death window (Phase 5).
+ * Called right after an outpost defense applies its wounds. Pure; returns updated locations.
+ */
+export function recallWoundedGarrison(state: GameState, locationId: LocationId): Record<LocationId, LocationRuntime> {
+  const world = state.world!
+  const runtime = world.locations[locationId]
+  const ids = runtime?.garrison?.discipleIds
+  if (!runtime?.garrison?.returnWhenWounded || !ids?.length) return world.locations
+  const remaining = ids.filter((id) => {
+    const d = state.disciples.find((x) => x.id === id)
+    return d !== undefined && getInjurySeverity(d) === 'none'
+  })
+  if (remaining.length === ids.length) return world.locations
+  return { ...world.locations, [locationId]: { ...runtime, garrison: { ...runtime.garrison, discipleIds: remaining } } }
 }
 
 /** Pure: recalls every disciple stationed at `locationId`, leaving the outpost undefended. */

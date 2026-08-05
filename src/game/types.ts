@@ -88,11 +88,39 @@ export type DiscipleRole = 'Combatant' | 'Alchemist' | 'Blacksmith' | 'Scholar'
 /** MVP grades only (doc 03 Section 14) — Heaven-Chosen and Immortal Bloodline are out of scope until later waves. */
 export type DiscipleGrade = 'Common' | 'Uncommon' | 'Rare' | 'Genius'
 
+/** A leader's combat temperament (Combat Polishing Phase 6). The union lives here so it can be snapshotted on BattleResult; the effects table + derivation live in engine/combatPower.ts. */
+export type CombatTrait = 'aggressive' | 'defensive' | 'cautious' | 'inspiring' | 'ruthless'
+
+/** The ground a battle is fought on (Combat Polishing Phase 7). The union lives here for snapshotting; combat effects live in battleSimulator.ts (TERRAIN_EFFECTS), location→terrain derivation in engine/world/terrain.ts. */
+export type BattleTerrain = 'open' | 'mountain' | 'forest' | 'river' | 'fortress' | 'sacred'
+
+/** Player-framed outcome tier (Combat Polishing Phase 8), derived from margin + intensity. Drives labels + consequence scaling; derivation/tables live in battleSimulator.ts. `draw` (Phase 9) is the one tier not from margin — a mutual retreat, paying no rewards. */
+export type BattleOutcomeTier = 'crushing' | 'decisive' | 'narrow' | 'draw' | 'fightingRetreat' | 'defeat' | 'catastrophic'
+
 export type InjurySeverity = 'none' | 'minor' | 'major' | 'critical'
+
+/**
+ * A disciple's fixed combat temperament (Combat Polishing Phase 3, #8) — an epithet rolled RANDOMLY at creation and kept for life, surfaced in battle
+ * wound narration. Stored (not derived from the name) so that same-named disciples read distinctly; snapshotted into battle reports so a regenerated
+ * report shows the same epithet even after the disciple is gone.
+ */
+export const DISCIPLE_TEMPERAMENTS = [
+  'the Relentless',
+  'the Disciplined',
+  'the Reckless',
+  'the Stoic',
+  'the Cunning',
+  'the Fierce',
+  'the Steadfast',
+  'the Wrathful',
+] as const
+export type DiscipleTemperament = (typeof DISCIPLE_TEMPERAMENTS)[number]
 
 export interface DiscipleInstance {
   id: string
   name: string
+  /** Fixed combat temperament, rolled at creation (see DISCIPLE_TEMPERAMENTS). */
+  temperament: DiscipleTemperament
   realm: CultivationRealm
   /** Current small realm (stage) within the major realm, 1-9. Advances automatically as cultivationProgress fills. */
   subRealm: number
@@ -103,10 +131,12 @@ export interface DiscipleInstance {
   grade: DiscipleGrade
   loyalty: number
   morale: number
+  /** Current HP. The injury band is derived from `health / maxHp` (engine/injury.ts, getInjurySeverity) — HP is the only stored truth (HEALTH_SYSTEM_PLAN invariant 1). */
   health: number
-  injury: InjurySeverity
-  /** Epoch ms when the current injury clears; undefined if uninjured. */
-  injuryRecoversAt?: number
+  /** Max HP — persisted (flat 100 at Phase 1) so a later phase can derive it from realm/physique without a migration. */
+  maxHp: number
+  /** Epoch ms until which a downed disciple (dropped to 0 HP and survived the fate roll, HEALTH_SYSTEM_PLAN Phase 5) is incapacitated — blocked from assignment, not cultivating, HP frozen. Cleared on wake. Undefined if not downed. */
+  downedUntil?: number
   /**
    * Epoch ms until which this disciple is away and unavailable for (re)assignment
    * (Presence Requirement, doc 03 Section 8). Set today only via the debug panel,
@@ -163,9 +193,13 @@ export interface MissionLogEntry {
   missionName: string
   outcome: MissionOutcome
   squadNames: string[]
+  /** Combat temperaments, parallel to `squadNames` — snapshotted so BattleReportView regenerates the same wound epithets (Phase 3 #8). Absent on non-combat missions. */
+  squadTemperaments?: DiscipleTemperament[]
   rewardGranted: Partial<Resources>
   injuries: { name: string; severity: Exclude<InjurySeverity, 'none'> }[]
   resolvedAt: number
+  /** Present only for combat (Hunting) missions, which resolve through the shared battle simulator (Combat Polishing Phase 2) — opens the regenerated BattleReportView, same as an expedition's. */
+  battleResult?: BattleResult
 }
 
 // --- Items (Inventory, Equipment & Item System, doc 07) -------------------
@@ -332,7 +366,12 @@ export interface LoginStreakState {
 // fields (`NpcSect.nextActionAt`/`seatSince`, `WorldState.nextNpcEmergenceAt`)
 // that a v17 save's npcSects/world don't carry — the bump discards it (no
 // MIGRATIONS entry, same precedent as v16/v17).
-export const SAVE_VERSION = 18
+// v20 (Combat Polishing): disciples gain a required `temperament` epithet, and combat
+// log entries snapshot it. Unlike the id-reshaping bumps above, this field has a lossless
+// default, so it's the first bump to use the migration seam (backfill in save.ts) rather
+// than discard — a v19 save keeps all its progress and just backfills each disciple's
+// temperament from its name (the value it was already displaying).
+export const SAVE_VERSION = 21
 
 export interface GameState {
   saveVersion: number
@@ -343,6 +382,8 @@ export interface GameState {
   resources: Resources
   buildings: Record<string, BuildingInstance>
   disciples: DiscipleInstance[]
+  /** Chosen leader for seat defense (Combat Polishing Phase 6). Optional: absent (or if the disciple is no longer home) falls back to the highest-grade home disciple. */
+  defenseLeaderId?: string
   items: ItemInstance[]
   /**
    * Epoch ms until which the sect's passive Qi Stone production is halved,
@@ -551,6 +592,8 @@ export interface ProvinceRuntime {
 export interface Garrison {
   strength: number
   discipleIds?: string[]
+  /** When true, a stationed disciple who takes a wound is auto-recalled to the sect to recover (HEALTH_SYSTEM_PLAN Phase 5), freeing the slot and shrinking their death window. */
+  returnWhenWounded?: boolean
   /** Future: defensive-formation building tie-in. */
   formationLevel?: number
 }
@@ -667,8 +710,13 @@ export interface BattleWoundResult {
  * itself (§4.7).
  */
 export interface BattleResult {
-  /** True if the player's dispatched party won. The player is always the attacker in Wave B (FIRST_REALM_PLAN §4.7 — NPC-initiated attacks on the player are Wave C's npcSimulation). */
+  /** True if the PLAYER won this battle (player-centric, regardless of side): on an attack the player is the attacker, on a defense the player is the defender. `false` on a draw (Phase 9) too — the draw is flagged by `outcomeTier: 'draw'`, which the report/log key off. */
   won: boolean
+  /**
+   * Which side the player fought on. Absent = `'attacker'` (every pre-defense-report entry, and all expedition/attack entries) — BattleReportView regenerates
+   * the narrative with the stored roster as attackers. `'defender'` mirrors it: the stored roster are the DEFENDERS and `attackerName` labels the NPC attacker.
+   */
+  playerRole?: 'attacker' | 'defender'
   seed: number
   rounds: number
   attackerPower: number
@@ -676,11 +724,21 @@ export interface BattleResult {
   wounds: BattleWoundResult[]
   /** Snapshot for accurate narrative regeneration (BattleReportView re-invokes the simulator with these same names). */
   leaderName?: string
+  /** The player leader's combat trait (Phase 6) — snapshotted because it scales the casualty budget inside the simulator, so the report must regenerate with it. BattleReportView feeds it to whichever side the player commanded (attacker on an attack, defender on a defense). */
+  leaderTrait?: CombatTrait
+  /** Flavour label for the attacking NPC on a defense report (`playerRole: 'defender'`) — the mirror of `defenderName`, replaying exactly what npcSimulation passed as `attackerName`. */
+  attackerName?: string
+  /** The battle's terrain (Phase 7) — snapshotted because its intensity bias changes wounds at regen time; its power effect is already baked into the stored powers. Absent on missions (no map location) and on pre-Phase-7 reports. */
+  terrain?: BattleTerrain
+  /** Player-framed outcome tier (Phase 8) — the report header; drives the aftermath applied at resolve time. Absent on pre-Phase-8 reports (fall back to `won`). */
+  outcomeTier?: BattleOutcomeTier
   defenderName: string
   /** Resources stolen from the defender's stockpile on a winning Raid (banked via the normal expedition payload). */
   lootedResources?: Partial<Resources>
   /** Human-readable territorial consequence, e.g. "Conquered Sacred Peak" or "Seized Whitecrag Iron Mine". */
   outcomeSummary: string
+  /** Names of the player's disciples who died (or were crippled out of the sect) in this battle (HEALTH_SYSTEM_PLAN Phase 5) — snapshotted so the report shows a last-stand line even after they leave the roster. */
+  deaths?: string[]
 }
 
 /** Newest-first arrival report, capped, mirroring missionLog (§9). */
@@ -690,6 +748,8 @@ export interface ExpeditionLogEntry {
   targetLocationId: LocationId
   locationName: string
   discipleNames: string[]
+  /** Combat temperaments, parallel to `discipleNames` — snapshotted so BattleReportView regenerates the same wound epithets (Phase 3 #8). Absent on non-combat arrivals and pre-v20 entries. */
+  discipleTemperaments?: DiscipleTemperament[]
   payload: ExpeditionPayload
   incidents: ExpeditionIncident[]
   resolvedAt: number
@@ -721,6 +781,8 @@ export interface NpcSect {
   stockpile: Partial<Resources>
   /** 0..1 AI temperament driving how readily it climbs/raids. */
   aggression: number
+  /** Ids of rival sects this one preferentially climbs/raids (FIRST_REALM_PLAN §8 Wave D). Dangling ids (rival destroyed) are ignored, not cleaned. */
+  rivalIds?: string[]
   status: 'active' | 'declining'
   /** Epoch ms this sect's next autonomous pulse is due (FIRST_REALM_PLAN §4.3) — jittered per-entity so 24-32 sects don't all fire the same tick. */
   nextActionAt: number

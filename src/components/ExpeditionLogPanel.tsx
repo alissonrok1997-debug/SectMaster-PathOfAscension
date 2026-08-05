@@ -39,7 +39,15 @@ export function ExpeditionLogPanel() {
           </li>
         ))}
       </ul>
-      {openEntry && <BattleReportView entry={openEntry} onClose={() => setOpenEntry(null)} />}
+      {openEntry?.battleResult && (
+        <BattleReportView
+          battle={openEntry.battleResult}
+          title={openEntry.locationName}
+          participantNames={openEntry.discipleNames}
+          participantTemperaments={openEntry.discipleTemperaments}
+          onClose={() => setOpenEntry(null)}
+        />
+      )}
     </section>
   )
 }
