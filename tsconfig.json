@@ -18,5 +18,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "// exclude": "smellTest.ts is a Node-only dev harness (Combat Polishing Phase 10), run via `npm run smell-test` (tsx). It uses Node globals and must stay out of the browser app's type-check — @types/node would leak Node globals into the whole app.",
+  "exclude": ["src/game/engine/combat/smellTest.ts"]
 }

@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
 import { getDisciplePowerRating, getMissionDispatchEligibility, getMissionSuccessChance } from '../game/engine/missions'
 import { getDiscipleCombatPower, getSquadCombatPower } from '../game/engine/combatPower'
+import { getAdvantageBand } from '../game/engine/combat/battleSimulator'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { compareDisciplesForSelection, getDiscipleAvailability } from '../game/engine/discipleAvailability'
+import { getInjurySeverity } from '../game/engine/injury'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
 import type { DiscipleInstance, MissionBoardOffer, Resources } from '../game/types'
@@ -45,6 +47,12 @@ export function MissionOfferCard({ offer, def }: { offer: MissionBoardOffer; def
   }
 
   const handleDispatch = () => {
+    // Dispatching a critical-band disciple risks their death (Phase 5) — require explicit confirmation, not just the coloured label.
+    const critical = squad.filter((d) => getInjurySeverity(d) === 'critical')
+    if (critical.length > 0) {
+      const names = critical.map((d) => d.name).join(', ')
+      if (!window.confirm(`${names} ${critical.length > 1 ? 'are' : 'is'} critically wounded — sending ${critical.length > 1 ? 'them' : 'them'} out risks death. Dispatch anyway?`)) return
+    }
     dispatchMission(offer.id, squadIds)
     setSquadIds([])
     setPickerOpen(false)
@@ -56,8 +64,8 @@ export function MissionOfferCard({ offer, def }: { offer: MissionBoardOffer; def
     if (def.isCombat) {
       const squadCombatPower = getSquadCombatPower(squad, combatPowerMult)
       const enemyCombatPower = def.enemyCombatPower ?? 0
-      const ratio = squadCombatPower / enemyCombatPower
-      const assessment = ratio >= 1.15 ? 'Favorable' : ratio >= 0.9 ? 'Even' : 'Unfavorable'
+      // Advantage band over the actual win curve (Phase 3, #11) — honest about the defender-favoured odds, unlike the old raw-ratio thresholds.
+      const assessment = getAdvantageBand(squadCombatPower, enemyCombatPower).label
       preview = `Squad Combat Power ${squadCombatPower} vs. enemy ${enemyCombatPower} — ${assessment}`
     } else {
       const chance = getMissionSuccessChance(def, squad)

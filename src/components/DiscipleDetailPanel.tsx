@@ -12,9 +12,11 @@ import { getEquipmentCombatPower } from '../game/engine/itemQuality'
 import { getItemDef } from '../game/data/itemDefs'
 import { getItemQualityDef } from '../game/data/itemQualityDefs'
 import { formatCountdown } from '../game/utils/formatDuration'
-import { CULTIVATION_REALMS, type DiscipleInstance, type EquipmentSlotId } from '../game/types'
+import { getInjurySeverity, HEALTH_REGEN_PER_SECOND } from '../game/engine/injury'
+import { isDowned } from '../game/engine/downed'
+import { CULTIVATION_REALMS, type EquipmentSlotId, type InjurySeverity } from '../game/types'
 
-const INJURY_LABEL: Record<DiscipleInstance['injury'], string> = {
+const INJURY_LABEL: Record<InjurySeverity, string> = {
   none: '',
   minor: 'Minor Injury',
   major: 'Major Injury',
@@ -59,7 +61,13 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
     .map((id) => getBuildingDef(id))
 
   const isAway = disciple.awayUntil !== undefined
-  const isInjured = disciple.injury !== 'none'
+  const isDownedNow = isDowned(disciple, Date.now())
+  const injurySeverity = getInjurySeverity(disciple)
+  const isInjured = injurySeverity !== 'none'
+  const isCritical = injurySeverity === 'critical'
+  const hpPct = (disciple.health / disciple.maxHp) * 100
+  // Recovery is now a flat regen, so "recovers in" is an estimate of time to full HP, not a stored timer.
+  const msToFullHp = ((disciple.maxHp - disciple.health) / (HEALTH_REGEN_PER_SECOND * disciple.maxHp)) * 1000
   const isBoosted = disciple.activeBoostUntil !== undefined && disciple.activeBoostUntil > Date.now()
   const isLearning = disciple.learningTechniqueId !== undefined
   const isFinalRealm = CULTIVATION_REALMS.indexOf(disciple.realm) === CULTIVATION_REALMS.length - 1
@@ -84,7 +92,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
       return def.category === 'Equipment' && def.slotType === SLOT_MATCHES_ITEM[slot]
     })
 
-  const canUseHealing = healingPillStock > 0 && isInjured
+  const canUseHealing = healingPillStock > 0 && disciple.health < disciple.maxHp
   const canUseQi = qiPillStock > 0 && !isAway && !isFinalRealm
 
   return (
@@ -107,11 +115,24 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         )
       })()}
 
-      {isInjured && (
-        <p className="status-badge injured-badge">
-          {INJURY_LABEL[disciple.injury]} &middot; recovers in{' '}
-          {formatCountdown((disciple.injuryRecoversAt ?? Date.now()) - Date.now())}
+      <div className="disciple-hp">
+        <div className="progress-bar">
+          <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
+        </div>
+        <p className="panel-hint">
+          HP {hpPct.toFixed(2)}%{isInjured && !isDownedNow ? ` · ${INJURY_LABEL[injurySeverity]} · recovers in ~${formatCountdown(msToFullHp)}` : ''}
         </p>
+      </div>
+
+      {isDownedNow ? (
+        <p className="status-badge injured-badge">
+          Downed — incapacitated, comes to in {formatCountdown((disciple.downedUntil ?? Date.now()) - Date.now())}
+        </p>
+      ) : (
+        isCritical &&
+        !isAway && (
+          <p className="disciple-critical-warning">⚠ Critically wounded — dispatching them on a mission or expedition risks their death.</p>
+        )
       )}
 
       {isBoosted && (
@@ -126,6 +147,8 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
           Away (Presence Requirement) &middot; returns in{' '}
           {formatCountdown((disciple.awayUntil ?? Date.now()) - Date.now())}
         </p>
+      ) : isDownedNow ? (
+        <p className="panel-hint">Incapacitated — cannot be assigned or dispatched until recovered.</p>
       ) : (
         <label className="disciple-assignment">
           Assigned to:{' '}

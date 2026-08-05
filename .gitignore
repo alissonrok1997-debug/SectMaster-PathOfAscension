@@ -10,6 +10,9 @@ PROJECT.md
 CLAUDE.md
 FIRST_REALM_PLAN.md
 WORLD_MAP_DESIGN.md
+BATTLE_NARRATION_PLAN.md
+COMBAT_POLISHING_PLAN.md
+PlansMDFiles/
 
 # local tooling config, not pushed to GitHub
 .claude/

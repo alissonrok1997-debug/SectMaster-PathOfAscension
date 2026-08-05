@@ -1,5 +1,7 @@
 import { useGameStore } from '../game/state/store'
 import { getDiscipleCultivationRate, isReadyForBreakthrough } from '../game/engine/cultivation'
+import { getInjurySeverity } from '../game/engine/injury'
+import { isDowned } from '../game/engine/downed'
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
 import { getResearchCultivationRateMultiplier } from '../game/engine/research'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
@@ -20,7 +22,11 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
   if (!disciple) return null
 
   const isAway = disciple.awayUntil !== undefined
-  const isInjured = disciple.injury !== 'none'
+  const isDownedNow = isDowned(disciple, Date.now())
+  const injurySeverity = getInjurySeverity(disciple)
+  const isInjured = injurySeverity !== 'none'
+  const isCritical = injurySeverity === 'critical'
+  const hpPct = (disciple.health / disciple.maxHp) * 100
   const isBoosted = disciple.activeBoostUntil !== undefined && disciple.activeBoostUntil > Date.now()
   const trainingHallLevel = state.buildings.trainingHall?.level ?? 0
   const doctrineMods = getDoctrineModifiers(state)
@@ -43,7 +49,7 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
   const readyForBreakthrough = isReadyForBreakthrough(disciple)
   const combatPower = getDiscipleCombatPower(disciple, doctrineMods.combatPowerMult)
 
-  const statusBadge = isAway ? 'Away' : isInjured ? 'Injured' : isBoosted ? 'Boosted' : null
+  const statusBadge = isAway ? 'Away' : isDownedNow ? 'Downed' : isInjured ? 'Injured' : isBoosted ? 'Boosted' : null
 
   return (
     <div
@@ -89,10 +95,22 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
         {rateLabel}
       </p>
 
+      <div className="disciple-hp">
+        <div className="progress-bar">
+          <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
+        </div>
+        <p className="panel-hint">
+          {isDownedNow ? 'Downed — recovering' : `HP ${hpPct.toFixed(2)}%${isInjured ? ` · ${injurySeverity} injury` : ''}`}
+        </p>
+      </div>
+
+      {isCritical && !isAway && !isDownedNow && (
+        <p className="disciple-critical-warning">⚠ Critical — dispatching risks their death.</p>
+      )}
+
       <div className="disciple-stat-row">
         <span>Loyalty {disciple.loyalty}</span>
         <span>Morale {disciple.morale}</span>
-        <span>Health {disciple.health}</span>
       </div>
 
       {statusBadge && <span className={`disciple-card-status ${statusBadge.toLowerCase()}`}>{statusBadge}</span>}

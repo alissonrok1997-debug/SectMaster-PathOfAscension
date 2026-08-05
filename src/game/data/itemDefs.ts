@@ -14,6 +14,8 @@ export interface ItemDefinition {
   pillEffect?: 'heal' | 'cultivate'
   /** Pill only, 'cultivate' effect — flat cultivation progress points granted. */
   cultivateAmount?: number
+  /** Pill only, 'heal' effect — flat HP restored (HEALTH_SYSTEM_PLAN Phase 3), clamped to max HP. */
+  healAmount?: number
 }
 
 /**
@@ -89,9 +91,10 @@ export const ITEM_DEFS: ItemDefinition[] = [
     id: 'minorHealingPill',
     category: 'Pill',
     name: 'Minor Healing Pill',
-    description: 'Instantly clears an injury. Consumed on use.',
+    description: 'Restores 40 HP. Consumed on use.',
     rarity: 'Common',
     pillEffect: 'heal',
+    healAmount: 40,
   },
   {
     id: 'qiReplenishmentPill',

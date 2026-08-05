@@ -1,6 +1,17 @@
-import type { LocationRuntime, NpcSect, SectSiteTier } from '../game/types'
+import type { DiscipleInstance, LocationRuntime, NpcSect, SectSiteTier } from '../game/types'
 import type { SectSiteDefinition } from '../game/data/world/sectSiteDefs'
+import { getDiscipleCombatTrait, TRAIT_EFFECTS } from '../game/engine/combatPower'
 import { ModifierBundleList } from './ModifierBundleList'
+
+/** Seat-defense leader picker (Combat Polishing Phase 6) — shown only on the player's own seat. */
+export interface SeatDefenseProps {
+  disciples: DiscipleInstance[]
+  /** Who currently leads the defense (the chosen disciple, or the highest-grade fallback). */
+  effectiveLeaderId?: string
+  /** The explicit player choice; undefined means "auto (highest grade)". */
+  chosenLeaderId?: string
+  onSelect: (discipleId: string | undefined) => void
+}
 
 const TIER_LABELS: Record<SectSiteTier, string> = { poor: 'Poor', normal: 'Normal', good: 'Good' }
 
@@ -27,6 +38,7 @@ export function SectSiteDetailPanel({
   onClaimSeat,
   onSurvey,
   onViewResources,
+  seatDefense,
 }: {
   site: SectSiteDefinition
   runtime: LocationRuntime | undefined
@@ -38,6 +50,7 @@ export function SectSiteDetailPanel({
   onSurvey?: () => void
   /** Jump to the province's resource-node & expedition list from this seat. */
   onViewResources?: () => void
+  seatDefense?: SeatDefenseProps
 }) {
   const garrisonStrength = isPlayerSeat ? undefined : runtime?.garrison?.strength
   const isEnemyOwned = runtime?.ownerId !== undefined && runtime.ownerId !== 'player'
@@ -63,6 +76,32 @@ export function SectSiteDetailPanel({
         {!site.conquerable ? ' · never conquerable' : ''}
       </p>
       <ModifierBundleList bundle={site.modifiers} />
+
+      {isPlayerSeat && seatDefense && seatDefense.disciples.length > 0 && (
+        <div className="dispatch-preview">
+          <p className="panel-hint">Defense leader (their trait shapes seat defenses):</p>
+          <div className="assign-disciple-choices">
+            <button
+              className={`assign-disciple-choice ${seatDefense.chosenLeaderId === undefined ? 'selected' : ''}`}
+              onClick={() => seatDefense.onSelect(undefined)}
+            >
+              <span className="assign-disciple-name">{seatDefense.chosenLeaderId === undefined ? '✓ ' : ''}Auto (highest grade)</span>
+            </button>
+            {seatDefense.disciples.map((d) => (
+              <button
+                key={d.id}
+                className={`assign-disciple-choice ${seatDefense.effectiveLeaderId === d.id ? 'selected' : ''}`}
+                onClick={() => seatDefense.onSelect(d.id)}
+              >
+                <span className="assign-disciple-name">
+                  {seatDefense.effectiveLeaderId === d.id ? '✓ ' : ''}
+                  {d.name} — {TRAIT_EFFECTS[getDiscipleCombatTrait(d)].label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {onViewResources && (
         <div className="location-card-actions">

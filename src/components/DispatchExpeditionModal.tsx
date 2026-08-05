@@ -7,7 +7,8 @@ import { getClaimKind, getDispatchEligibility } from '../game/engine/world/exped
 import { getExpeditionPreview, getTravelTime } from '../game/engine/world/travel'
 import { getIncidentChance } from '../game/engine/world/expeditionRewards'
 import { compareDisciplesForSelection, getDiscipleAvailability } from '../game/engine/discipleAvailability'
-import { getSquadCombatPower } from '../game/engine/combatPower'
+import { getInjurySeverity } from '../game/engine/injury'
+import { getDiscipleCombatTrait, getSquadCombatPower, TRAIT_EFFECTS } from '../game/engine/combatPower'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
 import { formatResourceCost } from '../game/utils/formatResources'
@@ -88,6 +89,12 @@ export function DispatchExpeditionModal({
     .join(', ')
 
   const confirm = () => {
+    // Dispatching a critical-band disciple risks their death (Phase 5) — require explicit confirmation.
+    const critical = party.filter((d) => getInjurySeverity(d) === 'critical')
+    if (critical.length > 0) {
+      const names = critical.map((d) => d.name).join(', ')
+      if (!window.confirm(`${names} ${critical.length > 1 ? 'are' : 'is'} critically wounded — sending them out risks death. Dispatch anyway?`)) return
+    }
     dispatchExpedition(purpose, locationId, selectedIds, clampedCycles, isCombat ? leaderId : undefined)
     onClose()
   }
@@ -122,7 +129,7 @@ export function DispatchExpeditionModal({
 
         {isCombat && party.length > 0 && (
           <div className="dispatch-preview">
-            <p className="panel-hint">Leader (optional — grants a combat power bonus):</p>
+            <p className="panel-hint">Leader (optional — their trait shapes power and casualties):</p>
             <div className="assign-disciple-choices">
               {party.map((d) => (
                 <button
@@ -132,7 +139,7 @@ export function DispatchExpeditionModal({
                 >
                   <span className="assign-disciple-name">
                     {leaderId === d.id ? '✓ ' : ''}
-                    {d.name}
+                    {d.name} — {TRAIT_EFFECTS[getDiscipleCombatTrait(d)].label}
                   </span>
                 </button>
               ))}

@@ -1,9 +1,9 @@
-import type { DiscipleGrade, DiscipleInstance, DiscipleRole, GameState } from '../types'
+import { DISCIPLE_TEMPERAMENTS, type DiscipleGrade, type DiscipleInstance, type DiscipleRole, type GameState } from '../types'
 import { generateDiscipleName } from '../data/discipleNames'
 import { getWorldModifiers } from './world/worldModifiers'
 import { getDiscipleAvailability } from './discipleAvailability'
-import { EQUIPMENT_SLOTS } from './equipment'
-import { addExistingInstance } from './crafting'
+import { removeDiscipleFromRoster } from './roster'
+import { MAX_HP } from './injury'
 
 export interface ExpelEligibility {
   canExpel: boolean
@@ -27,27 +27,13 @@ export function getExpelEligibility(state: GameState, discipleId: string): Expel
 }
 
 /**
- * Removes a disciple from the roster, returning any equipped gear to the sect
- * inventory so expelling never destroys items (mirrors unequip). Pure — the freed
- * building work-slot follows automatically because assignment is a field on the
- * disciple. No-op if the disciple can't currently be expelled.
+ * Removes a disciple from the roster, returning any equipped gear to the sect inventory so expelling never
+ * destroys items. Delegates to the shared removal core (engine/roster.ts) — same reference-clearing every
+ * other departure uses. No-op if the disciple can't currently be expelled (the one caller with a guard).
  */
 export function expelDisciple(state: GameState, discipleId: string): GameState {
   if (!getExpelEligibility(state, discipleId).canExpel) return state
-  const disciple = state.disciples.find((d) => d.id === discipleId)
-  if (!disciple) return state
-
-  let items = state.items
-  for (const slot of EQUIPMENT_SLOTS) {
-    const instance = disciple.equipment[slot]
-    if (instance) items = addExistingInstance(items, instance)
-  }
-
-  return {
-    ...state,
-    items,
-    disciples: state.disciples.filter((d) => d.id !== discipleId),
-  }
+  return removeDiscipleFromRoster(state, discipleId, { returnGear: true, reason: 'expelled' })
 }
 
 /** Spirit Stone recruitment cost, scaling with how many disciples are already recruited (doc 03, Section 6/7). */
@@ -104,6 +90,8 @@ export function createRecruit(talentMultiplier: number = 1): DiscipleInstance {
   return {
     id: crypto.randomUUID(),
     name: generateDiscipleName(),
+    // Rolled once, at birth, and kept for life (Combat Polishing Phase 3, #8) — random rather than name-derived so same-named disciples read distinctly.
+    temperament: DISCIPLE_TEMPERAMENTS[Math.floor(Math.random() * DISCIPLE_TEMPERAMENTS.length)],
     realm: 'Body Tempering',
     subRealm: 1,
     cultivationProgress: 0,
@@ -112,8 +100,8 @@ export function createRecruit(talentMultiplier: number = 1): DiscipleInstance {
     grade: gradeRoll.grade,
     loyalty: 70,
     morale: 80,
-    health: 100,
-    injury: 'none',
+    health: MAX_HP,
+    maxHp: MAX_HP,
     equipment: { weapon: undefined, bodyArmor: undefined, accessory1: undefined, accessory2: undefined },
     knownTechniques: [],
   }

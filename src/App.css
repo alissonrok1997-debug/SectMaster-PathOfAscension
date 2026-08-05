@@ -179,6 +179,59 @@ body {
   background: #6d7dd1;
 }
 
+.progress-bar-fill.hp {
+  background: #7fc98a;
+}
+
+.progress-bar-fill.hp-critical {
+  background: #e06b6b;
+}
+
+.disciple-hp {
+  margin-top: 0.4rem;
+}
+
+.disciple-critical-warning {
+  margin: 0.3rem 0 0;
+  color: #f0b3b3;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.assign-disciple-choice.critical {
+  border-color: #a24a4a;
+}
+
+.assign-disciple-warning {
+  display: block;
+  margin-top: 0.15rem;
+  color: #f0b3b3;
+  font-size: 0.72rem;
+}
+
+.garrison-recall-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #b8b8b8);
+}
+
+.offline-summary-deaths h3 {
+  color: #e06b6b;
+}
+
+.offline-summary-deaths li {
+  color: #f0b3b3;
+}
+
+.battle-report-deaths {
+  margin: 0.5rem 0 0;
+  color: #e06b6b;
+  font-weight: 600;
+}
+
 .save-controls-buttons {
   display: flex;
   flex-wrap: wrap;

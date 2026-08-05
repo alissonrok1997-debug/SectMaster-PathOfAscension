@@ -30,6 +30,7 @@ import { BOOST_COST, BOOST_DURATION_MS, getBoostEligibility } from '../engine/cu
 import { applyOfflineCatchUp, emptyOfflineSummary, rewindStateClock, type OfflineSummary } from '../engine/offlineCatchup'
 import { resolveLoginStreak } from '../engine/loginStreak'
 import { getMissionDispatchEligibility, resolveCompletedMissions, resolveMissionBoardRefresh } from '../engine/missions'
+import { resolveDownedDisciples } from '../engine/downed'
 import { getMissionDef } from '../data/missionDefs'
 import {
   addExistingInstance,
@@ -65,7 +66,12 @@ import {
 } from '../engine/world/expeditions'
 import { getTravelTime } from '../engine/world/travel'
 import { generateProvinceNodes } from '../engine/world/worldGeneration'
-import { garrisonSite as garrisonSitePure, getGarrisonEligibility, ungarrisonSite as ungarrisonSitePure } from '../engine/world/territory'
+import {
+  garrisonSite as garrisonSitePure,
+  getGarrisonEligibility,
+  setGarrisonReturnWhenWounded as setGarrisonReturnWhenWoundedPure,
+  ungarrisonSite as ungarrisonSitePure,
+} from '../engine/world/territory'
 import { MAX_NPC_ACTIONS_PER_TICK, resolveNpcActions } from '../engine/world/npcSimulation'
 import type { Expedition, ExpeditionPurpose } from '../types'
 
@@ -102,6 +108,10 @@ interface GameStore {
   garrisonSite: (locationId: string, discipleIds: string[]) => void
   /** Recalls every disciple garrisoned at a location, leaving it undefended. */
   ungarrisonSite: (locationId: string) => void
+  /** Toggles a player outpost's "return when wounded" auto-recall (HEALTH_SYSTEM_PLAN Phase 5). */
+  setGarrisonReturnWhenWounded: (locationId: string, value: boolean) => void
+  /** Sets (or clears, with undefined) the chosen leader for seat defense (Combat Polishing Phase 6). */
+  setDefenseLeader: (discipleId: string | undefined) => void
   /** Resolves a pending post-relocation building prune (FIRST_REALM_PLAN §4.2/§7) by demolishing the given specialization buildings down to the new seat's cap. */
   resolveRelocationPrune: (buildingIdsToRemove: string[]) => void
   startUpgrade: (buildingId: string) => void
@@ -186,7 +196,9 @@ export const useGameStore = create<GameStore>((set) => ({
       const { state: stateAfterExpeditions } = resolveCompletedExpeditions(stateAfterMissions, now)
       // The living NPC world (FIRST_REALM_PLAN §4.3): drains only genuinely-due sects, bounded per tick.
       const { state: stateAfterNpcSim } = resolveNpcActions(stateAfterExpeditions, now, MAX_NPC_ACTIONS_PER_TICK)
-      const { state: stateAfterWorldEvent } = resolveWorldEventLifecycle(stateAfterNpcSim, now)
+      // Resolve any disciple wounded to 0 HP this tick (Phase 5) — after every wound-producing resolver, so ref-clearing sees a coherent state.
+      const { state: stateAfterDowned } = resolveDownedDisciples(stateAfterNpcSim, now, now >>> 0)
+      const { state: stateAfterWorldEvent } = resolveWorldEventLifecycle(stateAfterDowned, now)
       const { state: stateAfterNarrativeEvent } = resolveEventLifecycle(stateAfterWorldEvent, now)
       const { state: stateAfterUpkeep } = resolveUpkeepDue(stateAfterNarrativeEvent, now)
       const resourcesAfterProduction = applyProductionTick(stateAfterUpkeep, deltaMs)
@@ -307,6 +319,15 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!state.world) return {}
       return { state: { ...state, world: { ...state.world, locations: ungarrisonSitePure(state, locationId) } } }
     }),
+
+  setGarrisonReturnWhenWounded: (locationId, value) =>
+    set((store) => {
+      const state = store.state
+      if (!state.world) return {}
+      return { state: { ...state, world: { ...state.world, locations: setGarrisonReturnWhenWoundedPure(state, locationId, value) } } }
+    }),
+
+  setDefenseLeader: (discipleId) => set((store) => ({ state: { ...store.state, defenseLeaderId: discipleId } })),
 
   resolveRelocationPrune: (buildingIdsToRemove) =>
     set((store) => {
@@ -556,11 +577,13 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!disciple) return {}
 
       const result = resolveBreakthrough(disciple, store.state.resources)
-      const nextState: GameState = {
+      const withResult: GameState = {
         ...store.state,
         resources: result.resources,
         disciples: store.state.disciples.map((d) => (d.id === discipleId ? result.disciple : d)),
       }
+      // A failed breakthrough can wound the disciple to 0 HP — cultivating while hurt is genuinely dangerous (Phase 5).
+      const { state: nextState } = resolveDownedDisciples(withResult, Date.now(), Date.now() >>> 0)
       saveGame(nextState)
       return { state: nextState }
     }),
@@ -571,12 +594,14 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!getBreakthroughAllSummary(store.state).canAffordAll) return {}
 
       const result = resolveBreakthroughAll(store.state)
-      const nextState: GameState = {
+      const withResult: GameState = {
         ...store.state,
         resources: result.resources,
         disciples: result.disciples,
         eventLog: result.logEntry ? [result.logEntry, ...store.state.eventLog].slice(0, 10) : store.state.eventLog,
       }
+      // Batch breakthroughs can wound several disciples to 0 at once (Phase 5).
+      const { state: nextState } = resolveDownedDisciples(withResult, Date.now(), Date.now() >>> 0)
       saveGame(nextState)
       return { state: nextState }
     }),
@@ -688,8 +713,10 @@ export const useGameStore = create<GameStore>((set) => ({
 
       let updatedDisciple: typeof disciple
       if (def.pillEffect === 'heal') {
-        if (disciple.injury === 'none') return {}
-        updatedDisciple = { ...disciple, injury: 'none', injuryRecoversAt: undefined }
+        // Heal a set amount, overheal clamped to max HP (HEALTH_SYSTEM_PLAN Phase 3). Refused only at exactly full HP —
+        // any missing HP is healable, even a disciple whose band still reads 'none'.
+        if (disciple.health >= disciple.maxHp) return {}
+        updatedDisciple = { ...disciple, health: Math.min(disciple.maxHp, disciple.health + (def.healAmount ?? 0)) }
       } else if (def.pillEffect === 'cultivate') {
         const realmIndex = CULTIVATION_REALMS.indexOf(disciple.realm)
         if (realmIndex === CULTIVATION_REALMS.length - 1) return {}

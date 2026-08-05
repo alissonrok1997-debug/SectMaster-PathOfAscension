@@ -15,6 +15,8 @@ export interface MissionDefinition {
   baseSuccessChance: number
   /** Combat missions only — the fixed opposing Combat Power for this encounter. */
   enemyCombatPower?: number
+  /** Combat missions only — the flavour name of the opposing force, used as the defender label in the shared battle simulator's narrative/report. */
+  enemyName?: string
   rewardTable: Partial<Resources>
 }
 
@@ -76,6 +78,7 @@ export const MISSION_DEFS: MissionDefinition[] = [
     isCombat: true,
     baseSuccessChance: 0,
     enemyCombatPower: 45,
+    enemyName: 'the Mountain Beast',
     rewardTable: { spiritStones: 30, ironEssence: 15 },
   },
   {
@@ -90,6 +93,7 @@ export const MISSION_DEFS: MissionDefinition[] = [
     isCombat: true,
     baseSuccessChance: 0,
     enemyCombatPower: 85,
+    enemyName: 'the Ravine Wolf Pack',
     rewardTable: { spiritStones: 70, ironEssence: 30, spiritHerb: 20 },
   },
   {

@@ -1,9 +1,10 @@
-import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type GameState, type Resources } from '../types'
+import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type GameState, type InjurySeverity, type Resources } from '../types'
 import { BOOST_RATE_PER_SECOND } from './cultivationBoost'
 import { getResearchCultivationRateMultiplier } from './research'
 import { getDoctrineModifiers } from './doctrine'
 import { getWorldModifiers } from './world/worldModifiers'
-import { INJURY_RECOVERY_MS } from './injury'
+import { applyHealthRegen, applyWound, getInjurySeverity } from './injury'
+import { isDowned, wakeIfRecovered } from './downed'
 
 /**
  * Cultivation progress, breakthroughs, injury recovery, and Presence
@@ -24,7 +25,7 @@ const BACKGROUND_RATE = 0.00001768 // % per second for disciples not in the Trai
 /** Small realms (stages) per major realm (doc 03, Section 2). Stages 1-9 fill automatically; stage 9 → next realm is a player-triggered breakthrough. */
 export const MAX_SMALL_REALM = 9
 
-const INJURY_MULTIPLIER: Record<DiscipleInstance['injury'], number> = {
+const INJURY_MULTIPLIER: Record<InjurySeverity, number> = {
   none: 1,
   minor: 0.7,
   major: 0.4,
@@ -73,6 +74,7 @@ export function getDiscipleCultivationRate(
   rateMultiplier: number = 1,
 ): number {
   if (disciple.awayUntil !== undefined) return 0
+  if (isDowned(disciple, Date.now())) return 0 // incapacitated by a downed recovery — not cultivating.
   if (CULTIVATION_REALMS.indexOf(disciple.realm) === CULTIVATION_REALMS.length - 1) return 0
   // Progress is frozen at small realm 9 until the player triggers the breakthrough — no live rate to show.
   if (isReadyForBreakthrough(disciple)) return 0
@@ -90,7 +92,7 @@ export function getDiscipleCultivationRate(
   // a -50% floor at <=20.
   const moraleFactor = getMoraleCultivationMultiplier(disciple.morale)
 
-  return baseRate * getTalentFactor(disciple.talent) * INJURY_MULTIPLIER[disciple.injury] * moraleFactor * rateMultiplier
+  return baseRate * getTalentFactor(disciple.talent) * INJURY_MULTIPLIER[getInjurySeverity(disciple)] * moraleFactor * rateMultiplier
 }
 
 export interface CultivationTickResult {
@@ -121,9 +123,18 @@ export function applyCultivationTick(state: GameState, deltaMs: number): Cultiva
       anyChanged = true
     }
 
-    // Injury auto-recovery.
-    if (next.injuryRecoversAt !== undefined && next.injuryRecoversAt <= now) {
-      next = { ...next, injury: 'none', injuryRecoversAt: undefined }
+    // A downed disciple (Phase 5) wakes once their recovery window elapses; while still down, HP is frozen and they don't cultivate.
+    const woken = wakeIfRecovered(next, now)
+    if (woken !== next) {
+      next = woken
+      anyChanged = true
+    }
+    if (isDowned(next, now)) return next
+
+    // Injury recovery is now a flat HP regen (HEALTH_SYSTEM_PLAN Phase 1), accruing every tick until full — same rate whether at the sect or away.
+    const regenerated = applyHealthRegen(next, deltaMs)
+    if (regenerated !== next) {
+      next = regenerated
       anyChanged = true
     }
 
@@ -249,14 +260,11 @@ export function resolveBreakthrough(disciple: DiscipleInstance, resources: Resou
       success: true,
     }
   }
-  // A failed major breakthrough is a setback plus a Major Injury (doc 03, Section 3/9).
+  // A failed major breakthrough is a setback plus a Major wound (doc 03, Section 3/9) — a real HP hit, so a low disciple is
+  // genuinely endangered by cultivating while wounded (HEALTH_SYSTEM_PLAN: "a failed breakthrough can kill"). Not a battle, so Math.random is fine.
+  const setback = { ...disciple, cultivationProgress: Math.max(0, disciple.cultivationProgress - 40) }
   return {
-    disciple: {
-      ...disciple,
-      cultivationProgress: Math.max(0, disciple.cultivationProgress - 40),
-      injury: 'major',
-      injuryRecoversAt: Date.now() + INJURY_RECOVERY_MS.major,
-    },
+    disciple: applyWound(setback, 'major', Math.random),
     resources: nextResources,
     success: false,
   }

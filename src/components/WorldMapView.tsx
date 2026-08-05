@@ -4,6 +4,7 @@ import { useGameStore } from '../game/state/store'
 import { WORLD_DEF } from '../game/data/world/worldDef'
 import { SECT_SITE_DEFS } from '../game/data/world/sectSiteDefs'
 import { getInfluenceField } from '../game/engine/world/influence'
+import { getHomeDisciples, getSeatDefenseLeaderId } from '../game/engine/world/territory'
 import { SectSiteDetailPanel } from './SectSiteDetailPanel'
 import { DispatchExpeditionModal } from './DispatchExpeditionModal'
 
@@ -26,6 +27,7 @@ export function WorldMapView({
   onSelectProvince: (provinceId: string, regionId?: RegionId) => void
 }) {
   const state = useGameStore((s) => s.state)
+  const setDefenseLeader = useGameStore((s) => s.setDefenseLeader)
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
   const [dispatch, setDispatch] = useState<{ locationId: string; purpose: 'raid' | 'claim' | 'survey' } | null>(null)
 
@@ -91,6 +93,16 @@ export function WorldMapView({
           onClaimSeat={() => setDispatch({ locationId: selectedSite.id, purpose: 'claim' })}
           onSurvey={() => setDispatch({ locationId: selectedSite.id, purpose: 'survey' })}
           onViewResources={() => onSelectProvince(sectLocation.provinceId, selectedSite.regionId)}
+          seatDefense={
+            selectedSite.id === sectLocation.sectSiteId
+              ? {
+                  disciples: getHomeDisciples(state),
+                  effectiveLeaderId: getSeatDefenseLeaderId(state),
+                  chosenLeaderId: state.defenseLeaderId,
+                  onSelect: setDefenseLeader,
+                }
+              : undefined
+          }
         />
       )}
 

@@ -1,6 +1,8 @@
 import type { DiscipleInstance, GameState, LocationId } from '../types'
 import { isDiscipleBoosted } from './cultivationBoost'
 import { getDiscipleCombatPower } from './combatPower'
+import { getInjurySeverity } from './injury'
+import { isDowned } from './downed'
 import { getBuildingDef } from '../data/buildingDefs'
 import { getLocationDefFromState } from './world/worldQueries'
 
@@ -17,7 +19,7 @@ import { getLocationDefFromState } from './world/worldQueries'
  * is checked independently of the `awayUntil` branch below, not folded into it.
  */
 
-export type DiscipleHeldBy = 'building' | 'mission' | 'expedition' | 'garrison' | 'injured' | 'boosting'
+export type DiscipleHeldBy = 'building' | 'mission' | 'expedition' | 'garrison' | 'downed' | 'injured' | 'boosting'
 
 /** The location a disciple is currently garrisoned at, if any (§4.1) — the source of truth is `LocationRuntime.garrison.discipleIds`, never a field on the disciple itself. */
 export function getGarrisonLocationId(state: GameState, discipleId: string): LocationId | undefined {
@@ -58,6 +60,7 @@ export function describeDiscipleActivity(state: GameState, discipleId: string): 
   }
   if (heldBy === 'mission') return 'Away on a mission'
   if (heldBy === 'expedition') return 'Away on an expedition'
+  if (heldBy === 'downed') return 'Downed — recovering'
   const disciple = state.disciples.find((d) => d.id === discipleId)
   if (disciple?.assignedBuildingId) return `Working at ${getBuildingDef(disciple.assignedBuildingId).name}`
   return 'Idle'
@@ -116,9 +119,14 @@ export function getDiscipleAvailability(
     return { available: false, heldBy: 'mission', label: 'Away on a mission.' }
   }
 
+  // Downed (Phase 5): a hard block like away/garrison — an incapacitated disciple can't be dispatched or garrisoned until they recover.
+  if (isDowned(disciple, now)) {
+    return { available: false, heldBy: 'downed', label: 'Downed — recovering.' }
+  }
+
   // Descriptive-only statuses below: they colour UI labels but never block a new
   // away-assignment, preserving the pre-refactor dispatch/assignment behaviour.
-  if (disciple.injury !== 'none') {
+  if (getInjurySeverity(disciple) !== 'none') {
     return { available: true, heldBy: 'injured', label: 'Injured.' }
   }
   if (isDiscipleBoosted(disciple, now)) {

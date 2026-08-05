@@ -17,6 +17,7 @@ export function OfflineSummaryModal() {
     resourceEntries.length > 0 ||
     summary.buildingsCompleted.length > 0 ||
     summary.discipleBreakthroughs.length > 0 ||
+    summary.deaths.length > 0 ||
     summary.injuriesRecovered.length > 0 ||
     summary.disciplesReturned.length > 0 ||
     summary.missionOutcomes.length > 0 ||
@@ -44,6 +45,16 @@ export function OfflineSummaryModal() {
 
         {hasAnything ? (
           <div className="offline-summary-sections">
+            {summary.deaths.length > 0 && (
+              <section className="offline-summary-deaths">
+                <h3>Losses</h3>
+                <ul>
+                  {summary.deaths.map((name, i) => (
+                    <li key={i}>{name} was lost while you were away.</li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {summary.loginStreakBonus && (
               <section>
                 <h3>Login Streak</h3>

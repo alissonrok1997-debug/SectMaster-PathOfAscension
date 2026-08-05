@@ -1,4 +1,5 @@
 import type {
+  BattleOutcomeTier,
   BattleResult,
   DiscipleInstance,
   Expedition,
@@ -14,9 +15,10 @@ import type {
   SectLocation,
 } from '../../types'
 import { computeStorageCaps } from '../storage'
-import { INJURY_RECOVERY_MS } from '../injury'
+import { applyWound } from '../injury'
+import { resolveSquadDowned } from '../downed'
 import { getDiscipleAvailability } from '../discipleAvailability'
-import { getSquadCombatPower } from '../combatPower'
+import { getSquadCombatPower, getDiscipleCombatTrait, nextMoraleAfterBattle, TRAIT_EFFECTS } from '../combatPower'
 import { getDoctrineModifiers } from '../doctrine'
 import { BASE_MAX_CONCURRENT_EXPEDITIONS, EXPEDITION_LOG_LIMIT } from '../../data/world/travelConstants'
 import { SECT_SITE_DEFS } from '../../data/world/sectSiteDefs'
@@ -25,8 +27,18 @@ import { resolveGatherCycle } from './expeditionRewards'
 import { isWithinInfluence } from './influence'
 import { getDefensePower } from './territory'
 import { applyConquest } from './relocation'
-import { resolveBattle, generateNpcFacadeName, type BattleParticipant } from '../combat/battleSimulator'
-import { hashString } from '../rng'
+import {
+  resolveBattle,
+  generateNpcFacadeName,
+  getOutcomeTier,
+  TERRAIN_EFFECTS,
+  TIER_LOOT_MULT,
+  TIER_REPUTATION_DELTA,
+  type BattleParticipant,
+} from '../combat/battleSimulator'
+import { applyReputationDelta } from '../factions'
+import { getLocationTerrain } from './terrain'
+import { hashString, mulberry32 } from '../rng'
 import type { ResourceLocationDefinition } from '../../data/world/landmarkDefs'
 
 /**
@@ -179,16 +191,6 @@ export function emptyPayload(): ExpeditionPayload {
   return { resources: {}, knowledgeGained: 0, itemsGained: [] }
 }
 
-const INJURY_RANK: Record<Exclude<InjurySeverity, 'none'>, number> = { minor: 1, major: 2, critical: 3 }
-
-function worseInjury(
-  a: Exclude<InjurySeverity, 'none'> | undefined,
-  b: Exclude<InjurySeverity, 'none'>,
-): Exclude<InjurySeverity, 'none'> {
-  if (!a) return b
-  return INJURY_RANK[b] > INJURY_RANK[a] ? b : a
-}
-
 /**
  * Recall (§8.4): flip an in-flight expedition straight to `returning`, keeping the
  * payload accrued so far. Players need an out when they misjudge a dispatch;
@@ -201,8 +203,6 @@ export function recallExpedition(expeditions: Expedition[], expeditionId: string
   })
 }
 
-/** Battle prep bonus for having a designated leader in the party (§2.6/§7 — "leader gives a mechanically real edge"). */
-const LEADER_POWER_BONUS = 1.15
 /** A raid steals this fraction of the defender's stockpile and chips this fraction of their strength on a win (§4.2). */
 const RAID_LOOT_FRACTION = 0.4
 const RAID_STRENGTH_CHIP_FRACTION = 0.12
@@ -238,8 +238,11 @@ export function resolveCompletedExpeditions(
   let sectLocation: SectLocation | undefined = state.sectLocation
   let buildings = state.buildings
   let pendingRelocation: PendingRelocationState | undefined = state.pendingRelocation
+  let reputation = state.reputation
   const logEntries: ExpeditionLogEntry[] = []
   const stillActive: Expedition[] = []
+  // Battle-bearing arrivals whose party may have taken a 0-HP hit — resolved into downed fates after the loop, on the assembled state (Phase 5).
+  const combatDowns: { entry: ExpeditionLogEntry; discipleIds: string[]; won: boolean; seed: number }[] = []
 
   for (const original of world.expeditions) {
     if (original.phaseEndsAt > now) {
@@ -263,9 +266,19 @@ export function resolveCompletedExpeditions(
     // banking nothing and freeing the party rather than stranding them.
     const resourceDef = def && def.kind === 'resource' ? (def as ResourceLocationDefinition) : undefined
 
-    const party = exp.discipleIds
+    let party = exp.discipleIds
       .map((id) => disciples.find((d) => d.id === id))
       .filter((d): d is DiscipleInstance => d !== undefined)
+
+    // Wounds land when the fight (or gather cycle) resolves, not on arrival (HEALTH_SYSTEM_PLAN Phase 2): subtract HP from
+    // `disciples` immediately and refresh `party` so a later cycle sees the reduced state. A disciple hurt in cycle 2 walks home
+    // wounded and starts regenerating on the way. Battle damage is seeded per (expedition, disciple) — invariant 3; gather uses
+    // the same Math.random path resolveGatherCycle already runs on.
+    const woundDisciple = (id: string, severity: Exclude<InjurySeverity, 'none'>, rng: () => number, powerRatio = 1): void => {
+      disciples = disciples.map((d) => (d.id === id ? applyWound(d, severity, rng, powerRatio) : d))
+      party = party.map((p) => disciples.find((d) => d.id === p.id) ?? p)
+    }
+    const battleWoundRng = (id: string): (() => number) => mulberry32(((hashString(exp.id) ^ world.seed) ^ hashString(id)) >>> 0)
 
     let runtime: LocationRuntime = locations[exp.targetLocationId] ??
       (def
@@ -274,7 +287,7 @@ export function resolveCompletedExpeditions(
     let runtimeTouched = false
     let claimBuildKind: ClaimKind | undefined
     let battleResult: BattleResult | undefined
-    const pendingInjuries = new Map<string, Exclude<InjurySeverity, 'none'>>()
+    let battleTier: BattleOutcomeTier | undefined
     let arrivedHome = false
 
     // A snapshot reflecting this pass's mutations so far, for the territory/influence
@@ -319,13 +332,16 @@ export function resolveCompletedExpeditions(
           if (needsCombat) {
             const doctrineMult = getDoctrineModifiers(snapshot()).combatPowerMult
             let attackerPower = getSquadCombatPower(party, doctrineMult)
-            if (exp.leaderId && party.some((d) => d.id === exp.leaderId)) {
-              attackerPower = Math.round(attackerPower * LEADER_POWER_BONUS)
-            }
-            const defenderPower = getDefensePower(snapshot(), exp.targetLocationId)
+            // The leader's combat trait (Phase 6) sets the attacker's power multiplier, replacing the old flat leader bonus; it also feeds the casualty budget below.
+            const leader = exp.leaderId ? party.find((d) => d.id === exp.leaderId) : undefined
+            const leaderTrait = leader ? getDiscipleCombatTrait(leader) : undefined
+            if (leaderTrait) attackerPower = Math.round(attackerPower * TRAIT_EFFECTS[leaderTrait].powerMult)
+            // Terrain (Phase 7) favours the location's holder — here the defender the player is attacking. Baked into defenderPower so it's snapshotted.
+            const terrain = getLocationTerrain(exp.targetLocationId)
+            const defenderPower = Math.round(getDefensePower(snapshot(), exp.targetLocationId) * TERRAIN_EFFECTS[terrain].defenderPowerMult)
             const defenderNpc = npcSects.find((n) => n.id === targetOwnerId)
             const seed = (hashString(exp.id) ^ world.seed) >>> 0
-            const attackerParticipants: BattleParticipant[] = party.map((d) => ({ id: d.id, name: d.name }))
+            const attackerParticipants: BattleParticipant[] = party.map((d) => ({ id: d.id, name: d.name, temperament: d.temperament }))
             const facadeName = defenderNpc
               ? generateNpcFacadeName(defenderNpc.id, defenderNpc.name, defenderNpc.tier, seed)
               : targetOwnerId === 'player'
@@ -338,14 +354,26 @@ export function resolveCompletedExpeditions(
               defenderPower,
               attackerParticipants,
               attackerLeaderId: exp.leaderId,
+              attackerLeaderTrait: leaderTrait,
+              terrain,
               defenderName: facadeName,
             })
             const outcome = narrative.outcome
+            // Player is the attacker here, so the tier is framed on the attacker's ratio (Phase 8). A mutual retreat (Phase 9) is its own tier — no loot, no conquest, no prestige swing.
+            battleTier = outcome.drawn ? 'draw' : getOutcomeTier(outcome.won, attackerPower / Math.max(1, defenderPower), outcome.intensity)
+            reputation = applyReputationDelta(reputation, TIER_REPUTATION_DELTA[battleTier])
+            // Every wound lands (no worst-only collapsing), applied the moment the fight resolves. The party is the attacker,
+            // so the defender is the dealer — power-scaled damage (Phase 4) reads defender/attacker: a tougher holding wounds harder.
+            const damageRatio = defenderPower / Math.max(1, attackerPower)
             for (const wound of outcome.wounds) {
-              pendingInjuries.set(wound.discipleId, worseInjury(pendingInjuries.get(wound.discipleId), wound.severity))
+              woundDisciple(wound.discipleId, wound.severity, battleWoundRng(wound.discipleId), damageRatio)
             }
 
-            let outcomeSummary = outcome.won ? 'The battle was won, but there was nothing to claim.' : 'The attack failed.'
+            let outcomeSummary = outcome.drawn
+              ? 'The battle ended in a bloody stalemate — the party withdrew empty-handed.'
+              : outcome.won
+                ? 'The battle was won, but there was nothing to claim.'
+                : 'The attack failed.'
             let lootedResources: Partial<Resources> | undefined
 
             if (outcome.won) {
@@ -376,7 +404,8 @@ export function resolveCompletedExpeditions(
                 lootedResources = {}
                 const newStockpile = { ...defenderNpc.stockpile }
                 for (const [key, amount] of Object.entries(defenderNpc.stockpile) as [keyof Resources, number][]) {
-                  const take = Math.floor(amount * RAID_LOOT_FRACTION)
+                  // Loot scales with how decisive the raid was (Phase 8).
+                  const take = Math.floor(amount * RAID_LOOT_FRACTION * TIER_LOOT_MULT[battleTier])
                   if (take > 0) {
                     lootedResources[key] = take
                     newStockpile[key] = amount - take
@@ -398,7 +427,10 @@ export function resolveCompletedExpeditions(
               attackerPower: outcome.attackerPower,
               defenderPower: outcome.defenderPower,
               wounds: outcome.wounds,
-              leaderName: exp.leaderId ? party.find((d) => d.id === exp.leaderId)?.name : undefined,
+              leaderName: leader?.name,
+              leaderTrait,
+              terrain,
+              outcomeTier: battleTier,
               defenderName: facadeName,
               lootedResources,
               outcomeSummary,
@@ -437,7 +469,7 @@ export function resolveCompletedExpeditions(
         runtimeTouched = true
 
         if (cycle.injury) {
-          pendingInjuries.set(cycle.injury.discipleId, worseInjury(pendingInjuries.get(cycle.injury.discipleId), cycle.injury.severity))
+          woundDisciple(cycle.injury.discipleId, cycle.injury.severity, Math.random)
         }
         if (cycle.incident) {
           exp.incidents.push({
@@ -466,27 +498,35 @@ export function resolveCompletedExpeditions(
       for (const [key, amount] of Object.entries(exp.payload.resources) as [keyof Resources, number][]) {
         resources[key] = Math.min(caps[key], resources[key] + amount)
       }
+      // Wounds already landed at resolve time; arrival only frees the away-lock and settles battle-aftermath morale.
       disciples = disciples.map((d) => {
         if (!exp.discipleIds.includes(d.id)) return d
-        const severity = pendingInjuries.get(d.id)
         return {
           ...d,
           awayUntil: undefined,
-          injury: severity && d.injury === 'none' ? severity : d.injury,
-          injuryRecoversAt: severity && d.injury === 'none' ? now + INJURY_RECOVERY_MS[severity] : d.injuryRecoversAt,
+          // Battle-aftermath morale (Phase 5/8), scaled by outcome tier — only when this arrival actually fought; gather/survey leave morale untouched.
+          morale: battleTier ? nextMoraleAfterBattle(d.morale, battleTier) : d.morale,
         }
       })
-      logEntries.push({
+      const entry: ExpeditionLogEntry = {
         id: crypto.randomUUID(),
         purpose: exp.purpose,
         targetLocationId: exp.targetLocationId,
         locationName: def?.name ?? siteDef?.name ?? 'Unknown location',
         discipleNames: party.map((d) => d.name),
+        discipleTemperaments: party.map((d) => d.temperament),
         payload: exp.payload,
         incidents: exp.incidents,
         resolvedAt: now,
         battleResult,
-      })
+      }
+      logEntries.push(entry)
+      // If this arrival fought, record its party for the post-loop downed resolution (deaths → report last-stand line + squad-scoped morale, Phase 5).
+      if (battleResult) {
+        // "Held the field" for death framing = a win, or a draw where the party withdrew intact (bodies come home, not left to the enemy).
+        const held = battleResult.won || battleResult.outcomeTier === 'draw'
+        combatDowns.push({ entry, discipleIds: [...exp.discipleIds], won: held, seed: (hashString(exp.id) ^ world.seed) >>> 0 })
+      }
       break
     }
 
@@ -498,16 +538,22 @@ export function resolveCompletedExpeditions(
 
   const expeditionLog = [...logEntries, ...world.expeditionLog].slice(0, EXPEDITION_LOG_LIMIT)
 
-  return {
-    state: {
-      ...state,
-      resources,
-      disciples,
-      buildings,
-      sectLocation,
-      pendingRelocation,
-      world: { ...world, locations, npcSects, expeditions: stillActive, expeditionLog },
-    },
-    logEntries,
+  let nextState: GameState = {
+    ...state,
+    resources,
+    disciples,
+    buildings,
+    sectLocation,
+    pendingRelocation,
+    reputation,
+    world: { ...world, locations, npcSects, expeditions: stillActive, expeditionLog },
   }
+  // Resolve downed party members (Phase 5) on the assembled state, per battle — deaths carry won/lost framing + squad-scoped morale, and the arrival report shows a last-stand line.
+  for (const down of combatDowns) {
+    const result = resolveSquadDowned(nextState, down.discipleIds, now, down.seed, { won: down.won })
+    nextState = result.state
+    if (result.deaths.length > 0 && down.entry.battleResult) down.entry.battleResult.deaths = result.deaths
+  }
+
+  return { state: nextState, logEntries }
 }
