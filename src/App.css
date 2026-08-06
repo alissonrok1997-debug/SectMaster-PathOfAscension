@@ -232,6 +232,56 @@ body {
   font-weight: 600;
 }
 
+/* Battle report narrative (Battle Narration §9) — round headers, a distinct turning point, dimmed wound lines, and the summary/full toggle. */
+.battle-report-toggle {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0.2rem;
+}
+
+.battle-report-toggle button {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.75rem;
+  opacity: 0.55;
+}
+
+.battle-report-toggle button.active {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.battle-report-events {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.battle-phase-label {
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  opacity: 0.5;
+  margin-top: 0.55rem;
+}
+
+.battle-beat {
+  line-height: 1.45;
+}
+
+.battle-beat-crit {
+  font-weight: 600;
+  color: #e8c07a;
+}
+
+.battle-wound {
+  padding-left: 1rem;
+  opacity: 0.72;
+  font-size: 0.92em;
+}
+
 .save-controls-buttons {
   display: flex;
   flex-wrap: wrap;
