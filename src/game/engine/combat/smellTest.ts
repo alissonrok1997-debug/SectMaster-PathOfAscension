@@ -164,7 +164,7 @@ function checkDeterminism(): boolean {
     a.outcome.won === b.outcome.won &&
     a.outcome.drawn === b.outcome.drawn &&
     a.outcome.wounds.length === b.outcome.wounds.length &&
-    a.events.join('|') === b.events.join('|')
+    a.events.map((e) => e.text).join('|') === b.events.map((e) => e.text).join('|')
   )
 }
 
@@ -241,10 +241,19 @@ function runSampleReports(): void {
     console.log(`${s.title}   [seed ${found.seed}]`)
     console.log(
       `  ${TIER_LABEL[tier]} · Power ${o.attackerPower} vs ${o.defenderPower} · ${band.label}` +
-        `${s.terrain && s.terrain !== 'open' ? ` · ${TERRAIN_EFFECTS[s.terrain].label}` : ''} · ${o.rounds} rounds`,
+        `${s.terrain && s.terrain !== 'open' ? ` · ${TERRAIN_EFFECTS[s.terrain].label}` : ''} · ${found.narrative.rounds} rounds`,
     )
     console.log('')
-    for (const line of found.narrative.events) console.log(`    ${line}`)
+    // Print with a phase header when it changes, and mark the turning point / wounds, so the arc structure (§9) is visible in the harness.
+    let lastPhase = ''
+    for (const e of found.narrative.events) {
+      if (e.phase !== lastPhase && e.phase !== 'opening') {
+        console.log(`    — ${e.phase} —`)
+        lastPhase = e.phase
+      }
+      const mark = e.kind === 'crit' ? '  ⚡ ' : e.kind === 'wound' ? '    · ' : '    '
+      console.log(`${mark}${e.text}`)
+    }
   })
   console.log(`\n${'━'.repeat(72)}`)
 }

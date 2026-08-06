@@ -54,9 +54,25 @@ export interface BattleOutcome {
   intensity: BattleIntensity
 }
 
+/** What role a narrative line plays (§9) — lets the report render round headers, style the turning point, dim wounds, and build a summary view from the same pass. */
+export type BattleEventKind = 'opening' | 'beat' | 'crit' | 'wound' | 'closing'
+
+export interface BattleEvent {
+  /** The arc phase this line belongs to (prologue scene-setting lines are tagged `opening`). Drives the round headers. */
+  phase: BattlePhase
+  kind: BattleEventKind
+  text: string
+}
+
 export interface BattleNarrative {
   outcome: BattleOutcome
-  events: string[]
+  /** Typed, phase-tagged narrative (§9). Regenerated deterministically; never persisted. Use `.map(e => e.text)` for a plain-string view. */
+  events: BattleEvent[]
+  /**
+   * The regenerated arc length (§4b) — derived from intensity on the narration stream, NOT persisted. The report header shows this, not `BattleResult.rounds`
+   * (a legacy field kept only for save compatibility and no longer read for display), so a stored "5 rounds" never contradicts a four-beat regenerated body.
+   */
+  rounds: number
 }
 
 /** Past this power ratio the winner is fixed — preparation must always beat luck (design pillar, §4.7). */
@@ -121,12 +137,153 @@ const ROUND_BEAT_TENSE = [
   'Neither side gives ground.',
 ]
 
+// Decisive pools describe whoever currently HOLDS the momentum ({leader}), not the eventual winner — so a fight the attacker wins can still show the defender
+// pressing mid-battle before the tide turns back (Phase 4). The momentum bridge (below) converges on the real outcome, so the last beats always favour the winner.
 const ROUND_BEAT_DECISIVE = [
-  '{winner} presses the advantage.',
-  "The line bends under {winner}'s assault.",
-  '{winner} drives forward, unrelenting.',
-  'The momentum belongs to {winner}.',
+  '{leader} presses the advantage.',
+  "The line bends under {leader}'s assault.",
+  '{leader} drives forward, unrelenting.',
+  'The momentum belongs to {leader}.',
 ]
+
+// --- Narrative arc (Battle Narration plan §4). The round slots map to named phases so each beat has a ROLE instead of being interchangeable flavour;
+// Escalation reuses the generic "trade blows" pools above. Each phase carries a tense variant (a close fight) and a decisive one (a rout, keyed on {winner}).
+// Kept deliberately restrained — the richer wuxia imagery and additive terrain/actor clauses arrive in Phase 7; this phase is structure, not prose.
+export type BattlePhase = 'opening' | 'escalation' | 'turning' | 'finalPush' | 'resolution'
+
+const OPENING_TENSE = [
+  'The two hosts close, and the field erupts.',
+  'Steel meets steel as the lines collide.',
+  'The vanguards crash together and the battle is joined in earnest.',
+  'The first exchange sets the whole field roaring.',
+]
+const OPENING_DECISIVE = [
+  "{leader}'s vanguard strikes first, and hard.",
+  '{leader} seizes the initiative from the opening breath.',
+  '{leader} sets the pace before the enemy can form up.',
+]
+const TURNING_TENSE = [
+  "The battle hangs on a knife's edge.",
+  'For a long moment, the whole field wavers.',
+  'The lines buckle — then, somehow, hold.',
+  'Everything narrows to a single breathless exchange.',
+]
+const TURNING_DECISIVE = [
+  '{leader} finds the opening and drives through it.',
+  'The balance tips, and {leader} takes it.',
+  '{leader} breaks the deadlock with one decisive push.',
+]
+const FINAL_PUSH_TENSE = [
+  'Both sides gather themselves for one last effort.',
+  'Spent and ragged, the lines throw everything into the final exchange.',
+  'The fight comes down to who can stand a moment longer.',
+]
+const FINAL_PUSH_DECISIVE = [
+  '{leader} commits the reserve and presses for the finish.',
+  '{leader} bears down for the killing stroke.',
+  '{leader} drives the last exchange without mercy.',
+]
+
+// Emitted ONLY when momentum actually crosses zero this round (§3) — so "the advantage swings back and forth" is information, not decoration. {leader} = the side momentum just swung TO.
+const MOMENTUM_SWING = [
+  'The advantage swings back and forth.',
+  'The tide reverses — {leader} surges where they had been pressed.',
+  'Momentum lurches, and {leader} seizes it.',
+  'The field turns over, {leader} suddenly ascendant.',
+]
+
+// Momentum bridge tuning (§14.2). JITTER is the max early swing amplitude (scaled by closeness and decaying to 0 by the last round); BAND is the |momentum|
+// below which the fight reads as contested (tense pool) rather than one side pressing; CRIT_SPIKE is the one-round shove the crit adds toward the side it favoured.
+const MOMENTUM_JITTER = 0.4
+const MOMENTUM_BAND = 0.22
+const MOMENTUM_CRIT_SPIKE = 0.4
+
+// --- Layered embellishment (Battle Narration §5, §7). A core beat can gain ONE optional clause — a terrain setting OR a named-disciple flourish, never both,
+// ~45% of the time, and only on escalation / clean final-push beats. Authoring stays additive (~40 fragments) while the output space is multiplicative; the
+// alternative (a pool per phase×momentum×terrain×trait) is a content treadmill. All drawn on the narration stream from already-snapshotted data — no new saved state.
+const EMBELLISH_CHANCE = 0.45
+
+/** Terrain settings phrased as NOUNS the fight happens on (§5), attached as an em-dash aside so they read as a deliberate grounding, not a run-on. */
+const SETTING_CLAUSE: Record<BattleTerrain, readonly string[]> = {
+  open: ['no cover on the open ground', 'dust churning across the flat', 'nowhere to hide on the bare plain'],
+  mountain: ['the high ridge narrowing every advance', 'loose scree treacherous underfoot', 'the mountain wind cutting sidelong'],
+  forest: ['the crowded trees breaking every formation', 'green gloom swallowing the flanks', 'root and briar fouling each charge'],
+  river: ['the ford churned to mud', 'the current dragging at every step', 'the slick bank giving no purchase'],
+  fortress: ['the walls looming over the melee', 'the breached gate a killing funnel', 'arrows raking from the battlements'],
+  sacred: ['old shrine-stones underfoot', 'the ley-lines thrumming beneath the field', 'a strange stillness on the hallowed ground'],
+}
+
+/** Featured non-leader disciples (§7) get a beat beyond getting hurt — participial asides so a name means something. NPC sides have no roster, so the enemy stays a nameless mass (the intended asymmetry). */
+const ACTOR_CLAUSE = [
+  '{name} refuses to give a step',
+  '{name} holding the flank alone',
+  '{name} carving an opening where there was none',
+  '{name} anchoring the line',
+  '{name} first into the breach',
+]
+
+/** Leader-trait flavour (§5): turns the trait from a bare `(Ruthless)` label into a beat that shows the leader fighting in character. Attached like an actor clause, keyed on the leader's own name. */
+const TRAIT_CLAUSE: Record<CombatTrait, readonly string[]> = {
+  aggressive: ['{leader} pressing the attack past all caution', '{leader} throwing weight into every blow', '{leader} giving the enemy no room to breathe'],
+  ruthless: ['{leader} granting no quarter', '{leader} spending lives to buy the ground', '{leader} exploiting every opening without mercy'],
+  inspiring: ['{leader} steadying the line by sheer presence', "{leader}'s banner holding the squad together", '{leader} rallying the wavering ranks'],
+  defensive: ['{leader} holding formation, patient and unbroken', '{leader} giving no gap to exploit', '{leader} trading ground for lives'],
+  cautious: ['{leader} probing, unwilling to overcommit', '{leader} spending no life it need not', '{leader} holding the reserve back, watchful'],
+}
+
+/** The Turning Point is where the imagery is spent (§5): a vivid qi/technique image used only at high/desperate intensity, so a skirmish never reads like an apocalypse. One image per line. */
+const TURNING_VIVID = [
+  'Qi erupts along the line as the formations collide.',
+  'Technique breaks against technique, and the air itself screams.',
+  'For one heartbeat the whole field holds its breath — then shatters.',
+  'Spirit-light floods the ground; everything hangs on the next exchange.',
+]
+
+// Intensity-charged opening / escalation cores (§5): the register lifts at high/desperate — visceral, higher-stakes — while low/medium stays plain, so a skirmish
+// and a bloodbath don't read alike. Deliberately kept BELOW the Turning Point's qi imagery (TURNING_VIVID): the turn stays the peak, or nothing lands as the peak.
+const OPENING_CHARGED_TENSE = [
+  'The two hosts slam together and the ground itself shudders.',
+  'Battle-cries and breaking steel drown the field from the first breath.',
+  'The lines meet with a shock that staggers both sides.',
+]
+const OPENING_CHARGED_DECISIVE = [
+  '{leader} hits the line like an avalanche.',
+  '{leader} tears in before the enemy can set their feet.',
+  '{leader} opens with a fury that buckles the first rank.',
+]
+const ESCALATION_CHARGED_TENSE = [
+  'Neither line will break, whatever it costs them.',
+  'The fighting grinds on, savage and close.',
+  'Dust and broken qi choke the air as the ranks refuse to yield.',
+  'Every exchange draws blood, and still neither side gives.',
+]
+const ESCALATION_CHARGED_DECISIVE = [
+  '{leader} bludgeons the line back, step by bloody step.',
+  "The enemy formation cracks under {leader}'s relentless assault.",
+  '{leader} drives on through the carnage.',
+]
+
+/** Phase → core pools, with an optional `charged` tier used at high/desperate intensity (§5). Resolution has no pool (generated from the terminal state + magnitude, §8). */
+const PHASE_POOLS: Record<
+  Exclude<BattlePhase, 'resolution'>,
+  { tense: readonly string[]; decisive: readonly string[]; charged?: { tense: readonly string[]; decisive: readonly string[] } }
+> = {
+  opening: { tense: OPENING_TENSE, decisive: OPENING_DECISIVE, charged: { tense: OPENING_CHARGED_TENSE, decisive: OPENING_CHARGED_DECISIVE } },
+  escalation: { tense: ROUND_BEAT_TENSE, decisive: ROUND_BEAT_DECISIVE, charged: { tense: ESCALATION_CHARGED_TENSE, decisive: ESCALATION_CHARGED_DECISIVE } },
+  turning: { tense: TURNING_TENSE, decisive: TURNING_DECISIVE },
+  finalPush: { tense: FINAL_PUSH_TENSE, decisive: FINAL_PUSH_DECISIVE },
+}
+
+/** Report length is derived from how hard the fight was (§4b) — a short report means a short fight. Base count per intensity; the caller adds ±1 jitter and clamps to 3–6. */
+const ROUNDS_BY_INTENSITY: Record<BattleIntensity, number> = { low: 3, medium: 4, high: 5, desperate: 6 }
+
+/** The arc for a given round count (§4's table). A draw / Pyrrhic reversal is forced to >=5 rounds by the caller so its Final-Push slot always exists. arc.length === rounds. */
+function buildArc(rounds: number): BattlePhase[] {
+  if (rounds <= 3) return ['opening', 'turning', 'resolution']
+  if (rounds === 4) return ['opening', 'escalation', 'turning', 'resolution']
+  if (rounds === 5) return ['opening', 'escalation', 'turning', 'finalPush', 'resolution']
+  return ['opening', 'escalation', 'escalation', 'turning', 'finalPush', 'resolution']
+}
 
 const WOUND_FLAVOR: Record<Exclude<InjurySeverity, 'none'>, string[]> = {
   minor: ['weathers a glancing strike and presses on.', 'takes a shallow cut but holds the line.', 'is grazed, but does not falter.'],
@@ -196,13 +353,23 @@ function casualtyBudget(fraction: number, size: number, rng: () => number): numb
   return Math.min(size, Math.floor(fraction * size + rng()))
 }
 
-/** Wound `budget` DISTINCT members of one side (a cluster), rather than rolling every member independently. Seeded shuffle → deterministic for report regen. */
+/** One collected casualty line + its severity, so the assembler can bias critical wounds toward the Turning Point group (§14.3) when it splits a large cluster. */
+interface WoundBeat {
+  text: string
+  severity: Exclude<InjurySeverity, 'none'>
+}
+
+/**
+ * Wound `budget` DISTINCT members of one side (a cluster), rather than rolling every member independently. Seeded shuffle → deterministic for report regen.
+ * Collects the casualty lines into `cluster` (in draw order) instead of pushing them straight into the event log — the caller attaches the whole cluster to
+ * the arc as a unit (§6), so casualties read as consequences of the round that caused them rather than a trailing block.
+ */
 function distributeWounds(
   participants: BattleParticipant[],
   budget: number,
   rng: () => number,
   wounds: BattleWound[],
-  events: string[],
+  cluster: WoundBeat[],
 ): void {
   const count = Math.min(budget, participants.length)
   if (count <= 0) return
@@ -215,7 +382,7 @@ function distributeWounds(
     const p = participants[order[k]]
     const severity = rollWoundSeverity(rng)
     wounds.push({ discipleId: p.id, severity })
-    events.push(woundLine(p.name, p.temperament, severity, rng))
+    cluster.push({ text: woundLine(p.name, p.temperament, severity, rng), severity })
   }
 }
 
@@ -293,6 +460,24 @@ export function resolveBattle(params: {
     defenderName,
   } = params
   const rng = mulberry32(seed)
+  // Narration draws (WHICH flavour string) live on a SEPARATE seeded stream from resolution (Battle Narration plan §2), so flavour pools can grow in later
+  // phases without ever reshuffling combat outcomes. Every narration draw that used to come off `rng` is replaced there by a discard that preserves the
+  // historical resolution sequence exactly (§14.1); its value moves here. Resolution (crit swing, oddsWon, rounds, intensity, retreat, wounds) stays on `rng`.
+  const nrng = mulberry32((seed ^ 0x9e3779b9) >>> 0)
+  // Draw-without-replacement per pool within one report (§10) — kills the "Momentum belongs to X ×5" repeat. Deterministic (all off nrng); resets a pool only once exhausted.
+  const poolUsed = new Map<readonly string[], Set<number>>()
+  const pick = (pool: readonly string[]): string => {
+    let used = poolUsed.get(pool)
+    if (!used) {
+      used = new Set()
+      poolUsed.set(pool, used)
+    }
+    if (used.size >= pool.length) used.clear()
+    let idx = Math.floor(nrng() * pool.length)
+    while (used.has(idx)) idx = (idx + 1) % pool.length
+    used.add(idx)
+    return pool[idx]
+  }
   const baseRatio = attackerPower / Math.max(1, defenderPower)
   const attackerLeaderName = attackerLeaderId ? attackerParticipants.find((p) => p.id === attackerLeaderId)?.name : undefined
   const defenderLeaderName = defenderLeaderId ? defenderParticipants.find((p) => p.id === defenderLeaderId)?.name : undefined
@@ -302,20 +487,26 @@ export function resolveBattle(params: {
   // near-even fight can produce a rare upset. The draw is conditional, but the code path is identical at resolve- and regen-time, so it stays deterministic.
   let ratio = baseRatio
   let critEvent: string | undefined
+  let critFavorsAttacker: boolean | undefined // exposed to the momentum bridge (Phase 4) so the crit reads as a visible spike at the Turning Point.
   if (rng() < CRIT_MOMENT_CHANCE) {
     const favorsAttacker = rng() < 0.5
     const swing = CRIT_SWING_MIN + rng() * (CRIT_SWING_MAX - CRIT_SWING_MIN)
     ratio = favorsAttacker ? baseRatio * (1 + swing) : baseRatio * (1 - swing)
-    const flavor = CRIT_MOMENT_FLAVOR[Math.floor(rng() * CRIT_MOMENT_FLAVOR.length)]
+    rng() // discard (§14.1 site 1): preserve the historical flavour-index draw that sat before the oddsWon draw — moving it silently would flip a saved `won`. The pick moves to nrng.
+    const flavor = pick(CRIT_MOMENT_FLAVOR)
+    critFavorsAttacker = favorsAttacker
     critEvent = `${flavor} — the moment favours ${favorsAttacker ? attackerLabel : defenderName}.`
   }
 
   const oddsWon = rng() < winProbability(ratio)
-  const rounds = 3 + Math.floor(rng() * 4)
+  // `legacyRounds` is the ORIGINAL resolution draw — kept purely to drive the discard count (§14.1 site 2) so the resolution sequence stays frozen now that the
+  // narrative round count is derived from intensity instead (§4b, computed below on the narration stream). Never derive one from the other.
+  const legacyRounds = 3 + Math.floor(rng() * 4)
   // How evenly matched the fight was (1 = dead even, 0 = a total blowout either way) — drives intensity and round beats, never the outcome.
   const closeness = 1 - Math.min(1, Math.abs(ratio - 1))
   // One intensity roll for the whole fight (#10) — the hub that sets the casualty budget below, now also fed by terrain (#7).
   const intensity = rollIntensity(closeness, terrain ? TERRAIN_EFFECTS[terrain].intensityBias : 0, rng)
+  const hard = intensity === 'high' || intensity === 'desperate' // used by the vivid Turning Point (§5) and the Resolution magnitude (§8)
 
   // Retreat & draws (Phase 9, #6): between the round beats each side checks whether to break off. Retreating FIRST forfeits the field — so a side that would
   // have won by the odds can still lose if a grinding fight and a cautious leader make it pull back (the occasional Pyrrhic reversal). If BOTH break off it is
@@ -325,29 +516,128 @@ export function resolveBattle(params: {
   const drawn = attackerRetreats && defenderRetreats
   // Whoever breaks off alone loses; otherwise the odds stand.
   const won = drawn ? false : attackerRetreats ? false : defenderRetreats ? true : oddsWon
+  // A side that held the odds but pulled back and lost the field — the best story the sim produces (§8). Always coincides with exactly one retreat.
+  const reversal = !drawn && oddsWon !== won
 
-  const events: string[] = []
-  events.push(
+  // Report length derived from intensity (§4b), on the narration stream so it never perturbs resolution. A draw / reversal is forced to >=5 so its Final-Push slot exists.
+  let narrativeRounds = ROUNDS_BY_INTENSITY[intensity] + (Math.floor(nrng() * 3) - 1) // ±1 jitter
+  narrativeRounds = Math.max(3, Math.min(6, narrativeRounds))
+  if ((drawn || reversal) && narrativeRounds < 5) narrativeRounds = 5
+  const arc = buildArc(narrativeRounds)
+
+  const events: BattleEvent[] = []
+  const add = (kind: BattleEventKind, phase: BattlePhase, text: string): void => void events.push({ phase, kind, text })
+  // Prologue scene-setting (tagged `opening`): who leads, the ground, and the fight's overall temper.
+  add(
+    'opening',
+    'opening',
     attackerLeaderName
       ? `${attackerLeaderName}${attackerLeaderTrait ? ` (${TRAIT_EFFECTS[attackerLeaderTrait].label})` : ''} leads the assault against ${defenderName}.`
       : `${attackerName ?? 'The attacking party'} clashes with ${defenderName}.`,
   )
   if (defenderLeaderName) {
-    events.push(`${defenderLeaderName}${defenderLeaderTrait ? ` (${TRAIT_EFFECTS[defenderLeaderTrait].label})` : ''} rallies the defense.`)
+    add('opening', 'opening', `${defenderLeaderName}${defenderLeaderTrait ? ` (${TRAIT_EFFECTS[defenderLeaderTrait].label})` : ''} rallies the defense.`)
   }
-  if (terrain && terrain !== 'open') events.push(`The battle is joined on ${TERRAIN_EFFECTS[terrain].label}.`)
-  events.push(INTENSITY_FLAVOR[intensity])
+  if (terrain && terrain !== 'open') add('opening', 'opening', `The battle is joined on ${TERRAIN_EFFECTS[terrain].label}.`)
+  add('opening', 'opening', INTENSITY_FLAVOR[intensity])
 
-  // Round beats (rounds option (a)): derived from closeness + the (already-decided) winner, purely narrative — a tense fight trades blows, a lopsided one is a rout.
-  // A draw reads as tense throughout (neither side ever pulls decisively ahead).
-  const winnerLabel = won ? attackerLabel : defenderName
-  const beats: string[] = []
-  for (let i = 0; i < rounds; i++) {
-    const pool = drawn || closeness > 0.45 ? ROUND_BEAT_TENSE : ROUND_BEAT_DECISIVE
-    beats.push(pool[Math.floor(rng() * pool.length)].replace('{winner}', winnerLabel))
+  // Discard the historical per-beat flavour draws (§14.1 site 2): exactly one per LEGACY round, decoupled from the arc length — so the resolution sequence
+  // (and the wound rolls that follow) is unshifted. Everything the beats draw is on nrng, so none of this perturbs the outcome.
+  for (let i = 0; i < legacyRounds; i++) rng()
+
+  // The momentum bridge (§3, §14.2): a scalar in [-1,+1] (+ favours the attacker) generated as an interpolation from the opening power gap toward a KNOWN
+  // endpoint, with jitter that decays to zero — so early rounds swing freely but the late rounds always converge on the real outcome. It never feeds back into
+  // resolution; it only decides which side each beat shows pressing, and whether the advantage genuinely swung. The combat slots are the arc minus Resolution.
+  const combatPhases = arc.filter((p): p is Exclude<BattlePhase, 'resolution'> => p !== 'resolution')
+  const slots = combatPhases.length
+  // A reversal ran the fight toward the odds-winner (the side that ends up LOSING after it breaks off); every other result runs straight toward the winner.
+  const target = drawn ? 0 : reversal ? (oddsWon ? 1 : -1) : won ? 1 : -1
+  const endpoint = drawn ? 0 : won ? 1 : -1
+  const m0 = Math.max(-0.5, Math.min(0.5, (baseRatio - 1) * 0.6))
+  const momentum: number[] = []
+  for (let i = 0; i < slots; i++) {
+    const frac = slots > 1 ? i / (slots - 1) : 1
+    const eased = frac * frac * (3 - 2 * frac) // smoothstep — commit late
+    let v = m0 + (target - m0) * eased
+    v += (nrng() * 2 - 1) * MOMENTUM_JITTER * closeness * (1 - frac) // decaying jitter: free early, committed late
+    if (combatPhases[i] === 'turning' && critFavorsAttacker !== undefined) v += (critFavorsAttacker ? 1 : -1) * MOMENTUM_CRIT_SPIKE
+    // Pyrrhic snap (§14.2): at the Final Push the side that held the odds breaks off, so momentum flips to the actual winner. The sign flip IS the story.
+    if (combatPhases[i] === 'finalPush' && reversal) v = endpoint * 0.7
+    momentum.push(Math.max(-1, Math.min(1, v)))
   }
-  if (critEvent) beats.splice(Math.floor(beats.length / 2), 0, critEvent)
-  events.push(...beats)
+
+  // Select each beat by (phase, momentum band, did momentum cross zero this round). A sign flip prints the swing line; a strong lean shows that side pressing;
+  // near zero reads as contested. Turning Point = the crit when it fired (§4a); Final Push carries the draw / reversal signature beat (§8). Resolution waits for after the wounds.
+  const leaderAt = (m: number): string => (m > 0 ? attackerLabel : defenderName)
+  const phaseBeat = (phase: Exclude<BattlePhase, 'resolution'>, m: number): string => {
+    const contested = Math.abs(m) < MOMENTUM_BAND
+    // At high/desperate intensity the opening/escalation cores lift to their charged tier (§5); low/medium stays plain.
+    const pools = PHASE_POOLS[phase]
+    const tier = hard && pools.charged ? pools.charged : pools
+    return pick(contested ? tier.tense : tier.decisive).replace('{leader}', leaderAt(m))
+  }
+
+  // Featured actors (§7): up to two seeded non-leader disciples who recur through the report. Only real rosters have them, so the enemy stays a nameless mass.
+  const featured: string[] = []
+  {
+    const avail = [
+      ...attackerParticipants.filter((p) => p.id !== attackerLeaderId),
+      ...defenderParticipants.filter((p) => p.id !== defenderLeaderId),
+    ]
+    while (featured.length < 2 && avail.length > 0) featured.push(avail.splice(Math.floor(nrng() * avail.length), 1)[0].name)
+  }
+  // Leaders with a combat trait (§5): each yields a trait-in-character clause naming that leader — turning the trait from a bare label into an actual beat.
+  const traitLeaders: { name: string; trait: CombatTrait }[] = []
+  if (attackerLeaderName && attackerLeaderTrait) traitLeaders.push({ name: attackerLeaderName, trait: attackerLeaderTrait })
+  if (defenderLeaderName && defenderLeaderTrait) traitLeaders.push({ name: defenderLeaderName, trait: defenderLeaderTrait })
+
+  // Optional embellishment (§5): ~45% of a plain core beat gains ONE clause — a leader-trait flourish, a named-disciple flourish, or a terrain setting; never more
+  // than one. Opening stays a clean intro. The category is chosen uniformly among whichever are available for this battle, so no one kind dominates a report.
+  const embellish = (core: string, phase: Exclude<BattlePhase, 'resolution'>): string => {
+    if (phase === 'opening' || nrng() >= EMBELLISH_CHANCE) return core
+    const kinds: ('trait' | 'actor' | 'setting')[] = []
+    // Don't cite a leader's trait when the core already names that leader — "Su Lian bears down … — Su Lian granting no quarter" reads as a stutter.
+    const availTrait = traitLeaders.filter((tl) => !core.includes(tl.name))
+    if (availTrait.length > 0) kinds.push('trait')
+    if (featured.length > 0) kinds.push('actor')
+    if (terrain !== undefined) kinds.push('setting')
+    if (kinds.length === 0) return core
+    const kind = kinds[Math.floor(nrng() * kinds.length)]
+    let clause: string
+    if (kind === 'trait') {
+      const tl = availTrait[Math.floor(nrng() * availTrait.length)]
+      clause = pick(TRAIT_CLAUSE[tl.trait]).replace('{leader}', tl.name)
+    } else if (kind === 'actor') {
+      clause = pick(ACTOR_CLAUSE).replace('{name}', featured[Math.floor(nrng() * featured.length)])
+    } else {
+      clause = pick(SETTING_CLAUSE[terrain!])
+    }
+    return `${core.replace(/\.$/, '')} — ${clause}.`
+  }
+
+  // Build the arc beats into a tagged list (not straight into the log) so the wound cluster can be attached at the right phase below (§6).
+  const arcBeats: { phase: Exclude<BattlePhase, 'resolution'>; kind: BattleEventKind; text: string }[] = []
+  combatPhases.forEach((phase, i) => {
+    const m = momentum[i]
+    const prev = i > 0 ? momentum[i - 1] : m0
+    const crossed = Math.abs(prev) > 0.1 && Math.abs(m) > 0.1 && Math.sign(prev) !== Math.sign(m)
+    const isCrit = phase === 'turning' && !!critEvent
+    const text = isCrit
+      ? critEvent!
+      : phase === 'finalPush' && (drawn || reversal)
+        ? drawn
+          ? 'Both lines waver — neither can force the break.'
+          : attackerRetreats
+            ? `${attackerLabel} holds the upper hand — then falters, nerve spent in the grind.`
+            : `${defenderName} holds the field — then their nerve breaks.`
+        : crossed && phase !== 'opening'
+          ? pick(MOMENTUM_SWING).replace('{leader}', leaderAt(m))
+          : // Spend the imagery on the Turning Point (§5): a vivid qi image, but only at high/desperate — a skirmish stays plain. Otherwise a core beat, maybe one grounding clause.
+            phase === 'turning' && hard
+            ? pick(TURNING_VIVID)
+            : embellish(phaseBeat(phase, m), phase)
+    arcBeats.push({ phase, kind: isCrit ? 'crit' : 'beat', text })
+  })
 
   // Clustered wounds (#10 + #7): intensity + who-won set each side's casualty budget, then that many DISTINCT members are wounded — a cluster, not a
   // per-head lottery, so a one-sided victory can be flawless while a desperate one still costs an elder. Wounds are player-facing only; the background
@@ -360,18 +650,65 @@ export function resolveBattle(params: {
   // On a draw both sides disengaged before it turned decisive → each takes the lighter "winner" share; otherwise the final loser bleeds the "loser" share.
   const attackerFrac = drawn ? frac.winner : won ? frac.winner : frac.loser
   const defenderFrac = drawn ? frac.winner : won ? frac.loser : frac.winner
-  distributeWounds(attackerParticipants, casualtyBudget(attackerFrac * attackerCasMult, attackerParticipants.length, rng), rng, wounds, events)
-  distributeWounds(defenderParticipants, casualtyBudget(defenderFrac * defenderCasMult, defenderParticipants.length, rng), rng, wounds, events)
+  const woundCluster: WoundBeat[] = []
+  distributeWounds(attackerParticipants, casualtyBudget(attackerFrac * attackerCasMult, attackerParticipants.length, rng), rng, wounds, woundCluster)
+  distributeWounds(defenderParticipants, casualtyBudget(defenderFrac * defenderCasMult, defenderParticipants.length, rng), rng, wounds, woundCluster)
 
-  // Closing beat reflects the terminal state — a clean result, a first-mover retreat, or a mutual break-off (draw).
-  if (drawn) events.push(`Both sides, spent and bloodied, break off — the field is left contested.`)
-  else if (attackerRetreats) events.push(`${attackerLabel} breaks off the assault and withdraws.`)
-  else if (defenderRetreats) events.push(`${defenderName} yields the field and withdraws.`)
-  else events.push(won ? `${defenderName}'s defenders break.` : `The attack is repelled.`)
+  // Attach the wound CLUSTER to the arc (§6, §14.3): land it on the Turning Point as a unit — two or three casualties together is what a bad round looks like (#10),
+  // not a per-round lottery. Split only a large cluster (4+) and only when a Final Push slot exists, criticals biased to the turn (a felled elder IS the turn). Then flatten.
+  const turningIdx = arcBeats.findIndex((b) => b.phase === 'turning')
+  const finalPushIdx = arcBeats.findIndex((b) => b.phase === 'finalPush')
+  let turningGroup = woundCluster
+  let finalPushGroup: WoundBeat[] = []
+  if (woundCluster.length >= 4 && finalPushIdx >= 0) {
+    const ordered = [...woundCluster].sort((a, b) => Number(b.severity === 'critical') - Number(a.severity === 'critical')) // criticals first (stable)
+    const cut = Math.max(ordered.filter((w) => w.severity === 'critical').length, Math.ceil(ordered.length / 2))
+    turningGroup = ordered.slice(0, cut)
+    finalPushGroup = ordered.slice(cut)
+  }
+  arcBeats.forEach((b, i) => {
+    add(b.kind, b.phase, b.text)
+    if (i === turningIdx) for (const w of turningGroup) add('wound', 'turning', w.text)
+    if (i === finalPushIdx) for (const w of finalPushGroup) add('wound', 'finalPush', w.text)
+  })
+
+  // Resolution beat (§8, the arc's closing phase) — generated AFTER the wounds so casualties read as part of the fight. Each terminal state ends distinctly, and
+  // the magnitude of a clean result colours it: a rout ends abruptly, a rout suffered reads as ruin. The draw / reversal Final-Push beat already ran up in the arc.
+  // Framing is on `baseRatio` (the real power gap; the crit swing only matters near even power, where none of these tiers trigger). `hard` is computed above.
+  // How dominant the eventual winner was (>= 1 in a straight result; < 1 only on a crit upset, which correctly reads as neither crushing nor catastrophic).
+  const winnerRatio = won ? baseRatio : 1 / Math.max(0.0001, baseRatio)
+  if (drawn) {
+    add('closing', 'resolution', 'Both sides, spent and bloodied, break off; the field is left contested.')
+  } else if (attackerRetreats) {
+    add('closing', 'resolution', reversal ? `${attackerLabel} breaks off the assault and withdraws, the field left for the taking.` : `${attackerLabel} breaks off the assault and withdraws.`)
+  } else if (defenderRetreats) {
+    add('closing', 'resolution', reversal ? `${defenderName} yields the ground they had all but won.` : `${defenderName} yields the field and withdraws.`)
+  } else if (won) {
+    add(
+      'closing',
+      'resolution',
+      winnerRatio >= DECISIVE_WIN_RATIO && !hard
+        ? `${defenderName}'s line shatters — it is over in moments.`
+        : hard
+          ? `${defenderName}'s defenders break at last, the field bought dearly.`
+          : `${defenderName}'s defenders break.`,
+    )
+  } else {
+    add(
+      'closing',
+      'resolution',
+      winnerRatio >= DECISIVE_WIN_RATIO
+        ? `The assault is shattered — ${attackerLabel} is thrown back in ruin.`
+        : hard
+          ? `The attack falters and is thrown back after a grinding fight.`
+          : `The attack is repelled.`,
+    )
+  }
 
   return {
-    outcome: { won, drawn, oddsWon, seed, rounds, attackerPower, defenderPower, wounds, intensity },
+    outcome: { won, drawn, oddsWon, seed, rounds: legacyRounds, attackerPower, defenderPower, wounds, intensity },
     events,
+    rounds: narrativeRounds,
   }
 }
 

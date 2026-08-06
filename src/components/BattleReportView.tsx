@@ -1,6 +1,15 @@
+import { Fragment, useState } from 'react'
 import type { BattleResult, DiscipleTemperament } from '../game/types'
-import { getAdvantageBand, resolveBattle, TERRAIN_EFFECTS, TIER_LABEL, type BattleParticipant } from '../game/engine/combat/battleSimulator'
+import { getAdvantageBand, resolveBattle, TERRAIN_EFFECTS, TIER_LABEL, type BattleParticipant, type BattlePhase } from '../game/engine/combat/battleSimulator'
 import { formatResourceCost } from '../game/utils/formatResources'
+
+/** Section headers for the arc phases (§9). The `opening` group (prologue + first beat) reads as an intro and gets no header. */
+const PHASE_LABEL: Record<Exclude<BattlePhase, 'opening'>, string> = {
+  escalation: 'The clash',
+  turning: 'Turning point',
+  finalPush: 'Final push',
+  resolution: 'Resolution',
+}
 
 /**
  * Regenerates the per-unit battle narrative from the stored outcome + seed
@@ -24,6 +33,9 @@ export function BattleReportView({
   participantTemperaments?: (DiscipleTemperament | undefined)[]
   onClose: () => void
 }) {
+  // Summary ↔ full toggle (§9): a player reviewing twenty raids wants tier + casualties; a player opening ONE battle wants the story. Both come from the same generation pass.
+  const [mode, setMode] = useState<'summary' | 'full'>('full')
+
   // On a defense report the stored roster are the DEFENDERS and the NPC is the attacker — mirror the params so the regenerated narrative matches what npcSimulation ran.
   const isDefense = battle.playerRole === 'defender'
   const participants: BattleParticipant[] = participantNames.map((name, i) => ({ id: String(i), name, temperament: participantTemperaments?.[i] }))
@@ -55,6 +67,14 @@ export function BattleReportView({
         },
   )
 
+  const events = narrative.events
+  // Summary view (§9): the turning-point beat, the casualty cluster, and the closing beat — a complete story in ~4 lines. If this doesn't read as a battle, the arc is wrong.
+  const turningBeat = events.find((e) => e.phase === 'turning')
+  const woundEvents = events.filter((e) => e.kind === 'wound')
+  const closingBeat = events.find((e) => e.kind === 'closing')
+
+  const beatClass = (kind: string): string => (kind === 'crit' ? 'battle-beat battle-beat-crit' : kind === 'wound' ? 'battle-beat battle-wound' : 'battle-beat')
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
@@ -62,13 +82,36 @@ export function BattleReportView({
         <p className="panel-hint">{battle.outcomeSummary}</p>
         <p className="recipe-meta">
           Power {battle.attackerPower} vs {battle.defenderPower} &middot; {getAdvantageBand(battle.attackerPower, battle.defenderPower).label}
-          {battle.terrain && battle.terrain !== 'open' ? ` · ${TERRAIN_EFFECTS[battle.terrain].label}` : ''} &middot; {battle.rounds} rounds
+          {battle.terrain && battle.terrain !== 'open' ? ` · ${TERRAIN_EFFECTS[battle.terrain].label}` : ''} &middot; {narrative.rounds} rounds
         </p>
-        <ul className="event-log-list">
-          {narrative.events.map((line, i) => (
-            <li key={i}>{line}</li>
-          ))}
-        </ul>
+
+        <div className="battle-report-toggle">
+          <button className={mode === 'summary' ? 'active' : ''} onClick={() => setMode('summary')}>Summary</button>
+          <button className={mode === 'full' ? 'active' : ''} onClick={() => setMode('full')}>Full</button>
+        </div>
+
+        {mode === 'full' ? (
+          <ul className="battle-report-events">
+            {events.map((e, i) => {
+              const showHeader = e.phase !== 'opening' && events[i - 1]?.phase !== e.phase
+              return (
+                <Fragment key={i}>
+                  {showHeader && <li className="battle-phase-label">{PHASE_LABEL[e.phase as Exclude<BattlePhase, 'opening'>]}</li>}
+                  <li className={beatClass(e.kind)}>{e.text}</li>
+                </Fragment>
+              )
+            })}
+          </ul>
+        ) : (
+          <ul className="battle-report-events">
+            {turningBeat && <li className={beatClass(turningBeat.kind)}>{turningBeat.text}</li>}
+            {woundEvents.map((e, i) => (
+              <li key={i} className="battle-beat battle-wound">{e.text}</li>
+            ))}
+            {closingBeat && <li className="battle-beat">{closingBeat.text}</li>}
+          </ul>
+        )}
+
         {battle.lootedResources && Object.keys(battle.lootedResources).length > 0 && (
           <p className="panel-hint">Looted: {formatResourceCost(battle.lootedResources)}</p>
         )}
