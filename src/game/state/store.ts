@@ -10,6 +10,7 @@ import {
 import { clearSave, loadGame, saveGame } from '../persistence/save'
 import { createNewGame } from './initialState'
 import { applyProductionTick } from '../engine/production'
+import { getEffectiveMaxHp } from '../engine/injury'
 import { resolveCompletedConstruction } from '../engine/construction'
 import { getUpgradeEligibility } from '../engine/upgradeEligibility'
 import { getClaimSlotEligibility, getDemolishEligibility } from '../engine/specializationSlots'
@@ -30,6 +31,7 @@ import { BOOST_COST, BOOST_DURATION_MS, getBoostEligibility } from '../engine/cu
 import { applyOfflineCatchUp, emptyOfflineSummary, rewindStateClock, type OfflineSummary } from '../engine/offlineCatchup'
 import { resolveLoginStreak } from '../engine/loginStreak'
 import { getMissionDispatchEligibility, resolveCompletedMissions, resolveMissionBoardRefresh } from '../engine/missions'
+import { markAllReportsRead, markReportRead } from '../engine/combat/reportInbox'
 import { resolveDownedDisciples } from '../engine/downed'
 import { getMissionDef } from '../data/missionDefs'
 import {
@@ -42,6 +44,7 @@ import {
 import { getEquipEligibility } from '../engine/equipment'
 import { getRecipe } from '../data/craftingRecipes'
 import { getItemDef } from '../data/itemDefs'
+import { MATERIAL_DEFS } from '../data/materialDefs'
 import {
   getResearchDurationMs,
   getResearchCraftingDurationMultiplier,
@@ -84,10 +87,17 @@ const DEBUG_RESOURCE_GRANT: Resources = {
   knowledge: 200,
 }
 
+/** Crafting Recipe Pack Phase 3: per-material amount the debug grant adds — enough to test any single recipe. */
+const DEBUG_MATERIAL_GRANT = 60
+
 interface GameStore {
   state: GameState
   offlineSummary: OfflineSummary | null
   dismissOfflineSummary: () => void
+  /** Marks one Combat Report Inbox entry read (opening it in the Reports tab). */
+  markReportRead: (id: string) => void
+  /** Marks every report read, clearing the unread badge. */
+  markAllReportsRead: () => void
   /** Advances both clocks by real elapsed ms, applies production/cultivation, resolves finished construction. */
   tick: (deltaMs: number) => void
   /** The one-time, irreversible founding choice (WORLD_MAP_DESIGN §12.2). */
@@ -137,6 +147,7 @@ interface GameStore {
   reloadFromSave: () => void
   resetSave: () => void
   debugAddResources: () => void
+  debugAddMaterials: () => void
   debugDamageSectHall: () => void
   debugSimulateOfflineGap: (hours: number) => void
   debugForceWorldEvent: () => void
@@ -476,6 +487,9 @@ export const useGameStore = create<GameStore>((set) => ({
 
   dismissOfflineSummary: () => set({ offlineSummary: null }),
 
+  markReportRead: (id) => set((store) => ({ state: markReportRead(store.state, id) })),
+  markAllReportsRead: () => set((store) => ({ state: markAllReportsRead(store.state) })),
+
   debugAddResources: () =>
     set((store) => {
       const caps = computeStorageCaps(store.state)
@@ -484,6 +498,16 @@ export const useGameStore = create<GameStore>((set) => ({
         resources[key] = Math.min(caps[key], resources[key] + DEBUG_RESOURCE_GRANT[key])
       }
       return { state: { ...store.state, resources } }
+    }),
+
+  // Crafting Recipe Pack Phase 3: the only source of materials until a real acquisition pass exists (§10).
+  debugAddMaterials: () =>
+    set((store) => {
+      const materials = { ...store.state.materials }
+      for (const def of MATERIAL_DEFS) {
+        materials[def.id] = (materials[def.id] ?? 0) + DEBUG_MATERIAL_GRANT
+      }
+      return { state: { ...store.state, materials } }
     }),
 
   debugDamageSectHall: () =>
@@ -647,13 +671,20 @@ export const useGameStore = create<GameStore>((set) => ({
       for (const [key, amount] of Object.entries(recipe.cost) as [keyof Resources, number][]) {
         resources[key] -= amount * batch
       }
+      const materials = { ...store.state.materials }
+      for (const [key, amount] of Object.entries(recipe.materialCost ?? {})) {
+        materials[key] = (materials[key] ?? 0) - amount * batch
+      }
       const itemDurationMs = recipe.durationMs * getResearchCraftingDurationMultiplier(store.state, recipe.discipline)
+      // §6a — capture the crafter now (at batch start), if a disciple is assigned to the recipe's building. Stamped onto every piece the batch produces; a mid-craft reassignment won't rewrite it.
+      const craftedBy = store.state.disciples.find((d) => d.assignedBuildingId === recipe.requiredBuildingId)?.name
 
       return {
         state: {
           ...store.state,
           resources,
-          craftingQueue: { recipeId, endsAt: Date.now() + itemDurationMs, remaining: batch, itemDurationMs },
+          materials,
+          craftingQueue: { recipeId, endsAt: Date.now() + itemDurationMs, remaining: batch, itemDurationMs, craftedBy },
         },
       }
     }),
@@ -665,8 +696,10 @@ export const useGameStore = create<GameStore>((set) => ({
       const slot = eligibility.targetSlot
       const disciple = store.state.disciples.find((d) => d.id === discipleId)
       if (!disciple) return {}
-      const instance = store.state.items.find((i) => i.id === instanceId)
-      if (!instance) return {}
+      const found = store.state.items.find((i) => i.id === instanceId)
+      if (!found) return {}
+      // §6c — stamp the first disciple to ever wear this piece; never overwritten on later swaps.
+      const instance = found.firstWielder ? found : { ...found, firstWielder: disciple.name }
       const previous = disciple.equipment[slot]
 
       let items = removeInstanceById(store.state.items, instanceId)
@@ -715,8 +748,9 @@ export const useGameStore = create<GameStore>((set) => ({
       if (def.pillEffect === 'heal') {
         // Heal a set amount, overheal clamped to max HP (HEALTH_SYSTEM_PLAN Phase 3). Refused only at exactly full HP —
         // any missing HP is healable, even a disciple whose band still reads 'none'.
-        if (disciple.health >= disciple.maxHp) return {}
-        updatedDisciple = { ...disciple, health: Math.min(disciple.maxHp, disciple.health + (def.healAmount ?? 0)) }
+        const maxHp = getEffectiveMaxHp(disciple)
+        if (disciple.health >= maxHp) return {}
+        updatedDisciple = { ...disciple, health: Math.min(maxHp, disciple.health + (def.healAmount ?? 0)) }
       } else if (def.pillEffect === 'cultivate') {
         const realmIndex = CULTIVATION_REALMS.indexOf(disciple.realm)
         if (realmIndex === CULTIVATION_REALMS.length - 1) return {}

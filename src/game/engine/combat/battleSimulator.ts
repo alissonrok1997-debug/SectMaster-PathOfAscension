@@ -1,5 +1,4 @@
 import {
-  DISCIPLE_TEMPERAMENTS,
   type BattleOutcomeTier,
   type BattleTerrain,
   type CombatTrait,
@@ -9,6 +8,19 @@ import {
 } from '../../types'
 import { hashString, mulberry32 } from '../rng'
 import { TRAIT_EFFECTS } from '../combatPower'
+import {
+  ACTOR_CLAUSE,
+  CRIT_MOMENT_FLAVOR,
+  EMBELLISH_CHANCE,
+  INTENSITY_FLAVOR,
+  MOMENTUM_SWING,
+  PHASE_POOLS,
+  ROUNDS_BY_INTENSITY,
+  SETTING_CLAUSE,
+  TRAIT_CLAUSE,
+  TURNING_VIVID,
+  woundLine,
+} from '../../data/combat/battleNarrationPools'
 
 /**
  * The battle simulator (FIRST_REALM_PLAN §4.7) — one ruleset, two fidelity
@@ -121,76 +133,10 @@ const CRIT_MOMENT_CHANCE = 0.22
 const CRIT_SWING_MIN = 0.05
 const CRIT_SWING_MAX = 0.1
 
-const CRIT_MOMENT_FLAVOR = [
-  'A formation collapses in the chaos',
-  'A sudden qi storm erupts across the field',
-  'A reckless gambit shatters the deadlock',
-  'The ground gives way beneath the melee',
-  'A hidden reserve surges into the fray',
-]
-
-const ROUND_BEAT_TENSE = [
-  'The two sides trade blows, neither yielding.',
-  'Formations clash and reform amid the dust.',
-  'The advantage swings back and forth.',
-  'Qi flares as the lines strain against each other.',
-  'Neither side gives ground.',
-]
-
-// Decisive pools describe whoever currently HOLDS the momentum ({leader}), not the eventual winner — so a fight the attacker wins can still show the defender
-// pressing mid-battle before the tide turns back (Phase 4). The momentum bridge (below) converges on the real outcome, so the last beats always favour the winner.
-const ROUND_BEAT_DECISIVE = [
-  '{leader} presses the advantage.',
-  "The line bends under {leader}'s assault.",
-  '{leader} drives forward, unrelenting.',
-  'The momentum belongs to {leader}.',
-]
-
 // --- Narrative arc (Battle Narration plan §4). The round slots map to named phases so each beat has a ROLE instead of being interchangeable flavour;
 // Escalation reuses the generic "trade blows" pools above. Each phase carries a tense variant (a close fight) and a decisive one (a rout, keyed on {winner}).
 // Kept deliberately restrained — the richer wuxia imagery and additive terrain/actor clauses arrive in Phase 7; this phase is structure, not prose.
 export type BattlePhase = 'opening' | 'escalation' | 'turning' | 'finalPush' | 'resolution'
-
-const OPENING_TENSE = [
-  'The two hosts close, and the field erupts.',
-  'Steel meets steel as the lines collide.',
-  'The vanguards crash together and the battle is joined in earnest.',
-  'The first exchange sets the whole field roaring.',
-]
-const OPENING_DECISIVE = [
-  "{leader}'s vanguard strikes first, and hard.",
-  '{leader} seizes the initiative from the opening breath.',
-  '{leader} sets the pace before the enemy can form up.',
-]
-const TURNING_TENSE = [
-  "The battle hangs on a knife's edge.",
-  'For a long moment, the whole field wavers.',
-  'The lines buckle — then, somehow, hold.',
-  'Everything narrows to a single breathless exchange.',
-]
-const TURNING_DECISIVE = [
-  '{leader} finds the opening and drives through it.',
-  'The balance tips, and {leader} takes it.',
-  '{leader} breaks the deadlock with one decisive push.',
-]
-const FINAL_PUSH_TENSE = [
-  'Both sides gather themselves for one last effort.',
-  'Spent and ragged, the lines throw everything into the final exchange.',
-  'The fight comes down to who can stand a moment longer.',
-]
-const FINAL_PUSH_DECISIVE = [
-  '{leader} commits the reserve and presses for the finish.',
-  '{leader} bears down for the killing stroke.',
-  '{leader} drives the last exchange without mercy.',
-]
-
-// Emitted ONLY when momentum actually crosses zero this round (§3) — so "the advantage swings back and forth" is information, not decoration. {leader} = the side momentum just swung TO.
-const MOMENTUM_SWING = [
-  'The advantage swings back and forth.',
-  'The tide reverses — {leader} surges where they had been pressed.',
-  'Momentum lurches, and {leader} seizes it.',
-  'The field turns over, {leader} suddenly ascendant.',
-]
 
 // Momentum bridge tuning (§14.2). JITTER is the max early swing amplitude (scaled by closeness and decaying to 0 by the last round); BAND is the |momentum|
 // below which the fight reads as contested (tense pool) rather than one side pressing; CRIT_SPIKE is the one-round shove the crit adds toward the side it favoured.
@@ -198,107 +144,12 @@ const MOMENTUM_JITTER = 0.4
 const MOMENTUM_BAND = 0.22
 const MOMENTUM_CRIT_SPIKE = 0.4
 
-// --- Layered embellishment (Battle Narration §5, §7). A core beat can gain ONE optional clause — a terrain setting OR a named-disciple flourish, never both,
-// ~45% of the time, and only on escalation / clean final-push beats. Authoring stays additive (~40 fragments) while the output space is multiplicative; the
-// alternative (a pool per phase×momentum×terrain×trait) is a content treadmill. All drawn on the narration stream from already-snapshotted data — no new saved state.
-const EMBELLISH_CHANCE = 0.45
-
-/** Terrain settings phrased as NOUNS the fight happens on (§5), attached as an em-dash aside so they read as a deliberate grounding, not a run-on. */
-const SETTING_CLAUSE: Record<BattleTerrain, readonly string[]> = {
-  open: ['no cover on the open ground', 'dust churning across the flat', 'nowhere to hide on the bare plain'],
-  mountain: ['the high ridge narrowing every advance', 'loose scree treacherous underfoot', 'the mountain wind cutting sidelong'],
-  forest: ['the crowded trees breaking every formation', 'green gloom swallowing the flanks', 'root and briar fouling each charge'],
-  river: ['the ford churned to mud', 'the current dragging at every step', 'the slick bank giving no purchase'],
-  fortress: ['the walls looming over the melee', 'the breached gate a killing funnel', 'arrows raking from the battlements'],
-  sacred: ['old shrine-stones underfoot', 'the ley-lines thrumming beneath the field', 'a strange stillness on the hallowed ground'],
-}
-
-/** Featured non-leader disciples (§7) get a beat beyond getting hurt — participial asides so a name means something. NPC sides have no roster, so the enemy stays a nameless mass (the intended asymmetry). */
-const ACTOR_CLAUSE = [
-  '{name} refuses to give a step',
-  '{name} holding the flank alone',
-  '{name} carving an opening where there was none',
-  '{name} anchoring the line',
-  '{name} first into the breach',
-]
-
-/** Leader-trait flavour (§5): turns the trait from a bare `(Ruthless)` label into a beat that shows the leader fighting in character. Attached like an actor clause, keyed on the leader's own name. */
-const TRAIT_CLAUSE: Record<CombatTrait, readonly string[]> = {
-  aggressive: ['{leader} pressing the attack past all caution', '{leader} throwing weight into every blow', '{leader} giving the enemy no room to breathe'],
-  ruthless: ['{leader} granting no quarter', '{leader} spending lives to buy the ground', '{leader} exploiting every opening without mercy'],
-  inspiring: ['{leader} steadying the line by sheer presence', "{leader}'s banner holding the squad together", '{leader} rallying the wavering ranks'],
-  defensive: ['{leader} holding formation, patient and unbroken', '{leader} giving no gap to exploit', '{leader} trading ground for lives'],
-  cautious: ['{leader} probing, unwilling to overcommit', '{leader} spending no life it need not', '{leader} holding the reserve back, watchful'],
-}
-
-/** The Turning Point is where the imagery is spent (§5): a vivid qi/technique image used only at high/desperate intensity, so a skirmish never reads like an apocalypse. One image per line. */
-const TURNING_VIVID = [
-  'Qi erupts along the line as the formations collide.',
-  'Technique breaks against technique, and the air itself screams.',
-  'For one heartbeat the whole field holds its breath — then shatters.',
-  'Spirit-light floods the ground; everything hangs on the next exchange.',
-]
-
-// Intensity-charged opening / escalation cores (§5): the register lifts at high/desperate — visceral, higher-stakes — while low/medium stays plain, so a skirmish
-// and a bloodbath don't read alike. Deliberately kept BELOW the Turning Point's qi imagery (TURNING_VIVID): the turn stays the peak, or nothing lands as the peak.
-const OPENING_CHARGED_TENSE = [
-  'The two hosts slam together and the ground itself shudders.',
-  'Battle-cries and breaking steel drown the field from the first breath.',
-  'The lines meet with a shock that staggers both sides.',
-]
-const OPENING_CHARGED_DECISIVE = [
-  '{leader} hits the line like an avalanche.',
-  '{leader} tears in before the enemy can set their feet.',
-  '{leader} opens with a fury that buckles the first rank.',
-]
-const ESCALATION_CHARGED_TENSE = [
-  'Neither line will break, whatever it costs them.',
-  'The fighting grinds on, savage and close.',
-  'Dust and broken qi choke the air as the ranks refuse to yield.',
-  'Every exchange draws blood, and still neither side gives.',
-]
-const ESCALATION_CHARGED_DECISIVE = [
-  '{leader} bludgeons the line back, step by bloody step.',
-  "The enemy formation cracks under {leader}'s relentless assault.",
-  '{leader} drives on through the carnage.',
-]
-
-/** Phase → core pools, with an optional `charged` tier used at high/desperate intensity (§5). Resolution has no pool (generated from the terminal state + magnitude, §8). */
-const PHASE_POOLS: Record<
-  Exclude<BattlePhase, 'resolution'>,
-  { tense: readonly string[]; decisive: readonly string[]; charged?: { tense: readonly string[]; decisive: readonly string[] } }
-> = {
-  opening: { tense: OPENING_TENSE, decisive: OPENING_DECISIVE, charged: { tense: OPENING_CHARGED_TENSE, decisive: OPENING_CHARGED_DECISIVE } },
-  escalation: { tense: ROUND_BEAT_TENSE, decisive: ROUND_BEAT_DECISIVE, charged: { tense: ESCALATION_CHARGED_TENSE, decisive: ESCALATION_CHARGED_DECISIVE } },
-  turning: { tense: TURNING_TENSE, decisive: TURNING_DECISIVE },
-  finalPush: { tense: FINAL_PUSH_TENSE, decisive: FINAL_PUSH_DECISIVE },
-}
-
-/** Report length is derived from how hard the fight was (§4b) — a short report means a short fight. Base count per intensity; the caller adds ±1 jitter and clamps to 3–6. */
-const ROUNDS_BY_INTENSITY: Record<BattleIntensity, number> = { low: 3, medium: 4, high: 5, desperate: 6 }
-
 /** The arc for a given round count (§4's table). A draw / Pyrrhic reversal is forced to >=5 rounds by the caller so its Final-Push slot always exists. arc.length === rounds. */
 function buildArc(rounds: number): BattlePhase[] {
   if (rounds <= 3) return ['opening', 'turning', 'resolution']
   if (rounds === 4) return ['opening', 'escalation', 'turning', 'resolution']
   if (rounds === 5) return ['opening', 'escalation', 'turning', 'finalPush', 'resolution']
   return ['opening', 'escalation', 'escalation', 'turning', 'finalPush', 'resolution']
-}
-
-const WOUND_FLAVOR: Record<Exclude<InjurySeverity, 'none'>, string[]> = {
-  minor: ['weathers a glancing strike and presses on.', 'takes a shallow cut but holds the line.', 'is grazed, but does not falter.'],
-  major: ['is battered by a heavy blow and reels.', 'takes a grievous hit and staggers back.', 'is wounded badly, formation faltering.'],
-  critical: ['falls, gravely wounded.', 'is struck down and dragged from the field.', 'collapses under a devastating blow.'],
-}
-
-/**
- * Personality-flavoured wound narration (#8): the disciple's stored temperament epithet + a seeded severity beat, replacing the flat "X takes a major wound".
- * Falls back to a name hash when no temperament is supplied (an NPC façade, or a pre-v20 report snapshot that didn't carry temperaments).
- */
-function woundLine(name: string, temperament: DiscipleTemperament | undefined, severity: Exclude<InjurySeverity, 'none'>, rng: () => number): string {
-  const epithet = temperament ?? DISCIPLE_TEMPERAMENTS[(hashString(name) >>> 0) % DISCIPLE_TEMPERAMENTS.length]
-  const pool = WOUND_FLAVOR[severity]
-  return `${name} ${epithet} ${pool[Math.floor(rng() * pool.length)]}`
 }
 
 // --- Battle intensity → clustered wounds (Combat Polishing Phase 4, #10 + #7). Computed at resolve time from the seed; no new saved state.
@@ -315,13 +166,6 @@ const CASUALTY_FRACTION: Record<BattleIntensity, { winner: number; loser: number
   medium: { winner: 0.15, loser: 0.45 },
   high: { winner: 0.3, loser: 0.65 },
   desperate: { winner: 0.45, loser: 0.85 },
-}
-
-const INTENSITY_FLAVOR: Record<BattleIntensity, string> = {
-  low: 'The clash is brief and one-sided.',
-  medium: 'The fighting is fierce but controlled.',
-  high: 'The battle is hard-fought and bloody.',
-  desperate: 'The fighting is desperate — neither side willing to yield.',
 }
 
 /**

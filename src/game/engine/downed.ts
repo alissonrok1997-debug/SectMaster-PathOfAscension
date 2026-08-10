@@ -1,5 +1,6 @@
 import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type GameState } from '../types'
 import { hashString, mulberry32 } from './rng'
+import { getEffectiveMaxHp } from './injury'
 import { removeDiscipleFromRoster } from './roster'
 
 /**
@@ -36,7 +37,7 @@ function rollDownedFate(rng: () => number): DownedFate {
 /** Wakes a downed disciple whose recovery window has elapsed: clears the flag and lifts HP to the wake floor so normal regen resumes and the post-pass won't re-roll them. */
 export function wakeIfRecovered(disciple: DiscipleInstance, now: number): DiscipleInstance {
   if (disciple.downedUntil === undefined || disciple.downedUntil > now) return disciple
-  return { ...disciple, downedUntil: undefined, health: Math.max(disciple.health, disciple.maxHp * WAKE_HP_FRACTION) }
+  return { ...disciple, downedUntil: undefined, health: Math.max(disciple.health, getEffectiveMaxHp(disciple) * WAKE_HP_FRACTION) }
 }
 
 /** True while a disciple is incapacitated by a downed recovery (blocked from assignment, not cultivating). */

@@ -6,6 +6,7 @@ export type ScreenTabId =
   | 'workshop'
   | 'research'
   | 'world'
+  | 'reports'
   | 'system'
 
 export interface ScreenTab {
@@ -22,6 +23,7 @@ export const SCREEN_TABS: ScreenTab[] = [
   { id: 'workshop', label: 'Workshop', icon: '⚒️' },
   { id: 'research', label: 'Research', icon: '📜' },
   { id: 'world', label: 'World', icon: '🌏' },
+  { id: 'reports', label: 'Reports', icon: '📨' },
   { id: 'system', label: 'System', icon: '⚙️' },
 ]
 

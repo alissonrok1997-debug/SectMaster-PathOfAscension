@@ -4,6 +4,7 @@ import { getResearchCultivationRateMultiplier } from './research'
 import { getDoctrineModifiers } from './doctrine'
 import { getWorldModifiers } from './world/worldModifiers'
 import { applyHealthRegen, applyWound, getInjurySeverity } from './injury'
+import { getEquippedEffectTotal } from './itemAffixes'
 import { isDowned, wakeIfRecovered } from './downed'
 
 /**
@@ -92,7 +93,10 @@ export function getDiscipleCultivationRate(
   // a -50% floor at <=20.
   const moraleFactor = getMoraleCultivationMultiplier(disciple.morale)
 
-  return baseRate * getTalentFactor(disciple.talent) * INJURY_MULTIPLIER[getInjurySeverity(disciple)] * moraleFactor * rateMultiplier
+  // Qi-Gathering affixes (§4) add a cultivation-rate multiplier term.
+  const equipmentFactor = 1 + getEquippedEffectTotal(disciple, 'cultivationRatePct') / 100
+
+  return baseRate * getTalentFactor(disciple.talent) * INJURY_MULTIPLIER[getInjurySeverity(disciple)] * moraleFactor * rateMultiplier * equipmentFactor
 }
 
 export interface CultivationTickResult {

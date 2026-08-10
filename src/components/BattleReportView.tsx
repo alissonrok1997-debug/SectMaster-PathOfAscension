@@ -33,6 +33,34 @@ export function BattleReportView({
   participantTemperaments?: (DiscipleTemperament | undefined)[]
   onClose: () => void
 }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+        <BattleReportBody battle={battle} title={title} participantNames={participantNames} participantTemperaments={participantTemperaments} />
+        <div className="dispatch-actions">
+          <button onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The report itself — headline, meta line, Summary/Full toggle, and the regenerated
+ * narrative — with no modal shell. `BattleReportView` wraps this in the overlay + Close
+ * button; the Reports tab renders it directly in the master–detail right pane.
+ */
+export function BattleReportBody({
+  battle,
+  title,
+  participantNames,
+  participantTemperaments,
+}: {
+  battle: BattleResult
+  title: string
+  participantNames: string[]
+  participantTemperaments?: (DiscipleTemperament | undefined)[]
+}) {
   // Summary ↔ full toggle (§9): a player reviewing twenty raids wants tier + casualties; a player opening ONE battle wants the story. Both come from the same generation pass.
   const [mode, setMode] = useState<'summary' | 'full'>('full')
 
@@ -76,8 +104,7 @@ export function BattleReportView({
   const beatClass = (kind: string): string => (kind === 'crit' ? 'battle-beat battle-beat-crit' : kind === 'wound' ? 'battle-beat battle-wound' : 'battle-beat')
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+    <>
         <h2>{battle.outcomeTier ? TIER_LABEL[battle.outcomeTier] : battle.won ? 'Victory' : 'Defeat'} — {title}</h2>
         <p className="panel-hint">{battle.outcomeSummary}</p>
         <p className="recipe-meta">
@@ -123,10 +150,6 @@ export function BattleReportView({
               : `Fallen, and left to the enemy: ${battle.deaths.join(', ')}.`}
           </p>
         )}
-        <div className="dispatch-actions">
-          <button onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
+    </>
   )
 }

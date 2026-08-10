@@ -1,5 +1,6 @@
 import { CULTIVATION_REALMS, type DiscipleInstance, type EventLogEntry, type GameState } from '../types'
 import { getWorldModifiers } from './world/worldModifiers'
+import { getEquippedEffectTotal } from './itemAffixes'
 
 /**
  * Disciple upkeep (doc 03, Section 7's deferred "Treasury upkeep gate", pulled in as a real ongoing
@@ -106,7 +107,9 @@ export function resolveUpkeepDue(state: GameState, now: number): { state: GameSt
       const survivors: DiscipleInstance[] = []
       const departures: DiscipleInstance[] = []
       for (const d of disciples) {
-        const morale = Math.max(0, d.morale - MORALE_UNPAID_PENALTY)
+        // Comforting affixes (§4) soften the unpaid-cycle morale hit for that disciple.
+        const decayReduction = getEquippedEffectTotal(d, 'moraleDecayPct')
+        const morale = Math.max(0, d.morale - MORALE_UNPAID_PENALTY * Math.max(0, 1 - decayReduction / 100))
         // An away disciple can't walk out mid-assignment (Presence Requirement, doc 03 §8).
         if (
           morale <= LOW_MORALE_THRESHOLD &&

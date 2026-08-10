@@ -2,8 +2,11 @@ import type { GameState, ItemCategory, ItemInstance, ItemQuality, Resources } fr
 import { getRecipe } from '../data/craftingRecipes'
 import { getBuildingDef } from '../data/buildingDefs'
 import { getItemDef } from '../data/itemDefs'
+import { getMaterialDef } from '../data/materialDefs'
 import { RESOURCE_LABELS } from '../data/resourceLabels'
 import { rollItemQuality } from './itemQuality'
+import { rollAffixes } from './itemAffixes'
+import { generateForgedName } from './itemProvenance'
 
 export interface CraftEligibility {
   canCraft: boolean
@@ -31,8 +34,12 @@ export function getCraftEligibility(state: GameState, recipeId: string, quantity
   const deficits = (Object.entries(recipe.cost) as [keyof Resources, number][])
     .filter(([key, amount]) => state.resources[key] < amount * quantity)
     .map(([key, amount]) => `${amount * quantity} ${RESOURCE_LABELS[key]}`)
-  if (deficits.length > 0) {
-    return { canCraft: false, reason: `Need ${deficits.join(', ')}.` }
+  const materialDeficits = Object.entries(recipe.materialCost ?? {})
+    .filter(([key, amount]) => (state.materials[key] ?? 0) < amount * quantity)
+    .map(([key, amount]) => `${amount * quantity} ${getMaterialDef(key).name}`)
+  const allDeficits = [...deficits, ...materialDeficits]
+  if (allDeficits.length > 0) {
+    return { canCraft: false, reason: `Need ${allDeficits.join(', ')}.` }
   }
 
   return { canCraft: true }
@@ -47,9 +54,24 @@ export function addStackableItem(items: ItemInstance[], itemDefId: string, categ
   return [...items, { id: crypto.randomUUID(), category, itemId: itemDefId, quantity: 1 }]
 }
 
-/** Appends a brand-new unique equipment instance with a rolled Quality (doc 07 §7). Equipment never stacks — two same-def pieces can differ in quality. */
-export function addEquipmentInstance(items: ItemInstance[], itemDefId: string, quality: ItemQuality): ItemInstance[] {
-  return [...items, { id: crypto.randomUUID(), category: 'Equipment', itemId: itemDefId, quantity: 1, quality }]
+/**
+ * Appends a brand-new unique equipment instance with a rolled Quality (doc 07 §7), 0–2 Quality-driven
+ * affixes (EQUIPMENT_DEPTH_PLAN §4), and provenance (§6): a forged name for Perfect/Masterwork rolls, the
+ * forge date, and the crafter if one was captured at batch start. Equipment never stacks.
+ */
+export function addEquipmentInstance(
+  items: ItemInstance[],
+  itemDefId: string,
+  quality: ItemQuality,
+  opts: { craftedBy?: string } = {},
+): ItemInstance[] {
+  const slotType = getItemDef(itemDefId).slotType
+  const affixes = slotType ? rollAffixes(slotType, quality) : []
+  const instance: ItemInstance = { id: crypto.randomUUID(), category: 'Equipment', itemId: itemDefId, quantity: 1, quality, forgedOnDay: Date.now() }
+  if (affixes.length > 0) instance.affixes = affixes
+  if (opts.craftedBy) instance.craftedBy = opts.craftedBy
+  if (slotType && (quality === 'Perfect' || quality === 'Masterwork')) instance.forgedName = generateForgedName(slotType)
+  return [...items, instance]
 }
 
 /** Returns an already-existing instance to inventory unchanged (used when unequipping / swapping equipment out). */
@@ -105,7 +127,7 @@ export function resolveCompletedCrafting(
     const quality = itemDef.category === 'Equipment' ? rollItemQuality() : undefined
     items =
       quality !== undefined
-        ? addEquipmentInstance(items, recipe.itemDefId, quality)
+        ? addEquipmentInstance(items, recipe.itemDefId, quality, { craftedBy: queue.craftedBy })
         : addStackableItem(items, recipe.itemDefId, itemDef.category)
     craftedItems.push({ itemDefId: recipe.itemDefId, quality })
     remaining -= 1
