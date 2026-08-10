@@ -22,7 +22,8 @@ export function WorldScreen() {
 
   return (
     <div className="world-screen">
-      <nav className="world-subnav">
+      {/* The province sub-view owns the screen: its own back header replaces the subnav. */}
+      <nav className="world-subnav" hidden={selection !== null}>
         <button
           className={tab === 'map' ? 'active' : ''}
           onClick={() => {

@@ -34,6 +34,8 @@ export function FoundingScreen() {
   return (
     <div className="founding-screen">
       <header className="founding-header">
+        {/* The game title lives here — the portrait shell has no header for it. */}
+        <p className="founding-game-title">Sect Master: Path of Ascension</p>
         <h1>Found Your Sect</h1>
         <p className="panel-hint">
           Where your sect takes root shapes the entire path of ascension. This choice is permanent for this save.

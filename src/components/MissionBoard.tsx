@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
 import { getMissionDef } from '../game/data/missionDefs'
 import { formatCountdown } from '../game/utils/formatDuration'
@@ -6,6 +7,8 @@ import { MissionOfferCard } from './MissionOfferCard'
 export function MissionBoard() {
   // Subscribing to the whole state so the refresh countdown re-renders every tick.
   const state = useGameStore((s) => s.state)
+  // Accordion: one offer expanded at a time, so the board never becomes a wall of cards.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const refreshInMs = state.missionBoard.nextRefreshAt - Date.now()
 
   return (
@@ -19,7 +22,13 @@ export function MissionBoard() {
       ) : (
         <div className="mission-grid">
           {state.missionBoard.offers.map((offer) => (
-            <MissionOfferCard key={offer.id} offer={offer} def={getMissionDef(offer.defId)} />
+            <MissionOfferCard
+              key={offer.id}
+              offer={offer}
+              def={getMissionDef(offer.defId)}
+              expanded={expandedId === offer.id}
+              onToggle={() => setExpandedId((current) => (current === offer.id ? null : offer.id))}
+            />
           ))}
         </div>
       )}

@@ -55,24 +55,21 @@ function App() {
 
   return (
     <div className="app">
+      {/* Portrait-only: shown by CSS on a phone turned sideways, never on desktop. */}
+      <div className="rotate-prompt" aria-hidden="true">
+        <p>Rotate your device to portrait</p>
+      </div>
+
       <OfflineSummaryModal />
       {!offlineSummary && <DecisionEventModal />}
 
-      <header className="app-header">
-        <h1>Sect Master: Path of Ascension</h1>
-        <p className="app-subtitle">Wave 8 — Onboarding, Polish &amp; Live-Readiness</p>
-      </header>
-
       <div className="app-hud">
         <ResourceBar />
-        <TabBar active={activeTab} onSelect={setActiveTab} />
       </div>
 
       <main className="app-screen">{renderScreen(activeTab)}</main>
 
-      <footer className="app-footer">
-        <p>Equip crafted gear from a Disciple Card to raise their Combat Power.</p>
-      </footer>
+      <TabBar active={activeTab} onSelect={setActiveTab} />
     </div>
   )
 }

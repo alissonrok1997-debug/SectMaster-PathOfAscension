@@ -1,3 +1,4 @@
+import { BottomSheet } from './BottomSheet'
 import { useState } from 'react'
 import type { ExpeditionPurpose, Resources } from '../game/types'
 import { useGameStore } from '../game/state/store'
@@ -100,11 +101,22 @@ export function DispatchExpeditionModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <h2>
-          {PURPOSE_TITLE[kind]} {targetName}
-        </h2>
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={`${PURPOSE_TITLE[kind]} ${targetName}`}
+      height="full"
+      footer={
+        <>
+          <button className="dispatch-confirm-button" disabled={!eligibility.canDispatch} onClick={confirm}>
+            {PURPOSE_TITLE[kind]}
+          </button>
+          {!eligibility.canDispatch && eligibility.reason && (
+            <p className="upgrade-blocked-reason">{eligibility.reason}</p>
+          )}
+        </>
+      }
+    >
 
         {kind === 'claimSeat' && (
           <p className="founding-warning">
@@ -212,17 +224,6 @@ export function DispatchExpeditionModal({
           </>
         )}
 
-        {!eligibility.canDispatch && eligibility.reason && (
-          <p className="upgrade-blocked-reason">{eligibility.reason}</p>
-        )}
-
-        <div className="dispatch-actions">
-          <button disabled={!eligibility.canDispatch} onClick={confirm}>
-            {PURPOSE_TITLE[kind]}
-          </button>
-          <button onClick={onClose}>Cancel</button>
-        </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }

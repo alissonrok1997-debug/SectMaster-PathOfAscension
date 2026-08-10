@@ -1,3 +1,4 @@
+import { BottomSheet } from './BottomSheet'
 import { Fragment, useState } from 'react'
 import type { BattleResult, DiscipleTemperament } from '../game/types'
 import { getAdvantageBand, resolveBattle, TERRAIN_EFFECTS, TIER_LABEL, type BattleParticipant, type BattlePhase } from '../game/engine/combat/battleSimulator'
@@ -34,14 +35,9 @@ export function BattleReportView({
   onClose: () => void
 }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <BattleReportBody battle={battle} title={title} participantNames={participantNames} participantTemperaments={participantTemperaments} />
-        <div className="dispatch-actions">
-          <button onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
+    <BottomSheet open onClose={onClose} title={title} height="full">
+      <BattleReportBody battle={battle} title={title} participantNames={participantNames} participantTemperaments={participantTemperaments} />
+    </BottomSheet>
   )
 }
 

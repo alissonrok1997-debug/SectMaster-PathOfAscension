@@ -32,34 +32,39 @@ export function StandingsView() {
         {freePoorSeats.length === 1 ? '' : 's'} still stand free.
       </p>
 
-      <div className="recipe-grid">
+      {/* Rows, not a table — a table can't survive 360px. Strength trails, tabular. */}
+      <div className="site-list">
         {state.sectLocation && (
-          <div className="recipe-card standings-card owner-player">
-            <div className="recipe-card-header">
-              <h3>Your Sect</h3>
-              <span className="recipe-discipline">You</span>
-            </div>
-            <p className="recipe-meta">Seat: {getSectSiteDef(state.sectLocation.sectSiteId).name}</p>
+          <div className="site-row standings-card owner-player">
+            <span className="site-row-tier" aria-hidden="true" />
+            <span className="site-row-text">
+              <span className="site-row-name">Your Sect</span>
+              <span className="site-row-owner">Seat: {getSectSiteDef(state.sectLocation.sectSiteId).name}</span>
+            </span>
+            <span className="site-row-tier-label">You</span>
           </div>
         )}
-        {sortSects(npcSects).map((sect) => (
-          <div key={sect.id} className={`recipe-card standings-card ${sect.status === 'declining' ? 'declining' : ''}`}>
-            <div className="recipe-card-header">
-              <h3>{sect.name}</h3>
-              <span className="recipe-discipline">{TIER_LABELS[sect.tier]}</span>
+        {sortSects(npcSects).map((sect) => {
+          // Rivalries (FIRST_REALM_PLAN §8 Wave D); dangling ids (rival destroyed) resolve to nothing and drop out.
+          const rivals = (sect.rivalIds ?? []).map((id) => nameById.get(id)).filter((n): n is string => !!n)
+          return (
+            <div
+              key={sect.id}
+              className={`site-row standings-card owner-npc ${sect.status === 'declining' ? 'declining' : ''}`}
+            >
+              <span className="site-row-tier" aria-hidden="true" />
+              <span className="site-row-text">
+                <span className="site-row-name">{sect.name}</span>
+                <span className="site-row-owner">
+                  {TIER_LABELS[sect.tier]} &middot; {getSectSiteDef(sect.seatSiteId).name}
+                  {sect.status === 'declining' ? ' · declining' : ''}
+                  {rivals.length > 0 ? ` · rivals: ${rivals.join(', ')}` : ''}
+                </span>
+              </span>
+              <span className="standings-strength">{sect.strength}</span>
             </div>
-            <p className="recipe-meta">Seat: {getSectSiteDef(sect.seatSiteId).name}</p>
-            <p className="recipe-meta">
-              Strength: {sect.strength}
-              {sect.status === 'declining' ? ' · declining' : ''}
-            </p>
-            {(() => {
-              // Rivalries (FIRST_REALM_PLAN §8 Wave D); dangling ids (rival destroyed) resolve to nothing and drop out.
-              const rivals = (sect.rivalIds ?? []).map((id) => nameById.get(id)).filter((n): n is string => !!n)
-              return rivals.length > 0 ? <p className="recipe-meta">Rivals: {rivals.join(', ')}</p> : null
-            })()}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </section>
   )

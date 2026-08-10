@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
 import { DiscipleDetailPanel } from './DiscipleDetailPanel'
+import { BottomSheet } from './BottomSheet'
 
 export function DiscipleDetailModal({
   initialDiscipleId,
@@ -28,22 +29,19 @@ export function DiscipleDetailModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel disciple-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="disciple-modal-nav">
-          <button aria-label="Previous disciple" disabled={disciples.length < 2} onClick={() => step(-1)}>
-            ‹
-          </button>
-          <span className="panel-hint">
-            {index + 1} / {disciples.length}
-          </span>
-          <button aria-label="Next disciple" disabled={disciples.length < 2} onClick={() => step(1)}>
-            ›
-          </button>
-        </div>
-        <DiscipleDetailPanel discipleId={selected.id} />
-        <button onClick={onClose}>Close</button>
+    <BottomSheet open onClose={onClose} title={selected.name} height="full">
+      <div className="disciple-modal-nav">
+        <button aria-label="Previous disciple" disabled={disciples.length < 2} onClick={() => step(-1)}>
+          ‹
+        </button>
+        <span className="panel-hint">
+          {index + 1} / {disciples.length}
+        </span>
+        <button aria-label="Next disciple" disabled={disciples.length < 2} onClick={() => step(1)}>
+          ›
+        </button>
       </div>
-    </div>
+      <DiscipleDetailPanel discipleId={selected.id} />
+    </BottomSheet>
   )
 }

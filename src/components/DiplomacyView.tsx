@@ -56,7 +56,7 @@ export function DiplomacyView() {
         {FACTION_DEFS.map((faction) => {
           const relationship = state.factionRelationships[faction.id] ?? 0
           return (
-            <div className="recipe-card" key={faction.id}>
+            <div className="recipe-card card-static" key={faction.id}>
               <div className="recipe-card-header">
                 <h3>{faction.name}</h3>
                 <span className="recipe-discipline">{faction.category}</span>

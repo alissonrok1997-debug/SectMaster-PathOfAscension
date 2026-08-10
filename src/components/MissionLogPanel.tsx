@@ -5,6 +5,7 @@ import { getOutcomeLabel } from '../game/engine/missions'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
 import type { MissionLogEntry, Resources } from '../game/types'
 import { BattleReportView } from './BattleReportView'
+import { CollapsibleList } from './CollapsibleList'
 
 function formatReward(reward: Partial<Resources>): string {
   const entries = Object.entries(reward) as [keyof Resources, number][]
@@ -21,8 +22,8 @@ export function MissionLogPanel() {
   return (
     <section className="panel mission-log-panel">
       <h2>Recent Missions</h2>
-      <ul className="mission-log-list">
-        {missionLog.map((entry) => {
+      <CollapsibleList
+        items={missionLog.map((entry) => {
           const def = getMissionDef(entry.defId)
           // A combat mission that ended in a mutual retreat (Phase 9) reads as a stalemate rather than the reward-based Success/Failure label.
           const label = entry.battleResult?.outcomeTier === 'draw' ? 'Draw' : getOutcomeLabel(def, entry.outcome)
@@ -39,7 +40,7 @@ export function MissionLogPanel() {
             </li>
           )
         })}
-      </ul>
+      />
       {openEntry?.battleResult && (
         <BattleReportView
           battle={openEntry.battleResult}

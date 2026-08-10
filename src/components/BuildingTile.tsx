@@ -1,5 +1,7 @@
 import { useGameStore } from '../game/state/store'
 import { getBuildingDef } from '../game/data/buildingDefs'
+import { BUILDING_ART } from '../assets/icons'
+import { GameIcon } from './GameIcon'
 
 interface BuildingTileProps {
   buildingId: string
@@ -19,6 +21,13 @@ export function BuildingTile({ buildingId, active, onSelect }: BuildingTileProps
       aria-expanded={active}
       onClick={() => onSelect(buildingId)}
     >
+      <GameIcon
+        className="building-tile-art"
+        src={BUILDING_ART[buildingId]}
+        fallback="🏯"
+        alt=""
+        size={56}
+      />
       <span className="building-tile-name">{def.name}</span>
       <span className="building-tile-level">Lv{level}</span>
     </button>

@@ -1,0 +1,102 @@
+name: Build Android APK
+
+# Manual only — the APK isn't needed on every push, and the Capacitor scaffold
+# takes a few minutes. Run it from the Actions tab when you want a new build.
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version label shown in the artifact name'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # JDK 17 — required by the Android Gradle Plugin. The runner's Android SDK is
+      # already on PATH via ANDROID_HOME, so no sdkmanager step is needed.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - run: npm ci
+
+      # No BASE_PATH: Capacitor serves the bundle from the APK root, so the web build
+      # must use "/" — a subpath build would 404 inside the WebView.
+      - name: Build web bundle
+        run: npm run build
+
+      # Capacitor is only needed for the APK, so it's installed here rather than
+      # sitting in the repo's dependencies.
+      - name: Install Capacitor
+        run: npm i -D @capacitor/cli @capacitor/core @capacitor/android @capacitor/assets
+
+      - name: Prepare launcher icon and splash
+        run: |
+          mkdir -p assets
+          node -e "
+            const sharp = require('sharp');
+            const src = 'public/icons/source-1024.png';
+            const BG = { r: 0x12, g: 0x13, b: 0x1a, alpha: 1 };
+            (async () => {
+              await sharp(src).resize(1024, 1024, { fit: 'cover' }).flatten({ background: BG })
+                .toFile('assets/icon.png');
+              // Splash: the icon centred on the app background, well inside the safe area
+              // so it survives every device aspect ratio.
+              const logo = await sharp(src).resize(900, 900, { fit: 'contain',
+                background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+              await sharp({ create: { width: 2732, height: 2732, channels: 4, background: BG } })
+                .composite([{ input: logo, gravity: 'center' }]).png().toFile('assets/splash.png');
+            })();
+          "
+
+      - name: Scaffold Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Generate native icons and splash
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#12131a' --splashBackgroundColor '#12131a'
+
+      # The web layer is portrait-only (see the mobile plan); lock the Activity to match
+      # so the native shell can't rotate underneath it.
+      - name: Lock orientation to portrait
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i 's|android:name="com.sectmaster.pathofascension.MainActivity"|android:name="com.sectmaster.pathofascension.MainActivity"\n            android:screenOrientation="portrait"|' $MANIFEST
+          grep -q 'screenOrientation="portrait"' $MANIFEST || \
+            sed -i '0,/<activity/s|<activity|<activity android:screenOrientation="portrait"|' $MANIFEST
+          grep -n screenOrientation $MANIFEST
+
+      # Debug-signed: installable by sideloading with no keystore to manage. Android
+      # will not let a release-signed build replace it later without an uninstall.
+      - name: Assemble APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "out/sect-master-${{ inputs.version_name }}.apk"
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sect-master-apk-${{ inputs.version_name }}
+          path: out/*.apk
+          retention-days: 30

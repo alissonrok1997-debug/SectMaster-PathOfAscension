@@ -1,3 +1,4 @@
+import { BottomSheet } from './BottomSheet'
 import { useGameStore } from '../game/state/store'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
@@ -31,9 +32,17 @@ export function OfflineSummaryModal() {
     summary.loginStreakBonus !== undefined
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-panel">
-        <h2>Welcome back</h2>
+    <BottomSheet
+      open
+      onClose={dismiss}
+      title="Welcome back"
+      height="full"
+      footer={
+        <button className="sheet-primary-action" onClick={dismiss}>
+          Continue
+        </button>
+      }
+    >
         {summary.elapsedMs > 0 && (
           <p className="panel-hint">
             You were away for {formatDurationAdaptive(summary.elapsedMs / 1000)}
@@ -235,8 +244,6 @@ export function OfflineSummaryModal() {
           <p className="panel-hint">Nothing new happened while you were away.</p>
         )}
 
-        <button onClick={dismiss}>Continue</button>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }
