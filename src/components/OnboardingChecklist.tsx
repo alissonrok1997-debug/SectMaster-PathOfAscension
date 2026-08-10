@@ -30,6 +30,10 @@ export function OnboardingChecklist() {
               </li>
             ))}
           </ul>
+          {/* Moved here from the old app footer, which portrait has no room for. */}
+          <p className="panel-hint">
+            Tip: equip crafted gear from a disciple's detail sheet to raise their Combat Power.
+          </p>
         </>
       )}
     </section>

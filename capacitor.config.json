@@ -1,0 +1,8 @@
+{
+  "appId": "com.sectmaster.pathofascension",
+  "appName": "Sect Master",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

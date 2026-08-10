@@ -23,19 +23,40 @@ export function ReportsScreen() {
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const filtered = reports.filter(
-    (r) => (sourceFilter === 'all' || r.source === sourceFilter) && (!unreadOnly || !r.read),
-  )
-  // Selection defaults to the first of the current list; if it falls out (filter change / trim), fall back to the new first.
-  const selected = filtered.find((r) => r.id === selectedId) ?? filtered[0] ?? null
+  const matchesFilters = (r: (typeof reports)[number], source: SourceFilter) =>
+    (source === 'all' || r.source === source) && (!unreadOnly || !r.read)
+  const filtered = reports.filter((r) => matchesFilters(r, sourceFilter))
+  // Looked up in `reports`, not `filtered`: changing a filter while a report is open
+  // must not close it out from under the reader.
+  const selected = selectedId ? (reports.find((r) => r.id === selectedId) ?? null) : null
 
-  // Whatever is shown in the detail pane is "opened" → mark it read (mail semantics).
+  // Opening a report is what marks it read (mail semantics) — nothing is auto-opened.
   useEffect(() => {
     if (selected && !selected.read) markReportRead(selected.id)
   }, [selected, markReportRead])
 
   const unreadCount = reports.filter((r) => !r.read).length
   const now = Date.now()
+
+  // Full-screen sub-view: the report owns the screen, with a back affordance.
+  if (selected) {
+    return (
+      <section className="panel reports-screen">
+        <div className="world-back-header">
+          <button className="world-back-button" onClick={() => setSelectedId(null)} aria-label="Back to inbox">
+            ‹
+          </button>
+          <h2>{selected.title}</h2>
+        </div>
+        <BattleReportBody
+          battle={selected.battle}
+          title={selected.title}
+          participantNames={selected.participantNames}
+          participantTemperaments={selected.participantTemperaments}
+        />
+      </section>
+    )
+  }
 
   return (
     <section className="panel reports-screen">
@@ -48,7 +69,8 @@ export function ReportsScreen() {
               className={f.id === sourceFilter ? 'chip active' : 'chip'}
               onClick={() => setSourceFilter(f.id)}
             >
-              {f.label}
+              {/* Counts make filtering an informed choice rather than a guess. */}
+              {f.label} {reports.filter((r) => matchesFilters(r, f.id)).length}
             </button>
           ))}
           <label className="reports-unread-toggle">
@@ -68,37 +90,14 @@ export function ReportsScreen() {
           No battle reports yet. Send a squad on a Hunting mission, or claim a location on the world map.
         </p>
       ) : (
-        <div className="reports-grid">
-          <div className="reports-list">
-            {filtered.length === 0 ? (
-              <p className="panel-hint">No reports match this filter.</p>
-            ) : (
-              filtered.map((r) => (
-                <ReportCard
-                  key={r.id}
-                  entry={r}
-                  selected={selected?.id === r.id}
-                  now={now}
-                  onSelect={() => {
-                    setSelectedId(r.id)
-                    markReportRead(r.id)
-                  }}
-                />
-              ))
-            )}
-          </div>
-          <div className="reports-detail">
-            {selected ? (
-              <BattleReportBody
-                battle={selected.battle}
-                title={selected.title}
-                participantNames={selected.participantNames}
-                participantTemperaments={selected.participantTemperaments}
-              />
-            ) : (
-              <p className="panel-hint">Select a report to read it.</p>
-            )}
-          </div>
+        <div className="reports-list">
+          {filtered.length === 0 ? (
+            <p className="panel-hint">No reports match this filter.</p>
+          ) : (
+            filtered.map((r) => (
+              <ReportCard key={r.id} entry={r} selected={false} now={now} onSelect={() => setSelectedId(r.id)} />
+            ))
+          )}
         </div>
       )}
     </section>

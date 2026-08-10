@@ -19,11 +19,17 @@ export function SaveControls() {
       <div className="save-controls-buttons">
         <button onClick={saveNow}>Save Now</button>
         <button onClick={reloadFromSave}>Reload From Save</button>
+      </div>
+      <p className="panel-hint">Last saved: {new Date(lastSavedAt).toLocaleTimeString()}</p>
+
+      {/* Separated: a mis-tap next to Save is far likelier on a phone, and this is the
+          one irreversible action in the game. */}
+      <div className="danger-zone">
+        <p className="danger-zone-title">Danger zone</p>
         <button className="danger" onClick={handleReset}>
           Reset Save
         </button>
       </div>
-      <p className="panel-hint">Last saved: {new Date(lastSavedAt).toLocaleTimeString()}</p>
     </section>
   )
 }

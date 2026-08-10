@@ -7,6 +7,8 @@ import { getResearchCultivationRateMultiplier } from '../game/engine/research'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { getWorldModifiers } from '../game/engine/world/worldModifiers'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
+import { ROLE_ART } from '../assets/icons'
+import { GameIcon } from './GameIcon'
 
 interface DiscipleCardProps {
   discipleId: string
@@ -70,50 +72,49 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
           : undefined
       }
     >
-      <div className="disciple-card-header">
-        <h3>{disciple.name}</h3>
-        <span className="disciple-grade">{disciple.grade}</span>
-      </div>
-      <p className="panel-hint">
-        {disciple.role} &middot; Talent {disciple.talent} &middot; Combat Power {combatPower}
-      </p>
+      <div className="disciple-row-main">
+        <GameIcon className="disciple-row-art" src={ROLE_ART[disciple.role]} alt="" size={40} />
 
-      <div className="disciple-realm">
-        {disciple.realm} <span className="disciple-substage">{disciple.subRealm}/9</span>
+        <div className="disciple-row-text">
+          <div className="disciple-row-line">
+            <h3>{disciple.name}</h3>
+            <span className="disciple-grade">{disciple.grade}</span>
+          </div>
+          <div className="disciple-row-line disciple-row-sub">
+            <span className="disciple-realm">
+              {disciple.realm} <span className="disciple-substage">{disciple.subRealm}/9</span>
+            </span>
+            {statusBadge && <span className={`disciple-card-status ${statusBadge.toLowerCase()}`}>{statusBadge}</span>}
+          </div>
+        </div>
+
+        <span className="disciple-row-cp" title="Combat Power">
+          {combatPower}
+        </span>
       </div>
-      <div className="progress-bar">
+
+      <div className="progress-bar disciple-row-bar">
         <div className="progress-bar-fill day" style={{ width: `${disciple.cultivationProgress}%` }} />
       </div>
+      <div className="progress-bar disciple-row-bar">
+        <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
+      </div>
+
       <p className="panel-hint cultivation-detail">
-        {disciple.cultivationProgress.toFixed(1)} / 100 pts &middot;{' '}
         {readyForBreakthrough
           ? 'Ready to break through'
-          : etaToNextStage
-            ? `${etaToNextStage} to next stage`
-            : 'Not cultivating'}
-        <br />
-        {rateLabel}
+          : isDownedNow
+            ? 'Downed — recovering'
+            : etaToNextStage
+              ? `${etaToNextStage} to next stage`
+              : 'Not cultivating'}
+        {rateLabel && ` · ${rateLabel}`}
+        {isInjured && ` · ${injurySeverity} injury`}
       </p>
-
-      <div className="disciple-hp">
-        <div className="progress-bar">
-          <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
-        </div>
-        <p className="panel-hint">
-          {isDownedNow ? 'Downed — recovering' : `HP ${hpPct.toFixed(2)}%${isInjured ? ` · ${injurySeverity} injury` : ''}`}
-        </p>
-      </div>
 
       {isCritical && !isAway && !isDownedNow && (
         <p className="disciple-critical-warning">⚠ Critical — dispatching risks their death.</p>
       )}
-
-      <div className="disciple-stat-row">
-        <span>Loyalty {disciple.loyalty}</span>
-        <span>Morale {disciple.morale}</span>
-      </div>
-
-      {statusBadge && <span className={`disciple-card-status ${statusBadge.toLowerCase()}`}>{statusBadge}</span>}
     </div>
   )
 }

@@ -8,6 +8,9 @@ import { getExpelEligibility } from '../game/engine/recruitment'
 import { getDiscoveredTechniques, getTeachEligibility } from '../game/engine/techniques'
 import { getTechniqueDef } from '../game/data/techniqueDefs'
 import { EQUIPMENT_SLOTS } from '../game/engine/equipment'
+import { SLOT_ART } from '../assets/icons'
+import { GameIcon } from './GameIcon'
+import { EquipmentSlotPicker } from './EquipmentSlotPicker'
 import { getEquipmentCombatPower } from '../game/engine/itemQuality'
 import { getItemDef } from '../game/data/itemDefs'
 import { getItemQualityDef } from '../game/data/itemQualityDefs'
@@ -49,13 +52,12 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   const assignDisciple = useGameStore((s) => s.assignDisciple)
   const activateCultivationBoost = useGameStore((s) => s.activateCultivationBoost)
   const attemptBreakthrough = useGameStore((s) => s.attemptBreakthrough)
-  const equipItem = useGameStore((s) => s.equipItem)
-  const unequipItem = useGameStore((s) => s.unequipItem)
   const useConsumable = useGameStore((s) => s.useConsumable)
   const teachTechnique = useGameStore((s) => s.teachTechnique)
   const expelDisciple = useGameStore((s) => s.expelDisciple)
 
   const [tab, setTab] = useState<DetailTab>('equipment')
+  const [pickerSlot, setPickerSlot] = useState<EquipmentSlotId | null>(null)
 
   const disciple = state.disciples.find((d) => d.id === discipleId)
   if (!disciple) return null
@@ -115,7 +117,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         const effect = pct === 0 ? 'normal cultivation' : `cultivation ${pct > 0 ? '+' : ''}${pct}%`
         return (
           <p className="panel-hint">
-            Morale {disciple.morale} &middot; {effect}
+            Morale {disciple.morale} &middot; {effect} &middot; Loyalty {disciple.loyalty}
           </p>
         )
       })()}
@@ -228,57 +230,58 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
           {EQUIPMENT_SLOTS.map((slot) => {
             const equipped = disciple.equipment[slot]
             const equippedDef = equipped ? getItemDef(equipped.itemId) : undefined
-            const options = equipOptionsForSlot(slot)
 
             return (
-              <div className="equipment-slot-row" key={slot}>
+              <button
+                type="button"
+                className="equipment-slot-row"
+                key={slot}
+                disabled={isAway}
+                onClick={() => setPickerSlot(slot)}
+              >
+                <GameIcon
+                  className={`equipment-slot-art ${equipped ? 'filled' : ''}`}
+                  src={SLOT_ART[slot]}
+                  alt=""
+                  size={26}
+                />
                 <span className="equipment-slot-label">{SLOT_LABELS[slot]}</span>
                 {equipped && equippedDef ? (
-                  <>
-                    <span className="equipment-slot-item">
-                      {equipped.forgedName ?? equippedDef.name}
-                      {equipped.forgedName && <span className="inventory-subtitle"> — {equippedDef.name}</span>}
-                      {equipped.quality && (
-                        <span style={{ color: getItemQualityDef(equipped.quality).color }}>
-                          {' '}&middot; {equipped.quality}
-                        </span>
-                      )}{' '}
-                      (+{getEquipmentCombatPower(equipped.itemId, equipped.quality)} CP)
-                      {equipped.affixes && equipped.affixes.length > 0 && (
-                        <span className="equipment-slot-affixes"> · {equipped.affixes.map(describeAffix).join(' · ')}</span>
-                      )}
-                      <span className="equipment-slot-provenance">{describeProvenance(equipped)}</span>
-                    </span>
-                    <button disabled={isAway} onClick={() => unequipItem(disciple.id, slot)}>
-                      Unequip
-                    </button>
-                  </>
-                ) : options.length > 0 ? (
-                  <select
-                    value=""
-                    disabled={isAway}
-                    onChange={(e) => {
-                      if (e.target.value) equipItem(disciple.id, e.target.value)
-                    }}
-                  >
-                    <option value="">Equip…</option>
-                    {options.map((inst) => {
-                      const def = getItemDef(inst.itemId)
-                      return (
-                        <option key={inst.id} value={inst.id}>
-                          {def.name}
-                          {inst.quality ? ` · ${inst.quality}` : ''} (+
-                          {getEquipmentCombatPower(inst.itemId, inst.quality)} CP)
-                        </option>
-                      )
-                    })}
-                  </select>
+                  <span className="equipment-slot-item">
+                    {equipped.forgedName ?? equippedDef.name}
+                    {equipped.forgedName && <span className="inventory-subtitle"> — {equippedDef.name}</span>}
+                    {equipped.quality && (
+                      <span style={{ color: getItemQualityDef(equipped.quality).color }}>
+                        {' '}&middot; {equipped.quality}
+                      </span>
+                    )}{' '}
+                    (+{getEquipmentCombatPower(equipped.itemId, equipped.quality)} CP)
+                    {equipped.affixes && equipped.affixes.length > 0 && (
+                      <span className="equipment-slot-affixes"> · {equipped.affixes.map(describeAffix).join(' · ')}</span>
+                    )}
+                    <span className="equipment-slot-provenance">{describeProvenance(equipped)}</span>
+                  </span>
                 ) : (
                   <span className="panel-hint">Empty</span>
                 )}
-              </div>
+                <span className="equipment-slot-chevron" aria-hidden="true">
+                  ›
+                </span>
+              </button>
             )
           })}
+
+          {pickerSlot && (
+            <EquipmentSlotPicker
+              discipleId={disciple.id}
+              slot={pickerSlot}
+              slotLabel={SLOT_LABELS[pickerSlot]}
+              options={equipOptionsForSlot(pickerSlot)}
+              equipped={disciple.equipment[pickerSlot]}
+              disabled={isAway}
+              onClose={() => setPickerSlot(null)}
+            />
+          )}
         </div>
       )}
 
@@ -333,7 +336,8 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         </div>
       )}
 
-      <div className="disciple-expel">
+      <div className="disciple-expel danger-zone">
+        <p className="danger-zone-title">Danger zone</p>
         <button
           type="button"
           className="demolish-button"

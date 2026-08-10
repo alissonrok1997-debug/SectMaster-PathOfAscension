@@ -9,6 +9,8 @@ import { getBuildingSlotCount } from '../game/engine/buildingAssignment'
 import { TRAINING_HALL_RATE_PER_LEVEL } from '../game/engine/cultivation'
 import { BOOST_COST, BOOST_DURATION_MS, BOOST_RATE_PER_SECOND } from '../game/engine/cultivationBoost'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
+import { BUILDING_ART } from '../assets/icons'
+import { GameIcon } from './GameIcon'
 import { formatCountdown, formatDurationAdaptive } from '../game/utils/formatDuration'
 import type { GameState, Resources } from '../game/types'
 
@@ -84,6 +86,13 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   return (
     <div className={`building-detail ${isOverLevel ? 'over-level' : ''}`}>
       <div className="building-detail-header">
+        <GameIcon
+          className="building-detail-art"
+          src={BUILDING_ART[buildingId]}
+          fallback="🏯"
+          alt=""
+          size={64}
+        />
         <h3>{def.name}</h3>
         <span className="building-category">{def.category}</span>
       </div>

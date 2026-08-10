@@ -3,8 +3,9 @@ import { getBuildingDef } from '../game/data/buildingDefs'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { compareDisciplesForSelection, getDiscipleAvailability } from '../game/engine/discipleAvailability'
 import { DiscipleSelectList } from './DiscipleSelectList'
+import { BottomSheet } from './BottomSheet'
 
-/** Reuses DecisionEventModal's overlay/panel pattern — picks which disciple takes an empty work slot. */
+/** Picks which disciple takes an empty work slot. Opens stacked above the building sheet. */
 export function AssignDiscipleModal({ buildingId, onClose }: { buildingId: string; onClose: () => void }) {
   const state = useGameStore((s) => s.state)
   const assignDisciple = useGameStore((s) => s.assignDisciple)
@@ -18,23 +19,19 @@ export function AssignDiscipleModal({ buildingId, onClose }: { buildingId: strin
     .sort(compareDisciplesForSelection(state, combatPowerMult))
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <h2>Assign to {def.name}</h2>
-        <p className="panel-hint">Choose a disciple to take this work slot.</p>
-        <DiscipleSelectList
-          disciples={candidates}
-          selectedIds={[]}
-          isSelectable={(id) => getDiscipleAvailability(state, id).available}
-          combatPowerMult={combatPowerMult}
-          emptyMessage="No available disciples — all are assigned here or away."
-          onToggle={(id) => {
-            assignDisciple(id, buildingId)
-            onClose()
-          }}
-        />
-        <button onClick={onClose}>Cancel</button>
-      </div>
-    </div>
+    <BottomSheet open onClose={onClose} title={`Assign to ${def.name}`} height="full">
+      <p className="panel-hint">Choose a disciple to take this work slot.</p>
+      <DiscipleSelectList
+        disciples={candidates}
+        selectedIds={[]}
+        isSelectable={(id) => getDiscipleAvailability(state, id).available}
+        combatPowerMult={combatPowerMult}
+        emptyMessage="No available disciples — all are assigned here or away."
+        onToggle={(id) => {
+          assignDisciple(id, buildingId)
+          onClose()
+        }}
+      />
+    </BottomSheet>
   )
 }

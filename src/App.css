@@ -1,86 +1,153 @@
 :root {
   color-scheme: dark;
   font-family: 'Segoe UI', system-ui, sans-serif;
+
+  /* Mobile layout tokens (MOBILE_00_FOUNDATION_PLAN). Portrait-only, 390px design width. */
+  --tap: 44px; /* minimum hit area for anything tappable */
+  --bar-h: 56px; /* bottom tab bar (phase 01) */
+  --strip-h: 34px; /* resource strip (phase 01) */
+  --space-1: 0.25rem;
+  --space-2: 0.75rem;
+  --space-3: 1.25rem;
+  --space-4: 2rem;
+  --sheet-max-h: 88dvh; /* BottomSheet (phase 02) */
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
 }
 
 body {
   margin: 0;
   background: #12131a;
   color: #e8e6df;
+  /* No pull-to-refresh mid-session, no grey flash on tap. */
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * Single portrait layout: a phone-width column, centered on anything wider.
+ * The bottom padding clears the tab bar that phase 01 makes position:fixed.
+ */
 .app {
-  max-width: 1100px;
+  max-width: 480px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
+  /* Top clears the fixed resource strip, bottom clears the fixed tab bar. */
+  padding: calc(var(--strip-h) + var(--safe-t) + var(--space-2)) var(--space-2)
+    calc(var(--bar-h) + var(--safe-b) + var(--space-3));
 }
 
-.app-header h1 {
-  margin-bottom: 0.25rem;
-  font-size: 1.8rem;
-  color: #f2d98a;
-}
-
-.app-subtitle {
-  margin-top: 0;
-  color: #9a97a8;
-}
-
+/* Fixed top chrome: the resource strip only. */
 .app-hud {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  inset: 0 0 auto 0;
   z-index: 20;
-  margin: 0 -1.5rem;
-  padding: 0.75rem 1.5rem 0;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-top: var(--safe-t);
   background: #12131a;
   border-bottom: 1px solid #2c2e3d;
 }
 
+/*
+ * Portrait lock, layer 2 (layer 1 is manifest orientation, layer 3 is not building
+ * any landscape layout). The max-height half is what keeps this off desktop —
+ * a browser window is always "landscape" but never this short.
+ */
+.rotate-prompt {
+  display: none;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .rotate-prompt {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3);
+    background: #12131a;
+    color: #f2d98a;
+    text-align: center;
+  }
+}
+
+/*
+ * Fixed bottom navigation. 9 tabs at 20% width each = 5 visible, the rest a swipe away.
+ * The mask is the only affordance telling players the bar scrolls — don't drop it.
+ */
 .tab-bar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 30;
+  max-width: 480px;
+  margin: 0 auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  background: #12131a;
+  border-top: 1px solid #2c2e3d;
+  padding-bottom: var(--safe-b);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+
+.tab-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-button {
+  flex: 0 0 20%;
+  scroll-snap-align: center;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--bar-h);
+  padding: var(--space-1) 0;
   background: transparent;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  padding: 0.55rem 0.95rem;
+  border: none;
+  border-top: 2px solid transparent;
+  border-radius: 0;
   color: #9a97a8;
-  font-size: 0.9rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
 .tab-button:hover {
-  background: #1b1d29;
   color: #e8e6df;
 }
 
 .tab-button-active,
 .tab-button-active:hover {
-  background: #1b1d29;
-  border-color: #2c2e3d;
+  border-top-color: #f2d98a;
   color: #f2d98a;
 }
 
 .tab-button-icon {
-  font-size: 1rem;
+  position: relative;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.tab-button-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-screen {
-  margin-top: 1.5rem;
+  margin-top: var(--space-2);
 }
 
 .panel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.25rem;
-  margin-top: 1.5rem;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .panel {
@@ -261,7 +328,7 @@ body {
 
 .battle-phase-label {
   text-transform: uppercase;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   letter-spacing: 0.09em;
   opacity: 0.5;
   margin-top: 0.55rem;
@@ -284,9 +351,20 @@ body {
 
 .save-controls-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.4rem;
   margin-bottom: 0.75rem;
+}
+
+.save-controls-buttons button {
+  width: 100%;
+  min-height: var(--tap);
+}
+
+/* Primary action pinned in a sheet footer (offline summary, relocation prune). */
+.sheet-primary-action {
+  width: 100%;
+  min-height: var(--tap);
 }
 
 button {
@@ -294,9 +372,36 @@ button {
   color: #e8e6df;
   border: 1px solid #3d3f52;
   border-radius: 6px;
+  /* Base tap floor: padding + 0.9rem text lands at ~35px on its own. */
+  min-height: var(--tap);
   padding: 0.5rem 0.9rem;
   cursor: pointer;
   font-size: 0.9rem;
+}
+
+/*
+ * 16px minimum, or iOS zooms the page on focus and never zooms back. There was no
+ * base rule for form controls at all before this.
+ */
+input,
+select,
+textarea {
+  font-size: 16px;
+  color: #e8e6df;
+  background: #2c2e3d;
+  border: 1px solid #3d3f52;
+  border-radius: 6px;
+}
+
+/* Checkboxes/radios keep their native rendering — the surface styling above is for
+   text-ish controls only. accent-color does the theming. */
+input[type='checkbox'],
+input[type='radio'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  background: initial;
+  border: initial;
+  accent-color: #f2d98a;
 }
 
 button:hover:not(:disabled) {
@@ -317,23 +422,66 @@ button.danger:hover {
   background: #4a2626;
 }
 
-.app-footer {
-  margin-top: 2rem;
-  color: #6f6c7d;
-  font-size: 0.85rem;
-  border-top: 1px solid #2c2e3d;
-  padding-top: 1rem;
-}
-
 /* Resource bar */
 
-.resource-bar {
-  margin-top: 1.5rem;
+/* Collapsed strip — one line, always visible, tap to expand. */
+.resource-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: var(--strip-h);
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.resource-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.resource-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.resource-chip-value {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: #e8e6df;
+}
+
+/* Expanded readout: caps and per-hour rates, dropped under the fixed strip. */
+.resource-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+}
+
+.resource-detail {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 22;
+  max-height: 60dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  background: #1b1d29;
+  border-bottom: 1px solid #2c2e3d;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
 }
 
 .resource-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
 }
 
@@ -349,8 +497,102 @@ button.danger:hover {
   text-align: center;
 }
 
+/* Sliced sheet artwork (src/assets/icons). */
+.game-icon {
+  flex: none;
+  object-fit: contain;
+  user-select: none;
+}
+
+.game-icon-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .resource-icon {
-  font-size: 1.3rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.building-tile-art {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+/* Only the buildings-list tiles carry artwork; work-slot tiles reuse the class. */
+.building-detail-art {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55));
+}
+
+
+.equipment-slot-art {
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+}
+
+.equipment-slot-art.filled {
+  opacity: 1;
+}
+
+.equipment-slot-chevron {
+  margin-left: auto;
+  color: #6f6c7d;
+}
+
+/* Rows in the equipment picker sheet. */
+.slot-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap);
+  margin-bottom: 0.35rem;
+  padding: 0.5rem 0.7rem;
+  background: #12131a;
+  border: 1px solid #2c2e3d;
+  border-radius: 8px;
+  color: inherit;
+  text-align: left;
+}
+
+.slot-option-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-option-name {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.slot-option-affixes {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: #8b889a;
+}
+
+.slot-option-delta {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: #9a97a8;
+}
+
+.slot-option-delta.up {
+  color: #8fd19e;
+}
+
+.slot-option-delta.down {
+  color: #f0b3b3;
+}
+
+.slot-option-unequip {
+  justify-content: center;
+  border-style: dashed;
+  color: #f0b3b3;
 }
 
 .resource-label {
@@ -390,22 +632,24 @@ button.danger:hover {
 
 .building-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  /* Two columns is a decision at phone width, not emergent auto-fill behaviour. */
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.55rem;
 }
 
 .building-tile {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 0.2rem;
-  min-height: 3.2rem;
-  padding: 0.55rem 0.7rem;
+  min-height: 6.5rem;
+  padding: 0.55rem 0.5rem;
+  text-align: center;
   background: #12131a;
   border: 1px solid #2c2e3d;
   border-radius: 8px;
   color: inherit;
-  text-align: left;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -441,55 +685,125 @@ button.danger:hover {
   color: #6d7dd1;
 }
 
-.building-drawer {
-  position: relative;
-  margin-top: 0.55rem;
+/* Bottom sheet — the single modal primitive (see BottomSheet.tsx). */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(8, 9, 14, 0.72);
+  animation: sheet-fade 0.18s ease;
 }
 
-.building-drawer-clip {
-  height: 0;
-  overflow: hidden;
-}
-
-.building-drawer::before {
-  content: '';
-  position: absolute;
-  top: -6px;
-  left: var(--caret-x, 40px);
-  width: 12px;
-  height: 12px;
-  transform: translateX(-50%) rotate(45deg);
-  background: #1b1d29;
-  border-left: 1px solid #f2d98a;
-  border-top: 1px solid #f2d98a;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease 0.05s;
-  z-index: 1;
-}
-
-.building-drawer.open::before {
-  opacity: 1;
-}
-
-.building-detail {
-  padding: 1rem 1.25rem 1.25rem;
+.sheet-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: var(--sheet-max-h);
   background: #1b1d29;
   border: 1px solid #2c2e3d;
-  border-top: 2px solid #f2d98a;
-  border-radius: 8px;
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  padding-bottom: var(--safe-b);
+  animation: sheet-rise 0.22s ease;
+  touch-action: none;
 }
 
-.building-detail.over-level {
-  border-color: #7a3b3b;
-  border-top-color: #f2d98a;
+.sheet-panel-full {
+  height: var(--sheet-max-h);
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(6%);
+  }
+}
+
+.sheet-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-grip {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #3d3f52;
+}
+
+.sheet-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f2d98a;
+}
+
+.sheet-close {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  transform: translateY(-50%);
+  min-width: var(--tap);
+  min-height: var(--tap);
+  background: transparent;
+  border: none;
+  color: #9a97a8;
+  font-size: 0.95rem;
+}
+
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Stops scroll from chaining to the page behind the sheet. */
+  overscroll-behavior: contain;
+  padding: 0 var(--space-2) var(--space-2);
+  touch-action: pan-y;
+}
+
+.sheet-footer {
+  padding: var(--space-2);
+  border-top: 1px solid #2c2e3d;
+  background: #1b1d29;
+}
+
+/* Lives inside the sheet body now — the sheet supplies the surface and border. */
+.building-detail {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.building-detail.over-level .building-detail-header {
+  border-bottom: 1px solid #7a3b3b;
 }
 
 .building-detail-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.building-detail-header h3 {
+  margin-right: auto;
 }
 
 .building-detail-header h3 {
@@ -561,9 +875,15 @@ button.danger:hover {
 
 .work-slot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.55rem;
   margin: 0 0 0.5rem;
+}
+
+/* Work-slot and empty-specialization tiles carry no art, so they don't need the art height. */
+.work-slot-tile,
+.building-tile-empty {
+  min-height: var(--tap);
 }
 
 .work-slot-tile {
@@ -635,8 +955,22 @@ button.danger:hover {
   margin-bottom: 0;
 }
 
+/*
+ * Upgrade is the most common action in the sheet and the detail content is long, so it
+ * sticks to the bottom of the sheet's scroll area rather than living below the fold.
+ */
+.upgrade-controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: var(--space-2);
+  padding: var(--space-2) 0 var(--space-1);
+  background: linear-gradient(to bottom, rgba(27, 29, 41, 0) 0, #1b1d29 12px);
+}
+
 .upgrade-controls button {
   width: 100%;
+  min-height: var(--tap);
 }
 
 .upgrade-blocked-reason {
@@ -712,10 +1046,9 @@ button.danger:hover {
 
 .disciple-roster-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
 .disciple-roster-header h2 {
@@ -724,22 +1057,78 @@ button.danger:hover {
 
 .disciple-roster-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.disciple-roster-actions button {
+  width: 100%;
+  min-height: var(--tap);
 }
 
 .disciple-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
+  /* One column: five values per disciple can't stay legible two-up at 390px. */
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-top: var(--space-2);
 }
 
 .disciple-card {
   background: #12131a;
   border: 1px solid #2c2e3d;
+  border-left-width: 3px;
   border-radius: 8px;
-  padding: 1rem;
+  padding: var(--space-2);
+}
+
+.disciple-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.disciple-row-art {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.disciple-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.disciple-row-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.disciple-row-line h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disciple-row-sub {
+  font-size: 0.78rem;
+  color: #9a97a8;
+}
+
+.disciple-row-cp {
+  flex: none;
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #f2d98a;
+}
+
+/* Two 3px bars read as one status block; full width under the row. */
+.disciple-row-bar {
+  height: 3px;
+  margin-top: 0.35rem;
 }
 
 .disciple-card.away {
@@ -793,9 +1182,6 @@ button.danger:hover {
 }
 
 /* Disciple detail modal with prev/next navigation */
-.disciple-modal {
-  max-width: 520px;
-}
 
 .disciple-modal-nav {
   display: flex;
@@ -874,24 +1260,49 @@ button.danger:hover {
   margin-left: 0.15rem;
 }
 
+/*
+ * Breakthrough is the panel's primary action and the content below it is long, so it
+ * pins to the bottom of the sheet's scroll area (same treatment as .upgrade-controls).
+ */
+.breakthrough-controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: var(--space-2) 0 var(--space-1);
+  background: linear-gradient(to bottom, rgba(27, 29, 41, 0) 0, #1b1d29 12px);
+}
+
 .breakthrough-controls button {
   background: #4a3b1f;
   border-color: #6a5d2f;
   color: #f2d98a;
+  min-height: var(--tap);
+}
+
+/* Irreversible actions, separated so a mis-tap can't reach them from a routine control. */
+.danger-zone {
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid #7a3b3b;
+}
+
+.danger-zone-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #f0b3b3;
+}
+
+.danger-zone button {
+  width: 100%;
+  min-height: var(--tap);
 }
 
 .breakthrough-controls button:not(:disabled):hover {
   background: #5a4826;
 }
 
-.disciple-stat-row {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.8rem;
-  color: #9a97a8;
-  margin: 0.5rem 0;
-  flex-wrap: wrap;
-}
 
 .status-badge {
   font-size: 0.8rem;
@@ -966,13 +1377,16 @@ button.danger:hover {
   flex: 1;
 }
 
-.equipment-slot-row select {
-  background: #2c2e3d;
-  color: #e8e6df;
-  border: 1px solid #3d3f52;
-  border-radius: 6px;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.78rem;
+/* The slot row is a button opening the picker sheet — no native select remains. */
+.equipment-slot-row {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.4rem 0.5rem;
+  background: #12131a;
+  border: 1px solid #2c2e3d;
+  border-radius: 8px;
+  color: inherit;
+  text-align: left;
 }
 
 .consumable-controls {
@@ -996,10 +1410,9 @@ button.danger:hover {
 
 .mission-board-header {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
 }
 
 .mission-board-header h2 {
@@ -1008,28 +1421,99 @@ button.danger:hover {
 
 .mission-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-top: var(--space-2);
 }
 
 .mission-card {
   background: #12131a;
   border: 1px solid #2c2e3d;
   border-radius: 8px;
-  padding: 1rem;
+  overflow: hidden;
 }
 
+.mission-card.expanded {
+  border-color: #4a4d63;
+}
+
+/* Collapsed summary row — the whole thing is the accordion toggle. */
 .mission-card-header {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.55rem 0.7rem 0.55rem 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  text-align: left;
+}
+
+/* Risk as a leading colour bar; the worded label moves into the expanded body. */
+.mission-risk-bar {
+  flex: none;
+  align-self: stretch;
+  width: 4px;
+  border-radius: 0 2px 2px 0;
+  background: #4a4d63;
+}
+
+.mission-risk-bar.risk-low {
+  background: #8fd19e;
+}
+
+.mission-risk-bar.risk-moderate {
+  background: #f2d98a;
+}
+
+.mission-risk-bar.risk-high {
+  background: #f0b3b3;
+}
+
+.mission-card-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.mission-card-title {
+  display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 0.5rem;
 }
 
 .mission-card-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-card-duration {
+  flex: none;
+  font-size: 0.78rem;
+  color: #9a97a8;
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-card-chevron {
+  flex: none;
+  color: #6f6c7d;
+}
+
+.mission-card-body {
+  padding: 0 0.7rem 0.7rem;
+  border-top: 1px solid #2c2e3d;
+}
+
+.mission-squad-button,
+.mission-dispatch-button {
+  width: 100%;
+  min-height: var(--tap);
 }
 
 .mission-risk {
@@ -1058,29 +1542,16 @@ button.danger:hover {
 }
 
 .mission-reward {
-  font-size: 0.85rem;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
   color: #8fd19e;
-  margin: 0.35rem 0 0.6rem;
+  margin: 0.1rem 0 0;
 }
 
-.mission-squad-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  max-height: 140px;
-  overflow-y: auto;
-  border: 1px solid #2c2e3d;
-  border-radius: 6px;
-  padding: 0.5rem;
-  margin-bottom: 0.6rem;
-}
 
-.mission-squad-option {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.82rem;
-}
 
 .mission-preview {
   font-size: 0.8rem;
@@ -1108,12 +1579,29 @@ button.danger:hover {
 
 .active-mission-header {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 0.5rem;
   font-size: 0.9rem;
   margin-bottom: 0.4rem;
 }
 
-.mission-log-list {
+/* Tabular figures: without them the countdown re-lays-out the row every second. */
+.active-mission-header span {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: #9a97a8;
+  font-size: 0.82rem;
+}
+
+.active-mission-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scoped to the panel: CollapsibleList renders a bare <ul> with no class of its own. */
+.mission-log-panel ul {
   list-style: none;
   margin: 0.75rem 0 0;
   padding: 0;
@@ -1161,33 +1649,123 @@ button.danger:hover {
   background: #1f1c12;
 }
 
+/*
+ * Cards that aren't accordions (faction cards, location/site detail panels) keep the
+ * original padded card with a spread header — .recipe-card-header is otherwise styled
+ * as a full-bleed toggle button.
+ */
+.recipe-card.card-static,
+.recipe-card.location-card {
+  padding: 0.9rem 1rem;
+}
+
+.card-static .recipe-card-header,
+.location-card .recipe-card-header {
+  justify-content: space-between;
+  align-items: baseline;
+  min-height: 0;
+  padding: 0;
+}
+
+.card-static .recipe-card-header h3,
+.location-card .recipe-card-header h3 {
+  white-space: normal;
+  overflow: visible;
+  font-size: 1rem;
+}
+
+/* Completed research: still readable, clearly not actionable. */
+.recipe-card.completed .recipe-card-header h3 {
+  color: #9a97a8;
+}
+
+.recipe-card.completed .recipe-cost-line {
+  color: #8fd19e;
+}
+
 .crafting-in-progress {
   margin: 0.75rem 0 1rem;
 }
 
 .recipe-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
 }
 
 .recipe-card {
   background: #12131a;
   border: 1px solid #2c2e3d;
   border-radius: 8px;
-  padding: 1rem;
+  overflow: hidden;
+}
+
+.recipe-card.expanded {
+  border-color: #4a4d63;
+}
+
+/* Unaffordable is readable without expanding — the cost line is the tell. */
+.recipe-card.unaffordable .recipe-cost-line {
+  color: #7a5c5c;
 }
 
 .recipe-card-header {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.55rem 0.7rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  text-align: left;
+}
+
+.recipe-card-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.recipe-card-title {
+  display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 0.5rem;
 }
 
 .recipe-card-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-cost-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 0.1rem;
+  font-size: 0.76rem;
+  color: #9a97a8;
+}
+
+.recipe-card-chevron {
+  flex: none;
+  color: #6f6c7d;
+}
+
+.recipe-card-body {
+  padding: 0 0.7rem 0.7rem;
+  border-top: 1px solid #2c2e3d;
+}
+
+.recipe-craft-button {
+  width: 100%;
+  min-height: var(--tap);
 }
 
 .recipe-discipline {
@@ -1204,32 +1782,44 @@ button.danger:hover {
   margin: 0.35rem 0 0.6rem;
 }
 
-.recipe-card > button {
-  width: 100%;
-}
 
 .inventory-list {
   list-style: none;
   margin: 0.75rem 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
 }
 
 .inventory-entry {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: var(--tap);
   background: #12131a;
   border: 1px solid #2c2e3d;
   border-radius: 6px;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
+}
+
+/* Quality colour as a leading dot; neutral for materials, which have no quality. */
+.inventory-dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #4a4d63;
 }
 
 .inventory-name {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inventory-category {
@@ -1256,6 +1846,9 @@ button.danger:hover {
 
 .inventory-affixes {
   flex-basis: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.72rem;
   color: #b98cf0;
 }
@@ -1306,34 +1899,9 @@ button.danger:hover {
   color: #9a97a8;
 }
 
-/* Offline summary modal */
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(8, 9, 14, 0.75);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 1.5rem;
-}
 
-.modal-panel {
-  background: #1b1d29;
-  border: 1px solid #2c2e3d;
-  border-radius: 10px;
-  padding: 1.5rem;
-  max-width: 480px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-}
 
-.modal-panel h2 {
-  margin-top: 0;
-  color: #f2d98a;
-}
 
 .offline-summary-sections section {
   margin-bottom: 1rem;
@@ -1377,10 +1945,6 @@ button.danger:hover {
   font-size: 0.9rem;
 }
 
-.modal-panel > button {
-  width: 100%;
-  margin-top: 0.5rem;
-}
 
 /* World & Diplomacy panel */
 
@@ -1421,23 +1985,44 @@ button.danger:hover {
 }
 
 /* --- World Map: founding flow + shared world display (Phase 2) --- */
+/* Runs before the game shell exists, so it carries its own portrait column + insets. */
 .founding-screen {
-  max-width: 1000px;
+  max-width: 480px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: calc(var(--safe-t) + var(--space-2)) var(--space-2)
+    calc(var(--bar-h) + var(--safe-b) + var(--space-3));
+}
+
+.founding-game-title {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #8b889a;
 }
 
 .founding-header h1 {
   color: #f2d98a;
-  margin-bottom: 0.25rem;
+  margin: 0.2rem 0 0.25rem;
+  font-size: 1.5rem;
 }
 
 .founding-steps {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.4rem;
   list-style: none;
   padding: 0;
-  margin: 1rem 0 1.5rem;
+  margin: var(--space-2) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.founding-steps::-webkit-scrollbar {
+  display: none;
+}
+
+.founding-steps li {
+  flex: none;
 }
 
 .founding-steps li {
@@ -1461,9 +2046,9 @@ button.danger:hover {
 
 .founding-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
-  margin: 1rem 0;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin: var(--space-2) 0;
 }
 
 .founding-card {
@@ -1569,11 +2154,25 @@ button.danger:hover {
   font: inherit;
 }
 
+/* Pinned bottom action bar — Back left, primary right, both a full tap target. */
 .founding-nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 30;
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
+  gap: 0.5rem;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-2);
+  padding-bottom: calc(var(--space-2) + var(--safe-b));
+  background: #12131a;
+  border-top: 1px solid #2c2e3d;
+}
+
+.founding-nav button {
+  flex: 1;
+  min-height: var(--tap);
 }
 
 .founding-nav button:only-child {
@@ -1620,21 +2219,171 @@ button.secondary {
 }
 
 /* --- World Map (WORLD_MAP_DESIGN Phase 4) --- */
+.world-subnav[hidden] {
+  display: none;
+}
+
+/* Segmented control: equal widths, full bleed, scrolls if labels don't fit at 360px. */
 .world-subnav {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+  padding: 2px;
+  background: #12131a;
+  border: 1px solid #2c2e3d;
+  border-radius: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.world-subnav::-webkit-scrollbar {
+  display: none;
 }
 
 .world-subnav button {
-  padding: 0.4rem 1rem;
-  font-size: 0.9rem;
+  flex: 1 0 auto;
+  min-height: var(--tap);
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .world-subnav button.active {
   background: #3a3550;
   color: #f2d98a;
-  border-color: #f2d98a;
+}
+
+.world-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.world-view-header h2 {
+  margin: 0;
+}
+
+.world-view-toggle {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  background: #12131a;
+  border: 1px solid #2c2e3d;
+  border-radius: 8px;
+}
+
+.world-view-toggle button {
+  min-height: var(--tap);
+  padding: 0.2rem 0.7rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+
+.world-view-toggle button.active {
+  background: #3a3550;
+  color: #f2d98a;
+}
+
+/*
+ * Sites list — the default view. The map is 1000×700, so in a portrait column it
+ * letterboxes to a short band with sub-finger nodes; this is how 32 sites are
+ * actually navigated on a phone.
+ */
+.site-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: var(--space-2);
+}
+
+.site-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  background: #12131a;
+  border: 1px solid #2c2e3d;
+  border-radius: 8px;
+  color: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+
+/* Same ownership colours as the map nodes, so the two views can't disagree. */
+.site-row-tier {
+  flex: none;
+  align-self: stretch;
+  width: 4px;
+  background: #4a4f60;
+}
+
+.site-row.owner-player .site-row-tier {
+  background: #f2d98a;
+}
+
+.site-row.owner-npc .site-row-tier {
+  background: #d97a6b;
+}
+
+.site-row.owner-neutral .site-row-tier {
+  background: #7fae86;
+}
+
+.site-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.site-row-name {
+  display: block;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-row-owner {
+  display: block;
+  font-size: 0.74rem;
+  color: #9a97a8;
+}
+
+.site-row-tier-label {
+  flex: none;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8b889a;
+}
+
+.site-row-chevron {
+  flex: none;
+  color: #6f6c7d;
+}
+
+/* Standings reuse the site-row shape; strength trails, tabular so it doesn't jitter. */
+.standings-strength {
+  flex: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #f2d98a;
+  padding-right: 0.6rem;
+}
+
+.site-row .site-row-owner {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .world-map-svg-wrap {
@@ -1650,11 +2399,6 @@ button.secondary {
   border-radius: 8px;
 }
 
-.world-map-edge {
-  stroke: #3a3f4d;
-  stroke-width: 3;
-  stroke-dasharray: 8 6;
-}
 
 .world-map-node circle {
   fill: #232735;
@@ -1695,12 +2439,6 @@ button.secondary {
   font-weight: 600;
 }
 
-.world-map-icon {
-  fill: #f2d98a;
-  font-size: 26px;
-  font-weight: 700;
-  pointer-events: none;
-}
 
 .world-map-node.locked .world-map-label {
   fill: #6b6d78;
@@ -1749,9 +2487,12 @@ button.secondary {
 }
 
 .world-back-button {
-  margin-bottom: 0.6rem;
-  padding: 0.3rem 0.8rem;
-  font-size: 0.85rem;
+  flex: none;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0.2rem 0.7rem;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .assign-disciple-choice.selected {
@@ -1783,10 +2524,26 @@ button.secondary {
   margin: 0.25rem 0;
 }
 
-.dispatch-actions {
+
+/* Dispatch/Garrison confirm, pinned in the sheet footer. */
+.dispatch-confirm-button {
+  width: 100%;
+  min-height: var(--tap);
+}
+
+.world-back-header {
   display: flex;
-  gap: 0.6rem;
-  margin-top: 0.6rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: var(--space-2);
+}
+
+.world-back-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .location-card button {
@@ -1808,7 +2565,11 @@ button.secondary {
 
 /* Combat Report Inbox */
 
+/* Anchored to the icon's top-right corner; .tab-button-icon is the positioning context. */
 .tab-button-badge {
+  position: absolute;
+  top: -4px;
+  left: 60%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1825,27 +2586,35 @@ button.secondary {
 
 .reports-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
+/* Chips scroll sideways rather than wrapping into a second row of dead height. */
 .reports-filter-chips {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.reports-filter-chips::-webkit-scrollbar {
+  display: none;
 }
 
 .reports-filter-chips .chip {
+  flex: none;
+  min-height: var(--tap);
   background: transparent;
   border: 1px solid #2c2e3d;
   border-radius: 999px;
   padding: 0.3rem 0.75rem;
   color: #9a97a8;
   font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .reports-filter-chips .chip:hover {
@@ -1873,34 +2642,34 @@ button.secondary {
   font-size: 0.82rem;
 }
 
-.reports-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 1.25rem;
-  align-items: start;
-}
-
+/* The list owns the screen; opening a report pushes a full-screen sub-view. */
 .reports-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-height: 70vh;
-  overflow-y: auto;
-  padding-right: 0.25rem;
+  gap: 0.4rem;
 }
 
 .report-card {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
   text-align: left;
   width: 100%;
+  min-height: var(--tap);
   background: #16171f;
   border: 1px solid #2c2e3d;
   border-left: 3px solid #2c2e3d;
   border-radius: 8px;
-  padding: 0.55rem 0.75rem;
+  padding: 0.5rem 0.7rem;
   color: #e8e6df;
+}
+
+.report-card-title,
+.report-card-meta,
+.report-card-roster {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .report-card:hover {
@@ -1934,7 +2703,7 @@ button.secondary {
 
 .report-card-tier {
   margin-left: auto;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1971,19 +2740,3 @@ button.secondary {
   color: #f0b3b3;
 }
 
-.reports-detail {
-  background: #16171f;
-  border: 1px solid #2c2e3d;
-  border-radius: 10px;
-  padding: 1.25rem 1.5rem;
-}
-
-@media (max-width: 760px) {
-  .reports-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .reports-list {
-    max-height: 40vh;
-  }
-}

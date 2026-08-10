@@ -25,52 +25,75 @@ function formatMaterialCost(materialCost: Record<string, number> | undefined, mu
 }
 
 /** One recipe row with its own batch-quantity stepper. Local state only — how many to craft is a UI choice, never game state. */
-function RecipeCraftCard({ recipe }: { recipe: CraftingRecipe }) {
+function RecipeCraftCard({
+  recipe,
+  expanded,
+  onToggle,
+}: {
+  recipe: CraftingRecipe
+  expanded: boolean
+  onToggle: () => void
+}) {
   const state = useGameStore((s) => s.state)
   const startCraft = useGameStore((s) => s.startCraft)
   const [quantity, setQuantity] = useState(1)
 
   const def = getItemDef(recipe.itemDefId)
   const eligibility = getCraftEligibility(state, recipe.id, quantity)
+  // Affordability at a batch of one, shown on the collapsed row — a player scanning the
+  // list shouldn't have to expand each recipe to learn they can't afford it.
+  const affordableAtOne = getCraftEligibility(state, recipe.id, 1).canCraft
   const durationMs = recipe.durationMs * getResearchCraftingDurationMultiplier(state, recipe.discipline)
+  const unitCost = `${formatResourceCost(recipe.cost)}${
+    recipe.materialCost ? `, ${formatMaterialCost(recipe.materialCost, 1)}` : ''
+  }`
 
   return (
-    <div className="recipe-card">
-      <div className="recipe-card-header">
-        <h3>{def.name}</h3>
-        <span className="recipe-discipline">{recipe.discipline}</span>
-      </div>
-      <p className="panel-hint">{def.description}</p>
-      <p className="recipe-meta">
-        {def.rarity} &middot; {formatResourceCost(recipe.cost)}
-        {recipe.materialCost ? `, ${formatMaterialCost(recipe.materialCost, 1)}` : ''} each &middot;{' '}
-        {Math.round(durationMs / 1000)}s each
-      </p>
-      {def.realmRequirement && (
-        <p className="recipe-meta">Requires {def.realmRequirement} to equip</p>
-      )}
-
-      <div className="dispatch-cycle-stepper">
-        <span>Amount:</span>
-        <button disabled={quantity <= 1} onClick={() => setQuantity(Math.max(1, quantity - 1))}>
-          −
-        </button>
-        <strong>{quantity}</strong>
-        <button onClick={() => setQuantity(quantity + 1)}>+</button>
-      </div>
-      {quantity > 1 && (
-        <p className="recipe-meta">
-          Total: {formatResourceCost(scaleCost(recipe.cost, quantity))}
-          {recipe.materialCost ? `, ${formatMaterialCost(recipe.materialCost, quantity)}` : ''} &middot;{' '}
-          {Math.round((durationMs * quantity) / 1000)}s
-        </p>
-      )}
-
-      <button disabled={!eligibility.canCraft} onClick={() => startCraft(recipe.id, quantity)}>
-        Craft{quantity > 1 ? ` ×${quantity}` : ''}
+    <div className={`recipe-card ${expanded ? 'expanded' : ''} ${affordableAtOne ? '' : 'unaffordable'}`}>
+      <button type="button" className="recipe-card-header" aria-expanded={expanded} onClick={onToggle}>
+        <span className="recipe-card-summary">
+          <span className="recipe-card-title">
+            <h3>{def.name}</h3>
+            <span className="recipe-discipline">{recipe.discipline}</span>
+          </span>
+          <span className="recipe-cost-line">{unitCost}</span>
+        </span>
+        <span className="recipe-card-chevron" aria-hidden="true">
+          {expanded ? '⌃' : '›'}
+        </span>
       </button>
-      {!eligibility.canCraft && eligibility.reason && (
-        <p className="upgrade-blocked-reason">{eligibility.reason}</p>
+
+      {expanded && (
+        <div className="recipe-card-body">
+          <p className="panel-hint">{def.description}</p>
+          <p className="recipe-meta">
+            {def.rarity} &middot; {Math.round(durationMs / 1000)}s each
+          </p>
+          {def.realmRequirement && <p className="recipe-meta">Requires {def.realmRequirement} to equip</p>}
+
+          <div className="dispatch-cycle-stepper">
+            <span>Amount:</span>
+            <button disabled={quantity <= 1} onClick={() => setQuantity(Math.max(1, quantity - 1))}>
+              −
+            </button>
+            <strong>{quantity}</strong>
+            <button onClick={() => setQuantity(quantity + 1)}>+</button>
+          </div>
+          {quantity > 1 && (
+            <p className="recipe-meta">
+              Total: {formatResourceCost(scaleCost(recipe.cost, quantity))}
+              {recipe.materialCost ? `, ${formatMaterialCost(recipe.materialCost, quantity)}` : ''} &middot;{' '}
+              {Math.round((durationMs * quantity) / 1000)}s
+            </p>
+          )}
+
+          <button className="recipe-craft-button" disabled={!eligibility.canCraft} onClick={() => startCraft(recipe.id, quantity)}>
+            Craft{quantity > 1 ? ` ×${quantity}` : ''}
+          </button>
+          {!eligibility.canCraft && eligibility.reason && (
+            <p className="upgrade-blocked-reason">{eligibility.reason}</p>
+          )}
+        </div>
       )}
     </div>
   )
@@ -79,6 +102,8 @@ function RecipeCraftCard({ recipe }: { recipe: CraftingRecipe }) {
 export function CraftingPanel() {
   // Subscribing to the whole state so the in-progress craft's countdown re-renders every tick.
   const state = useGameStore((s) => s.state)
+  // Accordion: one recipe open at a time, matching the mission board.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const queue = state.craftingQueue
   const queuedRecipe = queue ? CRAFTING_RECIPES.find((r) => r.id === queue.recipeId) : undefined
@@ -115,7 +140,12 @@ export function CraftingPanel() {
 
       <div className="recipe-grid">
         {CRAFTING_RECIPES.map((recipe) => (
-          <RecipeCraftCard key={recipe.id} recipe={recipe} />
+          <RecipeCraftCard
+            key={recipe.id}
+            recipe={recipe}
+            expanded={expandedId === recipe.id}
+            onToggle={() => setExpandedId((current) => (current === recipe.id ? null : recipe.id))}
+          />
         ))}
       </div>
     </section>

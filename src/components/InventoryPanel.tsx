@@ -19,6 +19,7 @@ export function InventoryPanel() {
           <ul className="inventory-list">
             {heldMaterials.map((m) => (
               <li className="inventory-entry" key={m.id}>
+                <span className="inventory-dot" aria-hidden="true" />
                 <span className="inventory-name">{m.name}</span>
                 <span className="inventory-category">Material</span>
                 <span className="inventory-qty">×{materials[m.id]}</span>
@@ -36,6 +37,12 @@ export function InventoryPanel() {
             const qualityDef = item.quality ? getItemQualityDef(item.quality) : undefined
             return (
               <li className="inventory-entry" key={item.id}>
+                {/* Same quality colour the detail view uses — one source, no second table. */}
+                <span
+                  className="inventory-dot"
+                  style={qualityDef ? { background: qualityDef.color } : undefined}
+                  aria-hidden="true"
+                />
                 <span className="inventory-name">
                   {item.forgedName ?? def.name}
                   {item.forgedName && <span className="inventory-subtitle"> — {def.name}</span>}

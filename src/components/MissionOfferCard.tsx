@@ -11,6 +11,7 @@ import { formatDurationAdaptive } from '../game/utils/formatDuration'
 import type { DiscipleInstance, MissionBoardOffer, Resources } from '../game/types'
 import type { MissionDefinition } from '../game/data/missionDefs'
 import { DiscipleSelectList } from './DiscipleSelectList'
+import { BottomSheet } from './BottomSheet'
 
 function formatReward(reward: Partial<Resources>): string {
   return (Object.entries(reward) as [keyof Resources, number][])
@@ -18,7 +19,17 @@ function formatReward(reward: Partial<Resources>): string {
     .join(', ')
 }
 
-export function MissionOfferCard({ offer, def }: { offer: MissionBoardOffer; def: MissionDefinition }) {
+export function MissionOfferCard({
+  offer,
+  def,
+  expanded,
+  onToggle,
+}: {
+  offer: MissionBoardOffer
+  def: MissionDefinition
+  expanded: boolean
+  onToggle: () => void
+}) {
   // Subscribing to the whole state so an in-progress squad selection reacts if a picked disciple leaves availability.
   const state = useGameStore((s) => s.state)
   const dispatchMission = useGameStore((s) => s.dispatchMission)
@@ -74,55 +85,76 @@ export function MissionOfferCard({ offer, def }: { offer: MissionBoardOffer; def
   }
 
   return (
-    <div className="mission-card">
-      <div className="mission-card-header">
-        <h3>{def.name}</h3>
-        <span className={`mission-risk risk-${def.risk.toLowerCase()}`}>{def.risk} Risk</span>
-      </div>
-      <p className="panel-hint">{def.description}</p>
-      <p className="mission-meta">
-        {def.type} &middot; {formatDurationAdaptive(def.durationMs / 1000)} &middot; Squad {def.squadSizeMin}
-        {def.squadSizeMin !== def.squadSizeMax ? `-${def.squadSizeMax}` : ''}
-        {def.isCombat && ` · Enemy CP ${def.enemyCombatPower}`}
-      </p>
-      <p className="mission-reward">Reward: {formatReward(def.rewardTable)}</p>
-
-      <button onClick={() => setPickerOpen(true)}>
-        Select Squad ({squadIds.length}/{def.squadSizeMax})
+    <div className={`mission-card ${expanded ? 'expanded' : ''}`}>
+      {/* Collapsed summary — name, duration and one reward line is enough to triage an offer. */}
+      <button type="button" className="mission-card-header" aria-expanded={expanded} onClick={onToggle}>
+        <span className={`mission-risk-bar risk-${def.risk.toLowerCase()}`} aria-hidden="true" />
+        <span className="mission-card-summary">
+          <span className="mission-card-title">
+            <h3>{def.name}</h3>
+            <span className="mission-card-duration">{formatDurationAdaptive(def.durationMs / 1000)}</span>
+          </span>
+          <span className="mission-reward">{formatReward(def.rewardTable)}</span>
+        </span>
+        <span className="mission-card-chevron" aria-hidden="true">
+          {expanded ? '⌃' : '›'}
+        </span>
       </button>
 
+      {expanded && (
+        <div className="mission-card-body">
+          <p className="panel-hint">{def.description}</p>
+          <p className="mission-meta">
+            <span className={`mission-risk risk-${def.risk.toLowerCase()}`}>{def.risk} Risk</span> &middot; {def.type}{' '}
+            &middot; Squad {def.squadSizeMin}
+            {def.squadSizeMin !== def.squadSizeMax ? `-${def.squadSizeMax}` : ''}
+            {def.isCombat && ` · Enemy CP ${def.enemyCombatPower}`}
+          </p>
+
+          <button className="mission-squad-button" onClick={() => setPickerOpen(true)}>
+            Select Squad ({squadIds.length}/{def.squadSizeMax})
+          </button>
+        </div>
+      )}
+
       {pickerOpen && (
-        <div className="modal-overlay" onClick={() => setPickerOpen(false)}>
-          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-            <h2>{def.name} — Squad</h2>
-            <p className="panel-hint">
-              Choose {def.squadSizeMin}
-              {def.squadSizeMin !== def.squadSizeMax ? `-${def.squadSizeMax}` : ''} disciple
-              {def.squadSizeMax > 1 ? 's' : ''}.
-            </p>
-
-            <DiscipleSelectList
-              disciples={rosterForPicker}
-              selectedIds={squadIds}
-              isSelectable={(id) => getDiscipleAvailability(state, id).available && squadIds.length < def.squadSizeMax}
-              combatPowerMult={combatPowerMult}
-              formatMetric={formatMissionMetric}
-              onToggle={toggleDisciple}
-            />
-
-            {preview && <p className="mission-preview">{preview}</p>}
-
-            <div className="dispatch-actions">
-              <button disabled={!eligibility.canDispatch} onClick={handleDispatch}>
+        <BottomSheet
+          open
+          onClose={() => setPickerOpen(false)}
+          title={`${def.name} — Squad`}
+          height="full"
+          footer={
+            <>
+              <button
+                className="mission-dispatch-button"
+                disabled={!eligibility.canDispatch}
+                onClick={handleDispatch}
+              >
                 Dispatch Squad
               </button>
-              <button onClick={() => setPickerOpen(false)}>Cancel</button>
-            </div>
-            {!eligibility.canDispatch && eligibility.reason && (
-              <p className="upgrade-blocked-reason">{eligibility.reason}</p>
-            )}
-          </div>
-        </div>
+              {!eligibility.canDispatch && eligibility.reason && (
+                <p className="upgrade-blocked-reason">{eligibility.reason}</p>
+              )}
+            </>
+          }
+        >
+          <p className="panel-hint">
+            Choose {def.squadSizeMin}
+            {def.squadSizeMin !== def.squadSizeMax ? `-${def.squadSizeMax}` : ''} disciple
+            {def.squadSizeMax > 1 ? 's' : ''}.
+          </p>
+
+          <DiscipleSelectList
+            disciples={rosterForPicker}
+            selectedIds={squadIds}
+            isSelectable={(id) => getDiscipleAvailability(state, id).available && squadIds.length < def.squadSizeMax}
+            combatPowerMult={combatPowerMult}
+            formatMetric={formatMissionMetric}
+            onToggle={toggleDisciple}
+          />
+
+          {preview && <p className="mission-preview">{preview}</p>}
+        </BottomSheet>
       )}
     </div>
   )

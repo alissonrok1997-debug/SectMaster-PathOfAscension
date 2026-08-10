@@ -61,13 +61,16 @@ export function ProvinceDetailView({
 
   return (
     <section className="panel province-detail-view">
-      <button className="world-back-button" onClick={onBack}>
-        ← Back to map
-      </button>
-      <h2>
-        {province.name}
-        {regionId ? ` — ${REGION_LABELS[regionId]}` : ''}
-      </h2>
+      {/* Full-screen sub-view: a persistent back header, not a silent inline swap. */}
+      <div className="world-back-header">
+        <button className="world-back-button" onClick={onBack} aria-label="Back to map">
+          ‹
+        </button>
+        <h2>
+          {province.name}
+          {regionId ? ` — ${REGION_LABELS[regionId]}` : ''}
+        </h2>
+      </div>
       <p className="panel-hint">
         {regionId ? `Resource nodes in the ${REGION_LABELS[regionId]} region.` : province.description}
       </p>

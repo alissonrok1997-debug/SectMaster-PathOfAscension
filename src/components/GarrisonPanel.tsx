@@ -1,3 +1,4 @@
+import { BottomSheet } from './BottomSheet'
 import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
 import { getLocationDefFromState } from '../game/engine/world/worldQueries'
@@ -55,9 +56,26 @@ export function GarrisonPanel({ locationId, onClose }: { locationId: string; onC
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
-        <h2>Garrison — {locationDef?.name ?? 'Outpost'}</h2>
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={`Garrison — ${locationDef?.name ?? 'Outpost'}`}
+      height="full"
+      footer={
+        <>
+          <button
+            className="dispatch-confirm-button"
+            disabled={selectedIds.length > 0 && !eligibility.canGarrison}
+            onClick={confirm}
+          >
+            {selectedIds.length === 0 ? 'Recall Garrison' : 'Update Garrison'}
+          </button>
+          {selectedIds.length > 0 && !eligibility.canGarrison && eligibility.reason && (
+            <p className="upgrade-blocked-reason">{eligibility.reason}</p>
+          )}
+        </>
+      }
+    >
         <p className="panel-hint">
           Stationed disciples defend this outpost automatically but cannot be dispatched elsewhere until recalled.
         </p>
@@ -77,17 +95,6 @@ export function GarrisonPanel({ locationId, onClose }: { locationId: string; onC
           </label>
         )}
 
-        {selectedIds.length > 0 && !eligibility.canGarrison && eligibility.reason && (
-          <p className="upgrade-blocked-reason">{eligibility.reason}</p>
-        )}
-
-        <div className="dispatch-actions">
-          <button disabled={selectedIds.length > 0 && !eligibility.canGarrison} onClick={confirm}>
-            {selectedIds.length === 0 ? 'Recall Garrison' : 'Update Garrison'}
-          </button>
-          <button onClick={onClose}>Cancel</button>
-        </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }

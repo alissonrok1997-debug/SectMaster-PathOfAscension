@@ -12,6 +12,7 @@ export function DebugPanel() {
 
   // Live health-regen tuning knob (not persisted — resets on reload). Local state just mirrors the module value so the display refreshes on click.
   const [regen, setRegen] = useState(getHealthRegenPerSecond())
+  const [collapsed, setCollapsed] = useState(true)
   const adjustRegen = (delta: number) => {
     setHealthRegenPerSecond(getHealthRegenPerSecond() + delta)
     setRegen(getHealthRegenPerSecond())
@@ -19,7 +20,19 @@ export function DebugPanel() {
 
   return (
     <section className="panel debug-panel">
-      <h2>Debug / Testing</h2>
+      {/* Collapsed by default — dev-only, and it's the longest block on this screen. */}
+      <div className="onboarding-checklist-header">
+        <h2>Debug / Testing</h2>
+        <button
+          className="onboarding-collapse-toggle"
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((v) => !v)}
+        >
+          {collapsed ? 'Show' : 'Hide'}
+        </button>
+      </div>
+      {collapsed ? null : (
+        <>
       <p className="panel-hint">
         Dev-only shortcuts for exercising mechanics that don't have their real trigger yet. Missions now trigger
         Presence Requirement and Injury for real (see the Mission Board below) — Sect Hall damage still has no
@@ -54,6 +67,8 @@ export function DebugPanel() {
         <button onClick={() => adjustRegen(0.1)}>+0.1</button>
         <button onClick={() => { setHealthRegenPerSecond(DEFAULT_HEALTH_REGEN_PER_SECOND); setRegen(getHealthRegenPerSecond()) }}>Reset</button>
       </div>
+        </>
+      )}
     </section>
   )
 }
