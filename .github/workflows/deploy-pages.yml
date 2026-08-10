@@ -38,7 +38,11 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
+      # enablement: turns Pages on and sets the source to Actions if it isn't already,
+      # instead of failing with "Get Pages site failed / Not Found".
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
