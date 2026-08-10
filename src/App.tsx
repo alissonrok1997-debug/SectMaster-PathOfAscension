@@ -9,6 +9,7 @@ import { MissionsScreen } from './components/screens/MissionsScreen'
 import { WorkshopScreen } from './components/screens/WorkshopScreen'
 import { ResearchScreen } from './components/screens/ResearchScreen'
 import { WorldScreen } from './components/screens/WorldScreen'
+import { ReportsScreen } from './components/screens/ReportsScreen'
 import { SystemScreen } from './components/screens/SystemScreen'
 import { OfflineSummaryModal } from './components/OfflineSummaryModal'
 import { DecisionEventModal } from './components/DecisionEventModal'
@@ -33,6 +34,8 @@ function renderScreen(tab: ScreenTabId) {
       return <ResearchScreen />
     case 'world':
       return <WorldScreen />
+    case 'reports':
+      return <ReportsScreen />
     case 'system':
       return <SystemScreen />
   }

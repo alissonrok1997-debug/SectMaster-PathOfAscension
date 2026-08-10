@@ -1,4 +1,5 @@
 import { SCREEN_TABS, type ScreenTabId } from '../game/data/screenTabs'
+import { useGameStore } from '../game/state/store'
 
 interface TabBarProps {
   active: ScreenTabId
@@ -6,6 +7,7 @@ interface TabBarProps {
 }
 
 export function TabBar({ active, onSelect }: TabBarProps) {
+  const unread = useGameStore((s) => s.state.reports.filter((r) => !r.read).length)
   return (
     <nav className="tab-bar" aria-label="Sect screens">
       {SCREEN_TABS.map((tab) => (
@@ -19,6 +21,7 @@ export function TabBar({ active, onSelect }: TabBarProps) {
             {tab.icon}
           </span>
           {tab.label}
+          {tab.id === 'reports' && unread > 0 && <span className="tab-button-badge">{unread}</span>}
         </button>
       ))}
     </nav>

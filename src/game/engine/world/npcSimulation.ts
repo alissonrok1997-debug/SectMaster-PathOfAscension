@@ -2,6 +2,7 @@ import type {
   BattleOutcomeTier,
   BattleResult,
   BattleTerrain,
+  CombatReportEntry,
   CombatTrait,
   DiscipleInstance,
   DiscipleTemperament,
@@ -42,6 +43,8 @@ import { getLocationTerrain } from './terrain'
 import { applyWound } from '../injury'
 import { removeDiscipleFromRoster } from '../roster'
 import { resolveSquadDowned } from '../downed'
+import { recordEquipmentBattlesWon } from '../itemProvenance'
+import { deliverReports } from '../combat/reportInbox'
 
 /**
  * The living NPC world (FIRST_REALM_PLAN §4.3) — NPC sects climb, raid, claim
@@ -232,7 +235,21 @@ function pushDefenseReport(
     battleResult,
   }
   const world = state.world!
-  return { ...state, world: { ...world, expeditionLog: [entry, ...world.expeditionLog].slice(0, EXPEDITION_LOG_LIMIT) } }
+  const withLog: GameState = { ...state, world: { ...world, expeditionLog: [entry, ...world.expeditionLog].slice(0, EXPEDITION_LOG_LIMIT) } }
+  // Deliver a Combat Report Inbox entry for this defense (§4.1) — additive; the expeditionLog above is untouched.
+  const report: CombatReportEntry = {
+    id: `def:${entry.id}`,
+    source: 'defense',
+    title: params.locationName,
+    subtitle: `Raided by ${params.attackerName}`,
+    participantNames: params.defenderNames,
+    participantTemperaments: params.defenderTemperaments,
+    battle: battleResult,
+    resolvedAt: now,
+    read: false,
+    sourceEntryId: entry.id,
+  }
+  return deliverReports(withLog, [report])
 }
 
 function isRivalOwner(sect: NpcSect, ownerId: string | undefined): boolean {
@@ -369,6 +386,8 @@ function executeClimb(state: GameState, sect: NpcSect, targetSiteId: SectSiteId,
     // Resolve any defender wounded to 0 (Phase 5) while we still know the squad + outcome — deaths surface in the report, morale scoped to the squad.
     const seatDown = resolveSquadDowned(nextState, defenders.map((d) => d.id), now, seed, { won: !outcome.won })
     nextState = seatDown.state
+    // §6c — a held seat (defender win, not a draw) tallies onto the surviving defenders' gear.
+    if (!outcome.won && !outcome.drawn) nextState = recordEquipmentBattlesWon(nextState, defenders.map((d) => d.id))
     const defenderDeaths = seatDown.deaths
     const defenderNames = defenders.map((d) => d.name)
     const defenderTemperaments = defenders.map((d) => d.temperament)
@@ -486,6 +505,8 @@ function executeRaid(state: GameState, sect: NpcSect, targetLocationId: Location
     // Resolve any defender wounded to 0 (Phase 5) — deaths surface in the report, morale scoped to the defending squad.
     const raidDown = resolveSquadDowned(nextState, defenders.map((d) => d.id), now, seed, { won: !outcome.won })
     nextState = raidDown.state
+    // §6c — a repelled raid (defender win, not a draw) tallies onto the surviving defenders' gear.
+    if (!outcome.won && !outcome.drawn) nextState = recordEquipmentBattlesWon(nextState, defenders.map((d) => d.id))
     const defenderDeaths = raidDown.deaths
     const defenderNames = defenders.map((d) => d.name)
     const defenderTemperaments = defenders.map((d) => d.temperament)

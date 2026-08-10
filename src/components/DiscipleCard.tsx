@@ -1,6 +1,6 @@
 import { useGameStore } from '../game/state/store'
 import { getDiscipleCultivationRate, isReadyForBreakthrough } from '../game/engine/cultivation'
-import { getInjurySeverity } from '../game/engine/injury'
+import { getEffectiveMaxHp, getInjurySeverity } from '../game/engine/injury'
 import { isDowned } from '../game/engine/downed'
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
 import { getResearchCultivationRateMultiplier } from '../game/engine/research'
@@ -26,7 +26,7 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
   const injurySeverity = getInjurySeverity(disciple)
   const isInjured = injurySeverity !== 'none'
   const isCritical = injurySeverity === 'critical'
-  const hpPct = (disciple.health / disciple.maxHp) * 100
+  const hpPct = (disciple.health / getEffectiveMaxHp(disciple)) * 100
   const isBoosted = disciple.activeBoostUntil !== undefined && disciple.activeBoostUntil > Date.now()
   const trainingHallLevel = state.buildings.trainingHall?.level ?? 0
   const doctrineMods = getDoctrineModifiers(state)

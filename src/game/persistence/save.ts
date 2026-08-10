@@ -1,7 +1,16 @@
-import { DISCIPLE_TEMPERAMENTS, SAVE_VERSION, type DiscipleInstance, type GameState } from '../types'
+import {
+  DISCIPLE_TEMPERAMENTS,
+  SAVE_VERSION,
+  type CombatReportEntry,
+  type DiscipleInstance,
+  type ExpeditionLogEntry,
+  type GameState,
+  type MissionLogEntry,
+} from '../types'
 import { createNewGame } from '../state/initialState'
 import { hashString } from '../engine/rng'
 import { MAX_HP } from '../engine/injury'
+import { REPORT_INBOX_LIMIT } from '../engine/combat/reportInbox'
 
 const STORAGE_KEY = 'sect-master-save'
 
@@ -45,6 +54,64 @@ const MIGRATIONS: Record<number, (raw: unknown) => unknown> = {
         return { ...rest, maxHp: MAX_HP, health: BAND_HP[(injury as string) ?? 'none'] ?? MAX_HP }
       }),
     }
+  },
+  // v21 → v22 (Crafting Recipe Pack Phase 3): add the separate crafting-materials bag.
+  // Empty for existing saves — materials have no acquisition source yet (debug grant only).
+  21: (raw) => {
+    const s = raw as GameState
+    return { ...s, saveVersion: 22, materials: s.materials ?? {} }
+  },
+  // v22 → v23 (Equipment Depth): affixes + provenance are all optional fields, so a v22 ItemInstance is
+  // already structurally valid at v23 — legacy equipment simply reads as plain gear with no history. The
+  // migration only advances the version (EQUIPMENT_DEPTH_PLAN §8 migration note).
+  22: (raw) => {
+    const s = raw as GameState
+    return { ...s, saveVersion: 23 }
+  },
+  // v23 → v24 (Combat Report Inbox): add the reports inbox and backfill it from the battle reports still
+  // sitting in the two capped logs, so an existing save opens the new tab with history rather than an empty
+  // screen. Backfilled entries are marked read — they predate the feature and shouldn't fire an unread badge.
+  23: (raw) => {
+    const s = raw as GameState & { world?: { expeditionLog?: ExpeditionLogEntry[] } }
+    const fromMissions: CombatReportEntry[] = (s.missionLog ?? [])
+      .filter((e): e is MissionLogEntry & { battleResult: NonNullable<MissionLogEntry['battleResult']> } => !!e.battleResult)
+      .map((e) => ({
+        id: `mission:${e.id}`,
+        source: 'mission',
+        title: e.missionName,
+        participantNames: e.squadNames,
+        participantTemperaments: e.squadTemperaments,
+        battle: e.battleResult,
+        resolvedAt: e.resolvedAt,
+        read: true,
+        sourceEntryId: e.id,
+      }))
+    // world may be undefined on a pre-World-Map save — guard it.
+    const fromExpeditions: CombatReportEntry[] = (s.world?.expeditionLog ?? [])
+      .filter((e): e is ExpeditionLogEntry & { battleResult: NonNullable<ExpeditionLogEntry['battleResult']> } => !!e.battleResult)
+      .map((e) => {
+        const isDefense = e.battleResult.playerRole === 'defender'
+        return {
+          id: `${isDefense ? 'def' : 'exp'}:${e.id}`,
+          source: isDefense ? 'defense' : 'expedition',
+          title: e.locationName,
+          subtitle: isDefense
+            ? `Raided by ${e.battleResult.attackerName ?? 'a rival sect'}`
+            : e.purpose === 'raid'
+              ? 'Raid'
+              : 'Claim',
+          participantNames: e.discipleNames,
+          participantTemperaments: e.discipleTemperaments,
+          battle: e.battleResult,
+          resolvedAt: e.resolvedAt,
+          read: true,
+          sourceEntryId: e.id,
+        }
+      })
+    const reports = [...fromMissions, ...fromExpeditions]
+      .sort((a, b) => b.resolvedAt - a.resolvedAt)
+      .slice(0, REPORT_INBOX_LIMIT)
+    return { ...s, saveVersion: 24, reports }
   },
 }
 

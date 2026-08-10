@@ -1,6 +1,7 @@
-import type { DiscipleInstance, EquipmentSlotId, GameState } from '../types'
+import { CULTIVATION_REALMS, type DiscipleInstance, type EquipmentSlotId, type GameState } from '../types'
 import { getItemDef } from '../data/itemDefs'
 import { getEquipmentCombatPower } from './itemQuality'
+import { getEquippedEffectTotal } from './itemAffixes'
 
 /** doc 07 §4 — the two interchangeable accessory slots. */
 export const ACCESSORY_SLOTS: EquipmentSlotId[] = ['accessory1', 'accessory2']
@@ -14,11 +15,15 @@ const DEDICATED_SLOT: Record<'Weapon' | 'Armor', EquipmentSlotId> = {
 
 /** Sums each equipped item's Combat Power bonus (doc 06 §2's "Equipped weapon, armor, and accessories" CP input), scaled by each piece's Quality (doc 07 §7). */
 export function getDiscipleEquipmentCombatPower(disciple: DiscipleInstance): number {
-  return EQUIPMENT_SLOTS.reduce((sum, slot) => {
+  const base = EQUIPMENT_SLOTS.reduce((sum, slot) => {
     const instance = disciple.equipment[slot]
     if (instance === undefined) return sum
     return sum + getEquipmentCombatPower(instance.itemId, instance.quality)
   }, 0)
+  // Affix contributions (§4): flat CP adds to base, then a percentage bonus scales the whole equipment CP.
+  const flat = getEquippedEffectTotal(disciple, 'combatPowerFlat')
+  const pct = getEquippedEffectTotal(disciple, 'combatPowerPct')
+  return Math.round((base + flat) * (1 + pct / 100))
 }
 
 export interface EquipEligibility {
@@ -37,6 +42,14 @@ export function getEquipEligibility(state: GameState, discipleId: string, instan
 
   const def = getItemDef(instance.itemId)
   if (def.category !== 'Equipment' || !def.slotType) return { canEquip: false, reason: 'Not equippable.' }
+
+  // Realm gate (EQUIPMENT_DEPTH_PLAN §3): realms only rise, so an already-equipped piece can never fall below its
+  // requirement — no defensive stripping needed, only this equip-time check.
+  if (def.realmRequirement !== undefined) {
+    if (CULTIVATION_REALMS.indexOf(disciple.realm) < CULTIVATION_REALMS.indexOf(def.realmRequirement)) {
+      return { canEquip: false, reason: `Requires ${def.realmRequirement} realm.` }
+    }
+  }
 
   if (def.slotType === 'Accessory') {
     const openSlot = ACCESSORY_SLOTS.find((slot) => disciple.equipment[slot] === undefined)

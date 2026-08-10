@@ -3,6 +3,7 @@ import type { Resources } from '../game/types'
 import { useGameStore } from '../game/state/store'
 import { CRAFTING_RECIPES, type CraftingRecipe } from '../game/data/craftingRecipes'
 import { getItemDef } from '../game/data/itemDefs'
+import { getMaterialDef } from '../game/data/materialDefs'
 import { getCraftEligibility } from '../game/engine/crafting'
 import { getResearchCraftingDurationMultiplier } from '../game/engine/research'
 import { formatCountdown } from '../game/utils/formatDuration'
@@ -13,6 +14,14 @@ function scaleCost(cost: Partial<Resources>, mult: number): Partial<Resources> {
   const scaled: Partial<Resources> = {}
   for (const [key, amount] of Object.entries(cost) as [keyof Resources, number][]) scaled[key] = amount * mult
   return scaled
+}
+
+/** "12 Frostvein Ore, 20 Skyfall Iron" — the crafting-material half of a recipe's price (§8), scaled by batch. */
+function formatMaterialCost(materialCost: Record<string, number> | undefined, mult: number): string {
+  if (!materialCost) return ''
+  return Object.entries(materialCost)
+    .map(([key, amount]) => `${amount * mult} ${getMaterialDef(key).name}`)
+    .join(', ')
 }
 
 /** One recipe row with its own batch-quantity stepper. Local state only — how many to craft is a UI choice, never game state. */
@@ -33,8 +42,13 @@ function RecipeCraftCard({ recipe }: { recipe: CraftingRecipe }) {
       </div>
       <p className="panel-hint">{def.description}</p>
       <p className="recipe-meta">
-        {def.rarity} &middot; {formatResourceCost(recipe.cost)} each &middot; {Math.round(durationMs / 1000)}s each
+        {def.rarity} &middot; {formatResourceCost(recipe.cost)}
+        {recipe.materialCost ? `, ${formatMaterialCost(recipe.materialCost, 1)}` : ''} each &middot;{' '}
+        {Math.round(durationMs / 1000)}s each
       </p>
+      {def.realmRequirement && (
+        <p className="recipe-meta">Requires {def.realmRequirement} to equip</p>
+      )}
 
       <div className="dispatch-cycle-stepper">
         <span>Amount:</span>
@@ -46,7 +60,9 @@ function RecipeCraftCard({ recipe }: { recipe: CraftingRecipe }) {
       </div>
       {quantity > 1 && (
         <p className="recipe-meta">
-          Total: {formatResourceCost(scaleCost(recipe.cost, quantity))} &middot; {Math.round((durationMs * quantity) / 1000)}s
+          Total: {formatResourceCost(scaleCost(recipe.cost, quantity))}
+          {recipe.materialCost ? `, ${formatMaterialCost(recipe.materialCost, quantity)}` : ''} &middot;{' '}
+          {Math.round((durationMs * quantity) / 1000)}s
         </p>
       )}
 

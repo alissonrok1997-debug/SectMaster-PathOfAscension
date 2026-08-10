@@ -1254,6 +1254,58 @@ button.danger:hover {
   color: #9a97a8;
 }
 
+.inventory-affixes {
+  flex-basis: 100%;
+  font-size: 0.72rem;
+  color: #b98cf0;
+}
+
+.equipment-slot-affixes {
+  color: #b98cf0;
+}
+
+.inventory-subtitle {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #9a97a8;
+}
+
+.inventory-provenance,
+.equipment-slot-provenance {
+  flex-basis: 100%;
+  display: block;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: #8a8796;
+}
+
+.equipment-set-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #8fd19e55;
+  border-radius: 6px;
+  background: #8fd19e11;
+}
+
+.equipment-set-name {
+  font-weight: 600;
+  color: #8fd19e;
+}
+
+.equipment-set-bonuses {
+  font-size: 0.78rem;
+  color: #c8c5d6;
+}
+
+.equipment-set-lore {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: #9a97a8;
+}
+
 /* Offline summary modal */
 
 .modal-overlay {
@@ -1464,6 +1516,57 @@ button.danger:hover {
   border: 1px solid #2c2e3d;
   border-radius: 6px;
   padding: 0.15rem 0.45rem;
+}
+
+.founding-chip-active {
+  color: #f0edf7;
+  background: #34384a;
+  border-color: #5a5f7a;
+}
+
+.node-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+.node-filter-row .founding-chip-row {
+  margin: 0;
+}
+
+.node-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #c7c4d2;
+}
+
+.node-filter-select {
+  font-size: 0.78rem;
+  color: #c7c4d2;
+  background: #23252f;
+  border: 1px solid #2c2e3d;
+  border-radius: 6px;
+  padding: 0.15rem 0.4rem;
+}
+
+.node-filter-count {
+  font-size: 0.78rem;
+  color: #8f8ca0;
+  margin-left: auto;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8fb7ff;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
 }
 
 .founding-nav {
@@ -1701,4 +1804,186 @@ button.secondary {
 .outpost-line {
   color: #b7c9a8;
   margin: 0.3rem 0 0;
+}
+
+/* Combat Report Inbox */
+
+.tab-button-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #c85c5c;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reports-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.reports-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.reports-filter-chips .chip {
+  background: transparent;
+  border: 1px solid #2c2e3d;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  color: #9a97a8;
+  font-size: 0.82rem;
+}
+
+.reports-filter-chips .chip:hover {
+  color: #e8e6df;
+}
+
+.reports-filter-chips .chip.active {
+  border-color: #f2d98a;
+  color: #f2d98a;
+}
+
+.reports-unread-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #8b889a;
+  font-size: 0.82rem;
+  margin-left: 0.4rem;
+}
+
+.reports-mark-all {
+  background: #2c2e3d;
+  border: 1px solid #3d3f52;
+  color: #e8e6df;
+  font-size: 0.82rem;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  width: 100%;
+  background: #16171f;
+  border: 1px solid #2c2e3d;
+  border-left: 3px solid #2c2e3d;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  color: #e8e6df;
+}
+
+.report-card:hover {
+  border-color: #3d3f52;
+}
+
+.report-card.unread {
+  border-left-color: #f2d98a;
+}
+
+.report-card.selected {
+  background: #1b1d29;
+  border-color: #f2d98a;
+}
+
+.report-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.report-card-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #f2d98a;
+  flex-shrink: 0;
+}
+
+.report-card-tier {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #8b889a;
+}
+
+.report-card-tier.tier-crushing,
+.report-card-tier.tier-decisive,
+.report-card-tier.tier-narrow {
+  color: #8fd19e;
+}
+
+.report-card-tier.tier-draw,
+.report-card-tier.tier-fightingRetreat {
+  color: #f2d98a;
+}
+
+.report-card-tier.tier-defeat,
+.report-card-tier.tier-catastrophic {
+  color: #f0b3b3;
+}
+
+.report-card-meta {
+  font-size: 0.78rem;
+  color: #8b889a;
+}
+
+.report-card-roster {
+  font-size: 0.78rem;
+  color: #7d7a8c;
+}
+
+.report-card-deaths {
+  color: #f0b3b3;
+}
+
+.reports-detail {
+  background: #16171f;
+  border: 1px solid #2c2e3d;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+}
+
+@media (max-width: 760px) {
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-list {
+    max-height: 40vh;
+  }
 }

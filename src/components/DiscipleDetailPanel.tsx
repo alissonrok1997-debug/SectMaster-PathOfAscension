@@ -11,8 +11,12 @@ import { EQUIPMENT_SLOTS } from '../game/engine/equipment'
 import { getEquipmentCombatPower } from '../game/engine/itemQuality'
 import { getItemDef } from '../game/data/itemDefs'
 import { getItemQualityDef } from '../game/data/itemQualityDefs'
+import { describeAffix } from '../game/data/itemAffixDefs'
+import { describeSetBonus } from '../game/data/equipmentSetDefs'
+import { getActiveEquipmentSets } from '../game/engine/itemAffixes'
+import { describeProvenance } from '../game/engine/itemProvenance'
 import { formatCountdown } from '../game/utils/formatDuration'
-import { getInjurySeverity, HEALTH_REGEN_PER_SECOND } from '../game/engine/injury'
+import { getEffectiveMaxHp, getHealthRegenPerSecond, getInjurySeverity } from '../game/engine/injury'
 import { isDowned } from '../game/engine/downed'
 import { CULTIVATION_REALMS, type EquipmentSlotId, type InjurySeverity } from '../game/types'
 
@@ -65,9 +69,10 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   const injurySeverity = getInjurySeverity(disciple)
   const isInjured = injurySeverity !== 'none'
   const isCritical = injurySeverity === 'critical'
-  const hpPct = (disciple.health / disciple.maxHp) * 100
+  const effectiveMaxHp = getEffectiveMaxHp(disciple)
+  const hpPct = (disciple.health / effectiveMaxHp) * 100
   // Recovery is now a flat regen, so "recovers in" is an estimate of time to full HP, not a stored timer.
-  const msToFullHp = ((disciple.maxHp - disciple.health) / (HEALTH_REGEN_PER_SECOND * disciple.maxHp)) * 1000
+  const msToFullHp = ((effectiveMaxHp - disciple.health) / (getHealthRegenPerSecond() * effectiveMaxHp)) * 1000
   const isBoosted = disciple.activeBoostUntil !== undefined && disciple.activeBoostUntil > Date.now()
   const isLearning = disciple.learningTechniqueId !== undefined
   const isFinalRealm = CULTIVATION_REALMS.indexOf(disciple.realm) === CULTIVATION_REALMS.length - 1
@@ -92,7 +97,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
       return def.category === 'Equipment' && def.slotType === SLOT_MATCHES_ITEM[slot]
     })
 
-  const canUseHealing = healingPillStock > 0 && disciple.health < disciple.maxHp
+  const canUseHealing = healingPillStock > 0 && disciple.health < effectiveMaxHp
   const canUseQi = qiPillStock > 0 && !isAway && !isFinalRealm
 
   return (
@@ -120,7 +125,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
           <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
         </div>
         <p className="panel-hint">
-          HP {hpPct.toFixed(2)}%{isInjured && !isDownedNow ? ` · ${INJURY_LABEL[injurySeverity]} · recovers in ~${formatCountdown(msToFullHp)}` : ''}
+          HP {hpPct.toFixed(2)}%{isInjured && !isDownedNow ? ` · ${INJURY_LABEL[injurySeverity]}${Number.isFinite(msToFullHp) ? ` · recovers in ~${formatCountdown(msToFullHp)}` : ''}` : ''}
         </p>
       </div>
 
@@ -207,6 +212,19 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
 
       {tab === 'equipment' && (
         <div className="equipment-section">
+          {getActiveEquipmentSets(disciple).map(({ def, equippedCount }) => (
+            <div className="equipment-set-banner" key={def.id}>
+              <span className="equipment-set-name">
+                {def.name} ({equippedCount}/{def.pieces.length})
+              </span>
+              <span className="equipment-set-bonuses">
+                {def.bonuses
+                  .map((b) => `${equippedCount >= b.count ? '✓ ' : ''}${describeSetBonus(b)}`)
+                  .join(' · ')}
+              </span>
+              <span className="equipment-set-lore">{def.lore}</span>
+            </div>
+          ))}
           {EQUIPMENT_SLOTS.map((slot) => {
             const equipped = disciple.equipment[slot]
             const equippedDef = equipped ? getItemDef(equipped.itemId) : undefined
@@ -218,13 +236,18 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
                 {equipped && equippedDef ? (
                   <>
                     <span className="equipment-slot-item">
-                      {equippedDef.name}
+                      {equipped.forgedName ?? equippedDef.name}
+                      {equipped.forgedName && <span className="inventory-subtitle"> — {equippedDef.name}</span>}
                       {equipped.quality && (
                         <span style={{ color: getItemQualityDef(equipped.quality).color }}>
                           {' '}&middot; {equipped.quality}
                         </span>
                       )}{' '}
                       (+{getEquipmentCombatPower(equipped.itemId, equipped.quality)} CP)
+                      {equipped.affixes && equipped.affixes.length > 0 && (
+                        <span className="equipment-slot-affixes"> · {equipped.affixes.map(describeAffix).join(' · ')}</span>
+                      )}
+                      <span className="equipment-slot-provenance">{describeProvenance(equipped)}</span>
                     </span>
                     <button disabled={isAway} onClick={() => unequipItem(disciple.id, slot)}>
                       Unequip

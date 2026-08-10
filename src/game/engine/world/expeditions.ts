@@ -1,6 +1,7 @@
 import type {
   BattleOutcomeTier,
   BattleResult,
+  CombatReportEntry,
   DiscipleInstance,
   Expedition,
   ExpeditionLogEntry,
@@ -17,6 +18,7 @@ import type {
 import { computeStorageCaps } from '../storage'
 import { applyWound } from '../injury'
 import { resolveSquadDowned } from '../downed'
+import { recordEquipmentBattlesWon } from '../itemProvenance'
 import { getDiscipleAvailability } from '../discipleAvailability'
 import { getSquadCombatPower, getDiscipleCombatTrait, nextMoraleAfterBattle, TRAIT_EFFECTS } from '../combatPower'
 import { getDoctrineModifiers } from '../doctrine'
@@ -37,6 +39,7 @@ import {
   type BattleParticipant,
 } from '../combat/battleSimulator'
 import { applyReputationDelta } from '../factions'
+import { deliverReports } from '../combat/reportInbox'
 import { getLocationTerrain } from './terrain'
 import { hashString, mulberry32 } from '../rng'
 import type { ResourceLocationDefinition } from '../../data/world/landmarkDefs'
@@ -242,7 +245,7 @@ export function resolveCompletedExpeditions(
   const logEntries: ExpeditionLogEntry[] = []
   const stillActive: Expedition[] = []
   // Battle-bearing arrivals whose party may have taken a 0-HP hit — resolved into downed fates after the loop, on the assembled state (Phase 5).
-  const combatDowns: { entry: ExpeditionLogEntry; discipleIds: string[]; won: boolean; seed: number }[] = []
+  const combatDowns: { entry: ExpeditionLogEntry; discipleIds: string[]; won: boolean; battleWon: boolean; seed: number }[] = []
 
   for (const original of world.expeditions) {
     if (original.phaseEndsAt > now) {
@@ -525,7 +528,7 @@ export function resolveCompletedExpeditions(
       if (battleResult) {
         // "Held the field" for death framing = a win, or a draw where the party withdrew intact (bodies come home, not left to the enemy).
         const held = battleResult.won || battleResult.outcomeTier === 'draw'
-        combatDowns.push({ entry, discipleIds: [...exp.discipleIds], won: held, seed: (hashString(exp.id) ^ world.seed) >>> 0 })
+        combatDowns.push({ entry, discipleIds: [...exp.discipleIds], won: held, battleWon: battleResult.won, seed: (hashString(exp.id) ^ world.seed) >>> 0 })
       }
       break
     }
@@ -553,7 +556,26 @@ export function resolveCompletedExpeditions(
     const result = resolveSquadDowned(nextState, down.discipleIds, now, down.seed, { won: down.won })
     nextState = result.state
     if (result.deaths.length > 0 && down.entry.battleResult) down.entry.battleResult.deaths = result.deaths
+    // §6c — tally a victory onto the surviving party's equipped gear (real win only, not a draw).
+    if (down.battleWon) nextState = recordEquipmentBattlesWon(nextState, down.discipleIds)
   }
+
+  // Deliver a Combat Report Inbox entry per fought arrival (§4.1) — additive; the expeditionLog above is untouched.
+  const reports: CombatReportEntry[] = logEntries
+    .filter((e): e is ExpeditionLogEntry & { battleResult: BattleResult } => e.battleResult !== undefined)
+    .map((e) => ({
+      id: `exp:${e.id}`,
+      source: 'expedition',
+      title: e.locationName,
+      subtitle: e.purpose === 'raid' ? 'Raid' : 'Claim',
+      participantNames: e.discipleNames,
+      participantTemperaments: e.discipleTemperaments,
+      battle: e.battleResult,
+      resolvedAt: e.resolvedAt,
+      read: false,
+      sourceEntryId: e.id,
+    }))
+  nextState = deliverReports(nextState, reports)
 
   return { state: nextState, logEntries }
 }

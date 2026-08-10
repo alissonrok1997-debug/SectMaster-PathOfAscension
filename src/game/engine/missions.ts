@@ -1,6 +1,7 @@
 import {
   CULTIVATION_REALMS,
   type BattleResult,
+  type CombatReportEntry,
   type DiscipleInstance,
   type GameState,
   type InjurySeverity,
@@ -13,9 +14,11 @@ import { getMissionDef, MISSION_DEFS, type MissionDefinition } from '../data/mis
 import { getSquadCombatPower, nextMoraleAfterBattle } from './combatPower'
 import { applyWound, getInjurySeverity, rollInjurySeverity } from './injury'
 import { resolveSquadDowned } from './downed'
+import { recordEquipmentBattlesWon } from './itemProvenance'
 import { getDoctrineModifiers } from './doctrine'
 import { getDiscipleAvailability } from './discipleAvailability'
 import { resolveBattle, getOutcomeTier, type BattleParticipant } from './combat/battleSimulator'
+import { deliverReports } from './combat/reportInbox'
 import { hashString, mulberry32 } from './rng'
 
 /** Mission Board (doc 04 §8): a limited, periodically-refreshing set of available missions. */
@@ -212,7 +215,7 @@ export function resolveCompletedMissions(
   let resources = state.resources
   const logEntries: MissionLogEntry[] = []
   // Combat missions whose squad may have taken a 0-HP hit — resolved into downed fates after the loop, on the assembled state (Phase 5).
-  const combatDowns: { entry: MissionLogEntry; squadIds: string[]; won: boolean; seed: number }[] = []
+  const combatDowns: { entry: MissionLogEntry; squadIds: string[]; won: boolean; battleWon: boolean; seed: number }[] = []
   const doctrineCombatPowerMult = getDoctrineModifiers(state).combatPowerMult
 
   for (const mission of due) {
@@ -274,7 +277,7 @@ export function resolveCompletedMissions(
     if (resolution.battleResult) {
       // "Held the field" for death framing = a win, or a draw where the squad withdrew intact (bodies come home, not left to the enemy).
       const held = resolution.battleResult.won || resolution.battleResult.outcomeTier === 'draw'
-      combatDowns.push({ entry, squadIds: mission.squadDiscipleIds, won: held, seed })
+      combatDowns.push({ entry, squadIds: mission.squadDiscipleIds, won: held, battleWon: resolution.battleResult.won, seed })
     }
   }
 
@@ -287,7 +290,25 @@ export function resolveCompletedMissions(
     const result = resolveSquadDowned(nextState, down.squadIds, now, down.seed, { won: down.won })
     nextState = result.state
     if (result.deaths.length > 0 && down.entry.battleResult) down.entry.battleResult.deaths = result.deaths
+    // §6c — tally a victory onto the surviving squad's equipped gear (real win only, not a draw).
+    if (down.battleWon) nextState = recordEquipmentBattlesWon(nextState, down.squadIds)
   }
+
+  // Deliver a Combat Report Inbox entry per combat mission (§4.1) — additive; the missionLog above is untouched.
+  const reports: CombatReportEntry[] = logEntries
+    .filter((e): e is MissionLogEntry & { battleResult: BattleResult } => e.battleResult !== undefined)
+    .map((e) => ({
+      id: `mission:${e.id}`,
+      source: 'mission',
+      title: e.missionName,
+      participantNames: e.squadNames,
+      participantTemperaments: e.squadTemperaments,
+      battle: e.battleResult,
+      resolvedAt: e.resolvedAt,
+      read: false,
+      sourceEntryId: e.id,
+    }))
+  nextState = deliverReports(nextState, reports)
 
   return { state: nextState, logEntries }
 }

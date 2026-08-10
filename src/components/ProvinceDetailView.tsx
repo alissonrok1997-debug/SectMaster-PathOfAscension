@@ -1,11 +1,18 @@
 import { useState } from 'react'
-import type { ExpeditionPurpose, RegionId } from '../game/types'
+import type { ExpeditionPurpose, RegionId, Resources } from '../game/types'
 import { useGameStore } from '../game/state/store'
 import { getProvinceDef } from '../game/data/world/provinceDefs'
 import { getNeighbours } from '../game/data/world/worldGraph'
-import { getProvinceSpiritVein, getVisibleLocations } from '../game/engine/world/worldQueries'
+import { getProvinceSpiritVein } from '../game/engine/world/worldQueries'
 import { getTravelTime } from '../game/engine/world/travel'
-import { getRegionForPosition } from '../game/engine/world/regionIndex'
+import { RESOURCE_LABELS } from '../game/data/resourceLabels'
+import {
+  availableResourceKeys,
+  browseNodes,
+  createNodeBrowseFilter,
+  type NodeOwnership,
+  type NodeSort,
+} from '../game/engine/world/nodeBrowse'
 import { getOutpostClaimEligibility } from '../game/engine/world/expeditions'
 import { LocationDetailPanel } from './LocationDetailPanel'
 import { DispatchExpeditionModal } from './DispatchExpeditionModal'
@@ -17,6 +24,13 @@ const REGION_LABELS: Record<RegionId, string> = {
   desert: 'Desert',
   forgottenRuins: 'Forgotten Ruins',
 }
+
+const OWNERSHIP_OPTIONS: { value: NodeOwnership; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'mine', label: 'Mine' },
+  { value: 'unclaimed', label: 'Unclaimed' },
+  { value: 'rival', label: 'Rival-held' },
+]
 
 /**
  * The Province layer (WORLD_MAP_DESIGN §3.3 / §12.3): the locations within one
@@ -37,21 +51,13 @@ export function ProvinceDetailView({
   const state = useGameStore((s) => s.state)
   const [dispatch, setDispatch] = useState<{ locationId: string; purpose: ExpeditionPurpose } | null>(null)
   const [garrisonLocationId, setGarrisonLocationId] = useState<string | null>(null)
+  // Local, reset on every visit — never lifted or saved (NODE_FILTER_SORT_PLAN §2).
+  const [filter, setFilter] = useState(() => createNodeBrowseFilter(regionId))
 
   const province = getProvinceDef(provinceId)
   const vein = getProvinceSpiritVein(provinceId)
-  // Claimed (player-held) nodes first, then nearest by travel time — which is now
-  // real map distance from the seat, so the order matches both the round-trip
-  // label on each card and the influence bubble. When scoped to a region, only
-  // that region's nodes are shown (region derived from each node's nearest site).
-  const locations = [...getVisibleLocations(state, provinceId)]
-    .filter((loc) => regionId === undefined || getRegionForPosition(loc.mapPosition) === regionId)
-    .sort((a, b) => {
-      const aClaimed = a.runtime.ownerId === 'player' ? 0 : 1
-      const bClaimed = b.runtime.ownerId === 'player' ? 0 : 1
-      if (aClaimed !== bClaimed) return aClaimed - bClaimed
-      return getTravelTime(state, a.id) - getTravelTime(state, b.id)
-    })
+  const resourceKeys = availableResourceKeys(state, provinceId, regionId)
+  const { locations, totalInScope, hiddenDepletedCount } = browseNodes(state, provinceId, filter)
 
   return (
     <section className="panel province-detail-view">
@@ -71,8 +77,75 @@ export function ProvinceDetailView({
         {province.controllingFactionId ? ` · Contested by ${province.controllingFactionId}` : ''}
       </p>
 
-      {locations.length === 0 && (
-        <p className="panel-hint">No resource nodes in this region.</p>
+      {totalInScope > 0 && (
+        <div className="node-filter-row">
+          <div className="founding-chip-row">
+            {OWNERSHIP_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                className={`founding-chip${filter.ownership === value ? ' founding-chip-active' : ''}`}
+                onClick={() => setFilter((f) => ({ ...f, ownership: value }))}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="node-filter-toggle">
+            <input
+              type="checkbox"
+              checked={!filter.hideDepleted}
+              onChange={(e) => setFilter((f) => ({ ...f, hideDepleted: !e.target.checked }))}
+            />
+            Show depleted
+          </label>
+          {resourceKeys.length > 0 && (
+            <select
+              className="node-filter-select"
+              value={filter.resource ?? ''}
+              onChange={(e) =>
+                setFilter((f) => ({ ...f, resource: e.target.value ? (e.target.value as keyof Resources) : null }))
+              }
+            >
+              <option value="">All resources</option>
+              {resourceKeys.map((key) => (
+                <option key={key} value={key}>
+                  {RESOURCE_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            className="node-filter-select"
+            value={filter.sort}
+            onChange={(e) => setFilter((f) => ({ ...f, sort: e.target.value as NodeSort }))}
+          >
+            <option value="nearest">Sort: Nearest</option>
+            <option value="richest">
+              Sort: {filter.resource ? `Richest (${RESOURCE_LABELS[filter.resource]}/hr)` : 'Richest'}
+            </option>
+            <option value="safest">Sort: Safest</option>
+            <option value="mine">Sort: My holdings</option>
+            <option value="name">Sort: Name</option>
+          </select>
+          <span className="node-filter-count">
+            {locations.length} of {totalInScope} nodes
+          </span>
+        </div>
+      )}
+
+      {totalInScope === 0 && <p className="panel-hint">No resource nodes in this region.</p>}
+      {totalInScope > 0 && locations.length === 0 && hiddenDepletedCount > 0 && (
+        <p className="panel-hint">
+          Only depleted nodes match — turn on <strong>Show depleted</strong> to see them.
+        </p>
+      )}
+      {totalInScope > 0 && locations.length === 0 && hiddenDepletedCount === 0 && (
+        <p className="panel-hint">
+          No nodes match these filters.{' '}
+          <button className="link-button" onClick={() => setFilter(createNodeBrowseFilter(regionId))}>
+            Clear filters
+          </button>
+        </p>
       )}
 
       <div className="recipe-grid">
