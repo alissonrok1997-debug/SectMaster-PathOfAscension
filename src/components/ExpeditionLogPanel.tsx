@@ -21,7 +21,7 @@ export function ExpeditionLogPanel() {
 
   return (
     <section className="panel expedition-log-panel">
-      <h2>Expedition Log</h2>
+      <h2>Past Expeditions</h2>
       <ul className="event-log-list">
         {log.map((entry) => (
           <li key={entry.id}>

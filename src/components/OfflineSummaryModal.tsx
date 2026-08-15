@@ -38,7 +38,7 @@ export function OfflineSummaryModal() {
       title="Welcome back"
       height="full"
       footer={
-        <button className="sheet-primary-action" onClick={dismiss}>
+        <button className="sheet-primary-action primary" onClick={dismiss}>
           Continue
         </button>
       }
@@ -66,7 +66,7 @@ export function OfflineSummaryModal() {
             )}
             {summary.loginStreakBonus && (
               <section>
-                <h3>Login Streak</h3>
+                <h3>Diligence</h3>
                 <ul>
                   <li>Day {summary.loginStreakBonus.streakDay} in a row</li>
                   {(Object.entries(summary.loginStreakBonus.resourceGains) as [keyof Resources, number][]).map(
@@ -211,7 +211,7 @@ export function OfflineSummaryModal() {
             )}
             {summary.narrativeEventsResolved.length > 0 && (
               <section>
-                <h3>Narrative Events</h3>
+                <h3>Sect Events</h3>
                 <CollapsibleList
                   items={summary.narrativeEventsResolved.map((entry) => (
                     <li key={entry.id}>{entry.name}</li>

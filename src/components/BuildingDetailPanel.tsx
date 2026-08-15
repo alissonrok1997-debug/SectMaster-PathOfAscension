@@ -186,7 +186,7 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
         <div className="construction-status">
           <div className="progress-bar">
             <div
-              className="progress-bar-fill day"
+              className="progress-bar-fill construction"
               style={{
                 width: `${Math.min(
                   100,
@@ -202,7 +202,7 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
         </div>
       ) : (
         <div className="upgrade-controls">
-          <button disabled={!eligibility.canUpgrade} onClick={() => startUpgrade(buildingId)}>
+          <button className="primary" disabled={!eligibility.canUpgrade} onClick={() => startUpgrade(buildingId)}>
             Upgrade to Lv{eligibility.targetLevel}
           </button>
           {!eligibility.canUpgrade && eligibility.reason && (
@@ -214,7 +214,7 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
       {def.slotType === 'specialization' && !isConstructing && (
         <button
           type="button"
-          className="demolish-button"
+          className="demolish-button quiet destructive"
           onClick={() => {
             if (window.confirm(`Demolish ${def.name}? Its levels are lost and its slot frees up for a different specialization.`)) {
               demolishSpecializationBuilding(buildingId)

@@ -69,26 +69,43 @@ export function MissionOfferCard({
     setPickerOpen(false)
   }
 
-  // Pre-Combat Intelligence (doc 06 §10) / legible success-chance broad strokes (doc 04 §4) — computed live as the squad selection changes.
-  let preview: string | null = null
-  if (squad.length > 0) {
-    if (def.isCombat) {
-      const squadCombatPower = getSquadCombatPower(squad, combatPowerMult)
-      const enemyCombatPower = def.enemyCombatPower ?? 0
-      // Advantage band over the actual win curve (Phase 3, #11) — honest about the defender-favoured odds, unlike the old raw-ratio thresholds.
-      const assessment = getAdvantageBand(squadCombatPower, enemyCombatPower).label
-      preview = `Squad Combat Power ${squadCombatPower} vs. enemy ${enemyCombatPower} — ${assessment}`
-    } else {
-      const chance = getMissionSuccessChance(def, squad)
-      preview = `Estimated success chance: ${Math.round(chance * 100)}%`
+  /*
+   * Pre-Combat Intelligence (doc 06 §10) / legible success-chance broad strokes (doc 04 §4),
+   * computed live as the selection changes.
+   *
+   * Step 13 split what used to be one run-on `.mission-preview` sentence rendered *below*
+   * the roster — i.e. below the fold, in info-blue used nowhere else for this job — into
+   * the shared muster vocabulary in the sheet footer: the band as a tier-coloured verdict,
+   * the two powers as opposed figures, the cost as its own sentence above the button.
+   */
+  const squadCombatPower = getSquadCombatPower(squad, combatPowerMult)
+  const enemyCombatPower = def.enemyCombatPower ?? 0
+  const band = squad.length > 0 && def.isCombat ? getAdvantageBand(squadCombatPower, enemyCombatPower) : undefined
+  const successChance = squad.length > 0 && !def.isCombat ? getMissionSuccessChance(def, squad) : undefined
+
+  const criticalNames = squad.filter((d) => getInjurySeverity(d) === 'critical').map((d) => d.name)
+  const consequence = (() => {
+    if (criticalNames.length > 0) {
+      return {
+        grave: true,
+        text: `${criticalNames.join(', ')} ${criticalNames.length > 1 ? 'are' : 'is'} critically wounded. If this goes badly, they will not come back.`,
+      }
     }
-  }
+    if (def.isCombat && squad.length > 0) return { grave: false, text: 'If it goes badly: wounds, and a wounded disciple can die.' }
+    // Verified against missions.ts:136 — a failed non-combat mission rolls squad injuries.
+    if (successChance !== undefined)
+      return { grave: false, text: `${Math.round(successChance * 100)}% chance of success — failure wounds the squad.` }
+    return undefined
+  })()
+
+  const partyLine = squad.length === 0 ? 'No one committed yet' : squad.map((d) => d.name).join(' · ')
 
   return (
-    <div className={`mission-card ${expanded ? 'expanded' : ''}`}>
+    // Risk rides the card's left stripe, so it spans the whole card rather than stopping
+    // at the collapsed fold — it's a property of the mission, not of its summary.
+    <div className={`mission-card risk-${def.risk.toLowerCase()} ${expanded ? 'expanded' : ''}`}>
       {/* Collapsed summary — name, duration and one reward line is enough to triage an offer. */}
       <button type="button" className="mission-card-header" aria-expanded={expanded} onClick={onToggle}>
-        <span className={`mission-risk-bar risk-${def.risk.toLowerCase()}`} aria-hidden="true" />
         <span className="mission-card-summary">
           <span className="mission-card-title">
             <h3>{def.name}</h3>
@@ -103,14 +120,23 @@ export function MissionOfferCard({
 
       {expanded && (
         <div className="mission-card-body">
-          <p className="panel-hint">{def.description}</p>
+          {/* The mission's only authored prose — §16.4's "text is the art". It was in hint
+              grey; it is the one piece of flavour the trio has and it reads as the brief. */}
+          <p className="muster-ground">{def.description}</p>
           <p className="mission-meta">
             <span className={`mission-risk risk-${def.risk.toLowerCase()}`}>{def.risk} Risk</span> &middot; {def.type}{' '}
             &middot; Squad {def.squadSizeMin}
             {def.squadSizeMin !== def.squadSizeMax ? `-${def.squadSizeMax}` : ''}
-            {def.isCombat && ` · Enemy CP ${def.enemyCombatPower}`}
+            {def.isCombat && (
+              <>
+                {' '}
+                &middot; <span className="muster-power-other">Enemy {enemyCombatPower.toLocaleString()}</span>
+              </>
+            )}
           </p>
 
+          {/* §7: this opens a picker, so it's secondary — the bare rule. It was `.quiet`,
+              the lowest tier, which made the card's only action look unpressable. */}
           <button className="mission-squad-button" onClick={() => setPickerOpen(true)}>
             Select Squad ({squadIds.length}/{def.squadSizeMax})
           </button>
@@ -125,8 +151,30 @@ export function MissionOfferCard({
           height="full"
           footer={
             <>
+              <div className="muster-commit">
+                <p className={`muster-party ${squad.length === 0 ? 'empty' : ''}`}>{partyLine}</p>
+                {band && (
+                  <>
+                    <p className={`muster-verdict tier-${band.tier}`}>{band.label}</p>
+                    <div className="muster-powers">
+                      <span className="muster-power-own">Your squad {squadCombatPower.toLocaleString()}</span>
+                      <span className="muster-power-other">{def.enemyName ?? 'Enemy'} {enemyCombatPower.toLocaleString()}</span>
+                    </div>
+                    <div className="progress-bar opposed" aria-hidden="true">
+                      <div
+                        className="progress-bar-fill own"
+                        style={{ width: `${(squadCombatPower / Math.max(1, squadCombatPower + enemyCombatPower)) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+                {consequence && (
+                  <p className={`muster-consequence ${consequence.grave ? 'grave' : ''}`}>{consequence.text}</p>
+                )}
+              </div>
+              {/* §7: this IS the commitment, so it's primary. It was a bare secondary. */}
               <button
-                className="mission-dispatch-button"
+                className="mission-dispatch-button primary"
                 disabled={!eligibility.canDispatch}
                 onClick={handleDispatch}
               >
@@ -152,8 +200,6 @@ export function MissionOfferCard({
             formatMetric={formatMissionMetric}
             onToggle={toggleDisciple}
           />
-
-          {preview && <p className="mission-preview">{preview}</p>}
         </BottomSheet>
       )}
     </div>

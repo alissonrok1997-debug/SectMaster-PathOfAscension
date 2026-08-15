@@ -6,6 +6,7 @@ import { RESOURCE_ICONS, RESOURCE_LABELS } from '../game/data/resourceLabels'
 import { formatCompact } from '../game/utils/formatResources'
 import { RESOURCE_ART } from '../assets/icons'
 import { GameIcon } from './GameIcon'
+import { useValueFlash } from './useValueFlash'
 import type { Resources } from '../game/types'
 
 const RESOURCE_KEYS = Object.keys(RESOURCE_LABELS) as (keyof Resources)[]
@@ -19,6 +20,18 @@ export function ResourceBar() {
   const state = useGameStore((s) => s.state)
   const [expanded, setExpanded] = useState(false)
   const caps = computeStorageCaps(state)
+  /*
+   * §17 item 1. The gain threshold is measured against the *cap*, not the current value: a
+   * value-relative threshold collapses after a big spend, and a late-game drip would then
+   * clear it every 250ms tick and leave the strip permanently green. 2% of storage is far
+   * above any per-tick trickle and far below any payout worth noticing. A resource sitting
+   * at cap is already red and gains nothing, so its flash is suppressed outright.
+   */
+  const flash = useValueFlash(
+    state.resources,
+    (key) => Math.max(1, 0.02 * caps[key]),
+    (key) => state.resources[key] >= caps[key],
+  )
   // Only needed by the expanded panel — skip the work on the ~every-tick collapsed render.
   const ratesPerSecond = expanded ? computeProductionRatesPerSecond(state) : undefined
 
@@ -33,7 +46,11 @@ export function ResourceBar() {
         {RESOURCE_KEYS.map((key) => (
           <span className="resource-chip" key={key}>
             <GameIcon src={RESOURCE_ART[key]} fallback={RESOURCE_ICONS[key]} alt="" size={20} />
-            <span className={`resource-chip-value ${state.resources[key] >= caps[key] ? 'at-cap' : ''}`}>
+            <span
+              className={`resource-chip-value ${state.resources[key] >= caps[key] ? 'at-cap' : ''} ${
+                flash[key] ?? ''
+              }`}
+            >
               {formatCompact(state.resources[key])}
             </span>
           </span>
@@ -59,7 +76,7 @@ export function ResourceBar() {
                       size={40}
                     />
                     <span className="resource-label">{RESOURCE_LABELS[key]}</span>
-                    <span className={`resource-amount ${value >= cap ? 'at-cap' : ''}`}>
+                    <span className={`resource-amount ${value >= cap ? 'at-cap' : ''} ${flash[key] ?? ''}`}>
                       {Math.floor(value).toLocaleString()} / {Math.floor(cap).toLocaleString()}
                     </span>
                     {perHour > 0 && <span className="resource-rate">+{perHour.toFixed(0)}/hr</span>}

@@ -101,12 +101,23 @@ export function BattleReportBody({
 
   return (
     <>
-        <h2>{battle.outcomeTier ? TIER_LABEL[battle.outcomeTier] : battle.won ? 'Victory' : 'Defeat'} — {title}</h2>
-        <p className="panel-hint">{battle.outcomeSummary}</p>
-        <p className="recipe-meta">
-          Power {battle.attackerPower} vs {battle.defenderPower} &middot; {getAdvantageBand(battle.attackerPower, battle.defenderPower).label}
-          {battle.terrain && battle.terrain !== 'open' ? ` · ${TERRAIN_EFFECTS[battle.terrain].label}` : ''} &middot; {narrative.rounds} rounds
-        </p>
+        {/*
+          * The verdict, not a heading (§16.4). It used to be "{tier} — {title}" welded together
+          * in a generic gold `.panel h2`, which spent the report's one dramatic fact on an
+          * em-dash. Tier now stands alone and coloured; the title demotes to the last line,
+          * because inside the sheet the header already says it.
+          */}
+        <div className="battle-verdict" data-tier={battle.outcomeTier ?? (battle.won ? 'decisive' : 'defeat')}>
+          <h2>{battle.outcomeTier ? TIER_LABEL[battle.outcomeTier] : battle.won ? 'Victory' : 'Defeat'}</h2>
+          <p className="battle-verdict-line">{battle.outcomeSummary}</p>
+          <p className="battle-verdict-meta">
+            Power {battle.attackerPower} vs {battle.defenderPower} &middot;{' '}
+            {getAdvantageBand(battle.attackerPower, battle.defenderPower).label}
+            {battle.terrain && battle.terrain !== 'open' ? ` · ${TERRAIN_EFFECTS[battle.terrain].label}` : ''} &middot;{' '}
+            {narrative.rounds} rounds
+          </p>
+          <p className="battle-verdict-title">{title}</p>
+        </div>
 
         <div className="battle-report-toggle">
           <button className={mode === 'summary' ? 'active' : ''} onClick={() => setMode('summary')}>Summary</button>
@@ -135,16 +146,17 @@ export function BattleReportBody({
           </ul>
         )}
 
-        {battle.lootedResources && Object.keys(battle.lootedResources).length > 0 && (
-          <p className="panel-hint">Looted: {formatResourceCost(battle.lootedResources)}</p>
-        )}
         {battle.deaths && battle.deaths.length > 0 && (
-          <p className="battle-report-deaths">
+          <div className="battle-deaths">
             {/* Held the field (a win, or a draw where the seat stayed ours) → carried home; lost → left to the enemy. Mirrors the death narration in engine/downed.ts. */}
-            {battle.won || battle.outcomeTier === 'draw'
-              ? `Fallen, and carried home with honor: ${battle.deaths.join(', ')}.`
-              : `Fallen, and left to the enemy: ${battle.deaths.join(', ')}.`}
-          </p>
+            <p className="battle-deaths-label">
+              {battle.won || battle.outcomeTier === 'draw' ? 'Carried home with honor' : 'Left to the enemy'}
+            </p>
+            <p className="battle-deaths-names">{battle.deaths.join(' · ')}</p>
+          </div>
+        )}
+        {battle.lootedResources && Object.keys(battle.lootedResources).length > 0 && (
+          <p className="battle-loot">Looted: {formatResourceCost(battle.lootedResources)}</p>
         )}
     </>
   )

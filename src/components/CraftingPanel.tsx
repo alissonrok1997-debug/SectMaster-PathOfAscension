@@ -124,7 +124,7 @@ export function CraftingPanel() {
         <div className="crafting-in-progress">
           <div className="progress-bar">
             <div
-              className="progress-bar-fill day"
+              className="progress-bar-fill construction"
               style={{
                 width: `${Math.min(100, 100 - ((queue.endsAt - Date.now()) / itemDurationMs) * 100)}%`,
               }}

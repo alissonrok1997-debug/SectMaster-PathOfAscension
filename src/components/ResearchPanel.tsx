@@ -22,14 +22,14 @@ export function ResearchPanel() {
 
   return (
     <section className="panel research-panel">
-      <h2>Research &amp; Sect Identity</h2>
+      <h2>Doctrine</h2>
 
       {/* Pinned first: arriving here, "what's running and how long" beats the catalogue. */}
       {queue && queuedProject && (
         <div className="crafting-in-progress">
           <div className="progress-bar">
             <div
-              className="progress-bar-fill day"
+              className="progress-bar-fill construction"
               style={{
                 width: `${Math.min(
                   100,

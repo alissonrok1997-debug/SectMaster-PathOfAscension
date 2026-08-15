@@ -26,7 +26,7 @@ export function StandingsView() {
 
   return (
     <section className="panel standings-view">
-      <h2>Standings</h2>
+      <h2>Standing</h2>
       <p className="panel-hint">
         Every living sect in the First Realm and the seat it holds. {freePoorSeats.length} Poor seat
         {freePoorSeats.length === 1 ? '' : 's'} still stand free.
@@ -36,7 +36,6 @@ export function StandingsView() {
       <div className="site-list">
         {state.sectLocation && (
           <div className="site-row standings-card owner-player">
-            <span className="site-row-tier" aria-hidden="true" />
             <span className="site-row-text">
               <span className="site-row-name">Your Sect</span>
               <span className="site-row-owner">Seat: {getSectSiteDef(state.sectLocation.sectSiteId).name}</span>
@@ -52,8 +51,7 @@ export function StandingsView() {
               key={sect.id}
               className={`site-row standings-card owner-npc ${sect.status === 'declining' ? 'declining' : ''}`}
             >
-              <span className="site-row-tier" aria-hidden="true" />
-              <span className="site-row-text">
+                <span className="site-row-text">
                 <span className="site-row-name">{sect.name}</span>
                 <span className="site-row-owner">
                   {TIER_LABELS[sect.tier]} &middot; {getSectSiteDef(sect.seatSiteId).name}

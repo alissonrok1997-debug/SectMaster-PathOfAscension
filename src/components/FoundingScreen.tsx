@@ -42,7 +42,7 @@ export function FoundingScreen() {
         </p>
         <ol className="founding-steps">
           {!singleProvinceId && <li className={step === 'province' ? 'active' : provinceId ? 'done' : ''}>1 · Province</li>}
-          <li className={step === 'site' ? 'active' : sectSiteId ? 'done' : ''}>{singleProvinceId ? '1' : '2'} · Sect Site</li>
+          <li className={step === 'site' ? 'active' : sectSiteId ? 'done' : ''}>{singleProvinceId ? '1' : '2'} · Sect Seat</li>
           <li className={step === 'confirm' ? 'active' : ''}>{singleProvinceId ? '2' : '3'} · Confirm</li>
         </ol>
       </header>
@@ -64,7 +64,7 @@ export function FoundingScreen() {
           />
           <div className="founding-nav">
             <button disabled={!provinceId} onClick={() => setStep('site')}>
-              Next: Sect Site
+              Next: Sect Seat
             </button>
           </div>
         </section>
@@ -72,12 +72,12 @@ export function FoundingScreen() {
 
       {step === 'site' && selectedOption && (
         <section className="panel">
-          <h2>Choose a Sect Site in {selectedOption.province.name}</h2>
+          <h2>Choose a Sect Seat in {selectedOption.province.name}</h2>
           <p className="panel-hint">Same Spirit Vein — pick the shape of your trade-offs.</p>
           <SectSiteSelectStep sites={selectedOption.sites} selectedSiteId={sectSiteId} onSelect={setSectSiteId} />
           <div className="founding-nav">
             {!singleProvinceId && (
-              <button className="secondary" onClick={() => setStep('province')}>
+              <button className="quiet" onClick={() => setStep('province')}>
                 Back
               </button>
             )}
@@ -111,7 +111,7 @@ export function FoundingScreen() {
                   ⚠ This choice is <strong>permanent</strong> for this save. It cannot be changed once confirmed.
                 </p>
                 <div className="founding-nav">
-                  <button className="secondary" onClick={() => setStep('site')}>
+                  <button className="quiet" onClick={() => setStep('site')}>
                     Back
                   </button>
                   <button onClick={() => foundSect(provinceId, sectSiteId)}>Found the Sect</button>

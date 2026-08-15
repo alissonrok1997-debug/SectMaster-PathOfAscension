@@ -12,9 +12,12 @@ import { WorldScreen } from './components/screens/WorldScreen'
 import { ReportsScreen } from './components/screens/ReportsScreen'
 import { SystemScreen } from './components/screens/SystemScreen'
 import { OfflineSummaryModal } from './components/OfflineSummaryModal'
+import { BreakthroughOverlay } from './components/BreakthroughOverlay'
 import { DecisionEventModal } from './components/DecisionEventModal'
 import { FoundingScreen } from './components/FoundingScreen'
 import { RelocationPruneModal } from './components/RelocationPruneModal'
+import { EventToast } from './components/EventToast'
+import { useWorldWatcher } from './components/useWorldWatcher'
 import { DEFAULT_SCREEN_TAB, type ScreenTabId } from './game/data/screenTabs'
 import { useGameStore } from './game/state/store'
 
@@ -43,6 +46,9 @@ function renderScreen(tab: ScreenTabId) {
 
 function App() {
   useGameLoop()
+  // Watches the store for outcomes the world produced on its own (§13). Reads only; it
+  // publishes to `toastChannel`, which lives outside the store on purpose.
+  useWorldWatcher()
   const isFounded = useGameStore((s) => s.state.sectLocation !== undefined)
   const pendingRelocation = useGameStore((s) => s.state.pendingRelocation)
   const offlineSummary = useGameStore((s) => s.offlineSummary)
@@ -62,10 +68,18 @@ function App() {
 
       <OfflineSummaryModal />
       {!offlineSummary && <DecisionEventModal />}
+      {/* Mounted here rather than in the detail sheet: `sheet-rise` animates a transform,
+          which creates a containing block and would clip a position:fixed child. */}
+      <BreakthroughOverlay />
 
       <div className="app-hud">
         <ResourceBar />
       </div>
+
+      {/* Below `.app-hud` in the stack (z 19 vs 20), so it slides out from behind the
+          resource strip rather than over it. */}
+      <EventToast activeTab={activeTab} onNavigate={setActiveTab} />
+
 
       <main className="app-screen">{renderScreen(activeTab)}</main>
 

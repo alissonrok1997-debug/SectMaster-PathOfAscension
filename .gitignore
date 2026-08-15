@@ -13,6 +13,7 @@ WORLD_MAP_DESIGN.md
 BATTLE_NARRATION_PLAN.md
 COMBAT_POLISHING_PLAN.md
 PlansMDFiles/
+DesignMDFiles/
 
 # local tooling config, not pushed to GitHub
 .claude/
@@ -22,3 +23,32 @@ PlansMDFiles/
 # game's icon art from the repo.
 /android/
 /assets/
+
+# Downloaded JDK + Android SDK archives for that same workflow. 360MB, and jdk17-linux.tar.gz
+# alone is 184MB — past GitHub's 100MB hard per-file limit, so this is the thing that would
+# have failed the push outright, not the fonts.
+/_toolchain/
+
+# Vite drops these beside the config whenever it loads a TS vite.config; transient, and
+# they only linger when the temp cleanup can't unlink them.
+vite.config.ts.timestamp-*.mjs
+
+# build output
+*.apk
+
+# Generated-art sources, local-only (~70MB of 1024px+ Gemini output). Only the processed
+# versions are referenced by code and committed: src/assets/icons/tabs/*.png at 192px, and
+# the disciple portraits once step 7 processes them. Keep these folders on disk so the
+# processed art can be regenerated without re-prompting.
+/src/assets/Tabs/
+/src/assets/Disciples/
+
+# Font sources, local-only (~30MB of TTFs). What the game actually loads is the pair of
+# Latin subsets committed beside them — src/assets/fonts/noto-serif-latin-{400,600}.woff2,
+# 28KB together, referenced by the @font-face rules in src/App.css. Keep this folder on
+# disk if you want to regenerate them (pyftsubset over Noto_Serif/static/), or re-download
+# Noto Serif from Google Fonts. OFL.txt is copied up beside the subsets, since the licence
+# has to travel with the derivative that ships.
+/src/assets/fonts/Noto_Serif/
+# Discarded first attempt: the variable font, 68KB for two weights the game never varies.
+/src/assets/fonts/noto-serif-latin-var.woff2

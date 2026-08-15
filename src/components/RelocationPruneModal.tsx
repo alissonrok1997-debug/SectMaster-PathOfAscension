@@ -41,7 +41,7 @@ export function RelocationPruneModal() {
       height="full"
       dismissible={false}
       footer={
-        <button className="sheet-primary-action" disabled={!canConfirm} onClick={() => resolveRelocationPrune(toRemove)}>
+        <button className="sheet-primary-action primary" disabled={!canConfirm} onClick={() => resolveRelocationPrune(toRemove)}>
           Confirm Migration
         </button>
       }

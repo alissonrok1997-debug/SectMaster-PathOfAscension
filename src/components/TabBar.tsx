@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { SCREEN_TABS, type ScreenTabId } from '../game/data/screenTabs'
 import { useGameStore } from '../game/state/store'
+import { UiIcon } from './UiIcon'
 
 interface TabBarProps {
   active: ScreenTabId
@@ -34,7 +35,7 @@ export function TabBar({ active, onSelect }: TabBarProps) {
           onClick={() => onSelect(tab.id)}
         >
           <span className="tab-button-icon" aria-hidden="true">
-            {tab.icon}
+            <UiIcon name={tab.id} />
             {tab.id === 'reports' && unread > 0 && <span className="tab-button-badge">{unread}</span>}
           </span>
           <span className="tab-button-label">{tab.label}</span>
