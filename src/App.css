@@ -1,6 +1,18 @@
 :root {
   color-scheme: dark;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-ui);
+
+  /*
+   * Typography (§3). Display serif for names, titles and narration; UI sans for numbers,
+   * controls and dense data — never the reverse, a serif numeral column is unreadable at
+   * 0.8rem on a phone. UI sans is the inherited default, so the display face is opt-in.
+   *
+   * --font-display is a self-hosted Latin subset of Noto Serif (see the @font-face below),
+   * with Noto Serif SC ahead of it so an installed CJK Song face wins where one exists.
+   * System serifs remain as the fallback chain; nothing else in the file names a family.
+   */
+  --font-display: 'Noto Serif SC', 'Noto Serif', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Segoe UI', system-ui, sans-serif;
 
   /* Mobile layout tokens (MOBILE_00_FOUNDATION_PLAN). Portrait-only, 390px design width. */
   --tap: 44px; /* minimum hit area for anything tappable */
@@ -13,15 +25,142 @@
   --sheet-max-h: 88dvh; /* BottomSheet (phase 02) */
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
+
+  /*
+   * Colour tokens (design system §2.1). Every value here was already in the stylesheet,
+   * so adopting them was a rename, not a repaint — jade is the only new colour.
+   * Rules that matter (§2.2): gold = sect identity, jade = cultivation, never both on
+   * one element; accents are strokes, glyphs and stripes, never fills.
+   */
+
+  /* Ground — note the inversion: nested surfaces go *darker*, which reads as carved. */
+  --bg: #12131a; /* body, .app, fixed chrome, inset tiles */
+  --surface: #1b1d29; /* .panel, .sheet-panel — the default surface */
+  --surface-raised: #23252f; /* nested rows, selects, chips */
+  --surface-sunken: #16171f; /* wells, list items on a panel, .report-card */
+
+  /* Structure */
+  --line: #2c2e3d; /* default hairline; also the default button fill */
+  --line-strong: #3d3f52; /* button border, hover edge, real dividers */
+  --line-raised: #4a4d63; /* active/expanded edge */
+
+  /* Accent: gold = identity, jade = cultivation */
+  --gold: #f2d98a;
+  --gold-deep: #c9a23f;
+  --gold-edge: #6a5a2a; /* gold-tinted borders */
+  --gold-bg: #3a3320; /* gold-tinted fills */
+  --gold-wash: rgba(242, 217, 138, 0.08);
+  --jade: #7ec8a9; /* qi, cultivation, breakthrough, spiritual */
+  --jade-deep: #4f9c80;
+  --jade-edge: #2c4a41;
+  --jade-wash: rgba(126, 200, 169, 0.08);
+
+  /* Text ladder */
+  --text: #e8e6df; /* primary, warm off-white */
+  --text-2: #c7c4d2; /* secondary body */
+  --text-3: #9a97a8; /* labels, metadata */
+  --text-4: #8b889a; /* hints */
+  --text-disabled: #6f6c7d;
+
+  /* Semantic. --positive is health and success — a different job from jade. */
+  --positive: #8fd19e;
+  --positive-edge: #7fae86;
+  --positive-bg: #2c3a2f;
+  --warn: #d97a6b;
+  --danger: #e06b6b;
+  --danger-soft: #f0b3b3;
+  --danger-edge: #7a3b3b;
+  --info: #6d7dd1;
+  --info-soft: #a9b4f5;
+  --rare: #b98cf0;
+
+  /*
+   * Motion (§17). Five permitted uses, no more; exactly one looping animation in the
+   * whole game (breakthrough-ready), because scarcity is what makes it read as important.
+   */
+  --t-fast: 120ms; /* state: hover, press, selection */
+  --t-base: 180ms; /* reveal: expand, fade, slide */
+  --t-slow: 320ms; /* transition: sheet, screen, progress */
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/*
+ * Self-hosted, no CDN (§3). Two static weights rather than the variable font: 400 for
+ * narration, 600 for titles and names, which is every display weight the game uses.
+ * Subset to Latin + general punctuation, so 13.5KB + 14.3KB instead of a 505KB TTF each.
+ * Regenerate with pyftsubset from src/assets/fonts/Noto_Serif/static/ if the set changes.
+ *
+ * There is no italic face — the game has exactly one italic display element
+ * (`.equipment-set-lore`, 0.72rem), and a synthesized oblique is cheaper than 13KB for it.
+ * Add a `font-style: italic` face here if narration italics spread (step 10 may want them).
+ */
+@font-face {
+  font-family: 'Noto Serif';
+  src: url('./assets/fonts/noto-serif-latin-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Serif';
+  src: url('./assets/fonts/noto-serif-latin-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
 }
 
 body {
   margin: 0;
-  background: #12131a;
-  color: #e8e6df;
+  background: var(--bg);
+  color: var(--text);
   /* No pull-to-refresh mid-session, no grey flash on tap. */
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Form controls do not inherit the page font — the UA hands them Arial, so every button,
+ * select and input in the game was rendering in a family nobody chose. §3's "UI sans for
+ * controls" is only true once this is said out loud.
+ */
+button,
+select,
+input,
+textarea {
+  font-family: var(--font-ui);
+}
+
+/*
+ * The display face, §3. Grouped in one place rather than sprinkled through fifteen rules:
+ * the family is the only thing changing here, and each component keeps ownership of its
+ * own size. Three categories qualify, and nothing else — names, titles, narration.
+ * Numbers, controls, labels and dense data stay on the inherited UI sans.
+ */
+/* Titles */
+.founding-game-title,
+.founding-header h1,
+.panel h2,
+.world-back-header h2,
+h3,
+.sheet-title,
+/* Entity names */
+.building-tile-name,
+.slot-option-name,
+.inventory-name,
+.site-row-name,
+.report-card-title,
+.disciple-realm,
+.world-map-label,
+/* Narration */
+.battle-beat,
+.mission-log-entry,
+.event-log-list > li,
+.equipment-set-lore,
+.decision-event-choice-description,
+.founding-card-desc {
+  font-family: var(--font-display);
 }
 
 /*
@@ -44,8 +183,8 @@ body {
   max-width: 480px;
   margin: 0 auto;
   padding-top: var(--safe-t);
-  background: #12131a;
-  border-bottom: 1px solid #2c2e3d;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
 
 /*
@@ -66,8 +205,8 @@ body {
     align-items: center;
     justify-content: center;
     padding: var(--space-3);
-    background: #12131a;
-    color: #f2d98a;
+    background: var(--bg);
+    color: var(--gold);
     text-align: center;
   }
 }
@@ -85,8 +224,8 @@ body {
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x proximity;
-  background: #12131a;
-  border-top: 1px solid #2c2e3d;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
   padding-bottom: var(--safe-b);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -111,25 +250,52 @@ body {
   border: none;
   border-top: 2px solid transparent;
   border-radius: 0;
-  color: #9a97a8;
+  color: var(--text-3);
   font-size: 0.72rem;
   line-height: 1.1;
 }
 
 .tab-button:hover {
-  color: #e8e6df;
+  color: var(--text);
 }
 
 .tab-button-active,
 .tab-button-active:hover {
-  border-top-color: #f2d98a;
-  color: #f2d98a;
+  border-top-color: var(--gold);
+  color: var(--gold);
 }
 
+/* Now a positioning box for the SVG glyph and the unread badge, not a text run. */
 .tab-button-icon {
   position: relative;
-  font-size: 20px;
+  display: inline-flex;
   line-height: 1;
+}
+
+/*
+ * UI chrome icons (§15). One rule for the whole set: they inherit `currentColor`, so the
+ * tab bar's existing --text-3 → --gold active state recolours them with no extra selector,
+ * and nothing here needs to know which glyph it is.
+ */
+.ui-icon {
+  flex: none;
+  display: block;
+  overflow: visible; /* round caps at the live-area edge must not clip */
+}
+
+/*
+ * Generated seal art (§15 exception, §23). Colour art can't be recoloured by currentColor,
+ * so the active state moves to opacity: a dimmed seal reads as "not the current screen" just
+ * as clearly, and it leaves gold where §9 wants it — on the label and the 2px top border.
+ */
+.tab-button .ui-icon-art {
+  opacity: 0.55;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.tab-button-active .ui-icon-art,
+.tab-button:hover .ui-icon-art {
+  opacity: 1;
 }
 
 .tab-button-label {
@@ -143,6 +309,376 @@ body {
   margin-top: var(--space-2);
 }
 
+/*
+ * SECT HERO (§16.1). The landing screen used to be four equal-weight panels with no focal
+ * point — two of them clocks — which is why the game opened like a settings page. This owns
+ * the top third instead. Full-bleed: the negative margin cancels `.app`'s side padding so
+ * the ridge silhouette can run edge to edge, which a panel could never do.
+ */
+.sect-hero {
+  position: relative;
+  overflow: hidden;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) var(--space-3);
+  padding: var(--space-3) var(--space-2) var(--space-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+/* §20's atmosphere layer, SVG not raster: two flat ridges, faded out toward the top so the
+   type never fights it. Decorative — it carries no information. */
+.sect-hero-art {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: 96px;
+  pointer-events: none;
+  mask-image: linear-gradient(to top, #000 55%, transparent);
+  -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
+}
+
+/* The row exists so the A12 sect emblem drops in beside the text at zero layout cost:
+   add `<img class="sect-hero-crest">` as its first child and nothing shifts. */
+.sect-hero-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sect-hero-ident {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sect-hero-crest {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+
+/* The seat name carries the hero: it's the only proper noun in the save that is the
+   player's own. §16.1 asked for a sect name; the game doesn't have one. */
+.sect-hero-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.sect-hero-seat {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+/*
+ * The screen's one gold element. §16.1 wanted 1.5rem here; rejected — that's the largest
+ * type on the screen spent on a three-value enum whose floor value is "Unranked Sect".
+ * 0.72rem, not the 0.78rem the design pass proposed: §3 permits uppercase + letter-spacing
+ * only in the ≤0.72rem micro tier, and step 1 retired it everywhere above that.
+ */
+.sect-hero-rank {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+}
+
+/* And its one jade element — the land's qi, which is what a spirit vein is. */
+.sect-hero-vein {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--jade);
+  font-variant-numeric: tabular-nums;
+}
+
+.sect-hero-meta {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.sect-hero-meta .hl {
+  color: var(--gold);
+}
+
+/*
+ * Both clocks, in one 0.72rem line. They were two of the four panels, and `.clock-readout`
+ * rendered a stopwatch at 2rem — the largest type in the entire game.
+ */
+.sect-hero-chronology {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 0.72rem;
+  color: var(--text-3);
+}
+
+.sect-hero-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-2);
+}
+
+.sect-hero-age-value {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * VALUE-CHANGE FLASH (§17 item 1). Keyframes rather than a transition, because the value has
+ * to return to its resting colour unattended.
+ *
+ * Colour and a brief glow only — no `transform: scale`. §17 forbids bouncing, and six numbers
+ * pumping inside a 34px scroll strip is a gacha tell, not wuxia restraint.
+ *
+ * The `-a` / `-b` pairs exist because re-adding the same class does not restart a CSS
+ * animation; `useValueFlash` alternates them so consecutive events each play.
+ */
+@keyframes value-gain {
+  0% {
+    color: var(--positive);
+    text-shadow: 0 0 6px var(--positive);
+  }
+  25% {
+    color: var(--positive);
+    text-shadow: 0 0 4px var(--positive);
+  }
+  100% {
+    color: var(--text);
+    text-shadow: none;
+  }
+}
+
+@keyframes value-loss {
+  0% {
+    color: var(--danger);
+  }
+  20% {
+    color: var(--danger);
+  }
+  100% {
+    color: var(--text);
+  }
+}
+
+.resource-chip-value.flash-gain-a,
+.resource-chip-value.flash-gain-b,
+.resource-amount.flash-gain-a,
+.resource-amount.flash-gain-b {
+  animation: value-gain 1.2s var(--ease-out) 1;
+}
+
+/* A spend is acknowledged, not admired — 600ms against the gain's 1.2s. Losses are never
+   threshold-gated: passive income cannot decrease a resource, so any drop is player-caused. */
+.resource-chip-value.flash-loss-a,
+.resource-chip-value.flash-loss-b,
+.resource-amount.flash-loss-a,
+.resource-amount.flash-loss-b {
+  animation: value-loss 0.6s var(--ease-out) 1;
+}
+
+/* Combat Power rests in gold, so it needs its own end stop. Detail sheet only: eight roster
+   rows flashing at once on a doctrine change would be noise the player isn't even looking at. */
+@keyframes cp-gain {
+  0% {
+    color: var(--positive);
+    text-shadow: 0 0 6px var(--positive);
+  }
+  25% {
+    color: var(--positive);
+    text-shadow: 0 0 4px var(--positive);
+  }
+  100% {
+    color: var(--gold);
+    text-shadow: none;
+  }
+}
+
+@keyframes cp-loss {
+  0% {
+    color: var(--danger);
+  }
+  20% {
+    color: var(--danger);
+  }
+  100% {
+    color: var(--gold);
+  }
+}
+
+.disciple-sheet-cp.flash-gain-a,
+.disciple-sheet-cp.flash-gain-b {
+  animation: cp-gain 1.2s var(--ease-out) 1;
+}
+
+.disciple-sheet-cp.flash-loss-a,
+.disciple-sheet-cp.flash-loss-b {
+  animation: cp-loss 0.6s var(--ease-out) 1;
+}
+
+/*
+ * Deliberate refinement of §17's blanket reduced-motion rule: keep the hue, drop the movement.
+ * A colour change is not motion, and §17's "under 100ms" would make the flash invisible —
+ * that removes the information rather than the animation. The class-toggle timing is unchanged.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .resource-chip-value.flash-gain-a,
+  .resource-chip-value.flash-gain-b,
+  .resource-amount.flash-gain-a,
+  .resource-amount.flash-gain-b {
+    animation: none;
+    color: var(--positive);
+  }
+
+  .resource-chip-value.flash-loss-a,
+  .resource-chip-value.flash-loss-b,
+  .resource-amount.flash-loss-a,
+  .resource-amount.flash-loss-b {
+    animation: none;
+    color: var(--danger);
+  }
+
+  .disciple-sheet-cp.flash-gain-a,
+  .disciple-sheet-cp.flash-gain-b {
+    animation: none;
+    color: var(--positive);
+  }
+
+  .disciple-sheet-cp.flash-loss-a,
+  .disciple-sheet-cp.flash-loss-b {
+    animation: none;
+    color: var(--danger);
+  }
+}
+
+/*
+ * The cultivation hero bar (§11, §16.3) — the game's most important bar. 12px, and the only
+ * one bound across all nine sub-realms, which is what lets the stage marks tell the truth.
+ */
+.progress-bar.hero {
+  height: 12px;
+  border-radius: 6px;
+}
+
+/*
+ * REVERTED — there is no `.staged` rule any more, and `.progress-bar` deliberately has no
+ * `position: relative`.
+ *
+ * Step 8 shipped nine sub-realm stage marks as a `::after` layer. Two things were wrong.
+ * The visible one: `.progress-bar` was never `position: relative`, so the layer positioned
+ * against whatever ancestor happened to be positioned — the Sect hero on one screen, the
+ * sheet on another — and painted across the wrong box entirely. The deeper one: even placed
+ * correctly, 1px ticks don't read at 3px on the card and barely read at 12px on the sheet.
+ *
+ * So the bar went back to one bar per stage (OMA's call, 2026-08-11): it fills for the
+ * current sub-realm and resets at each one, and `.cultivation-caption` carries the position
+ * in the realm as words — "Stage 4 of 9 · 40% to the next stage" — which is legible at any
+ * size. If marks are ever wanted again, the position:relative fix is the prerequisite.
+ */
+
+.disciple-cultivation {
+  margin-bottom: var(--space-2);
+}
+
+.cultivation-stage-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 0.3rem;
+}
+
+.cultivation-realm-name {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.cultivation-stage {
+  font-size: 0.78rem;
+  color: var(--jade);
+  font-variant-numeric: tabular-nums;
+}
+
+.cultivation-caption {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The gate is open: the caption joins the bar and the button in gold. */
+.cultivation-caption.ready {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--gold);
+}
+
+/*
+ * The risk, in plain language, above the action (§16.3) — so the button can say one thing
+ * and the numbers don't have to live inside its label.
+ */
+.breakthrough-risk {
+  margin: 0 0 0.15rem;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Step 13 joins `.muster-consequence` here rather than authoring a twin: the cost
+   of a decision, stated in plain language directly above the button that commits
+   it, is one pattern — proven on breakthrough in step 8, now also on every muster
+   surface. One rule, two call sites. */
+.breakthrough-risk-warning,
+.muster-consequence {
+  margin: 0 0 var(--space-2);
+  font-size: 0.8rem;
+  color: var(--danger-soft);
+}
+
+.breakthrough-risk-warning.grave,
+.muster-consequence.grave {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/*
+ * §17 permits exactly one looping animation in the game, and names this pair: the gold bar
+ * and the gold button, breathing in lockstep off one keyframe definition. Not two loops —
+ * one loop, shown twice.
+ */
+button.primary.breakthrough-ready:not(:disabled) {
+  animation: breakthrough-pulse 2s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.primary.breakthrough-ready:not(:disabled) {
+    animation: none;
+  }
+}
+
+/* The day/night cycle as the hero's own bottom rule, so it costs no vertical space. */
+.progress-bar.hairline {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  border-radius: 0;
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -151,22 +687,137 @@ body {
 }
 
 .panel {
-  background: #1b1d29;
-  border: 1px solid #2c2e3d;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 1.25rem 1.5rem;
+  padding: var(--space-3) 1.5rem;
 }
 
+/*
+ * Record cards (§6, §8). Every full-width record in a gapped single-column list: the
+ * panel showing through the gap separates them better than a hairline did, so the box
+ * is gone and the left stripe takes over. Two channels that can never collide:
+ *
+ *   --stripe  entity status     (owner, risk, rarity, injured/away, unread) → border-left
+ *   --edge    interaction state (hover, expanded, selected, active)         → border
+ *
+ * Before this, `.disciple-card.injured` set `border-color` and repainted all four sides,
+ * so a hovered injured disciple could only show one of the two. Now both read at once.
+ * `border: 1px solid transparent` at rest means a state paints an edge with zero shift.
+ * Square left corners keep the stripe an unbroken full-height bar — a slip of paper
+ * pinned along a rule, not a rounded web card.
+ */
+.disciple-card,
+.report-card,
+.mission-card,
+.active-mission-card,
+.recipe-card,
+.site-row,
+.inventory-entry,
+.founding-card,
+.equipment-slot-row,
+.slot-option,
+.specialization-picker-item,
+.assign-disciple-choice {
+  --edge: transparent;
+  --stripe: var(--line);
+  border: 1px solid var(--edge);
+  border-left: 3px solid var(--stripe);
+  border-radius: 0 8px 8px 0;
+}
+
+/*
+ * BADGE — one micro-label rule (§19). Bare coloured text: the colour *is* the badge.
+ * Not outlined pills, and not tinted fills — §2.2 forbids accent fills, §16 makes the
+ * filter chips the one legitimate rounded pill in the game, and step 3 just removed
+ * twelve boxes. So `.disciple-card-status` loses its outline rather than the other
+ * fourteen gaining one. Uppercase is allowed here because this is the ≤0.72rem micro
+ * tier, the one place §3 keeps it as a label device.
+ */
+.report-card-tier,
+.mission-risk,
+.recipe-discipline,
+.site-row-tier-label,
+.disciple-grade {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex: none;
+  color: var(--text-4);
+}
+
+/* Good */
+.mission-risk.risk-low,
+.report-card-tier.tier-crushing,
+.report-card-tier.tier-decisive,
+.report-card-tier.tier-narrow,
+.disciple-grade.grade-uncommon {
+  color: var(--positive);
+}
+
+/* Caution */
+.mission-risk.risk-moderate,
+.report-card-tier.tier-draw,
+.report-card-tier.tier-fightingRetreat,
+.disciple-grade.grade-genius {
+  color: var(--gold);
+}
+
+/* Bad */
+.mission-risk.risk-high,
+.report-card-tier.tier-defeat {
+  color: var(--danger-soft);
+}
+
+/* Severe. (`.disciple-card-status.downed` lived here until step 7 folded the card's status
+   badge into `.disciple-status-line`, where the same state now reads in --danger-soft.) */
+.report-card-tier.tier-catastrophic {
+  color: var(--danger);
+}
+
+/* Informational */
+.recipe-discipline {
+  color: var(--info-soft);
+}
+
+/* Person-rarity shares the item-rarity vocabulary (§2.2) but not its index: four grades
+   onto six rungs, skipping --text-4 and --info so `--rare` lands on Rare. All four were
+   the same green before, so the rarity signal simply didn't exist. */
+.disciple-grade.grade-common {
+  color: var(--text-3);
+}
+
+.disciple-grade.grade-rare {
+  color: var(--rare);
+}
+
+/* Screen title, §3: 1.25rem display. The only heading tier above the section title. */
 .panel h2 {
   margin-top: 0;
-  font-size: 1.1rem;
-  color: #f2d98a;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+/*
+ * Section title (§3). There was no global h3 rule, so any h3 without a scoped rule
+ * fell to the UA default (~1.17rem bold) and rendered *larger* than the 1.1rem gold
+ * h2 above it — a hierarchy inversion on Workshop, Research and every detail header.
+ * Card/entity-name h3s keep their own scoped rules and override this.
+ */
+h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .panel-hint {
-  color: #8b889a;
+  color: var(--text-4);
   font-size: 0.85rem;
-  margin: 0.25rem 0 0.75rem;
+  margin: var(--space-1) 0 var(--space-2);
 }
 
 .onboarding-checklist {
@@ -184,9 +835,9 @@ body {
 }
 
 .onboarding-collapse-toggle {
-  background: #2c2e3d;
-  color: #e8e6df;
-  border: 1px solid #3d3f52;
+  background: var(--line);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
 }
 
 .onboarding-objective-list {
@@ -199,59 +850,146 @@ body {
 }
 
 .onboarding-objective-list li {
-  color: #e8e6df;
-}
-
-.onboarding-objective-done {
-  color: #8fd19e;
-  text-decoration: line-through;
-}
-
-.clock-readout {
-  font-size: 2rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.05em;
-}
-
-.world-clock-readout {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 1.15rem;
-  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+  color: var(--text);
 }
 
-.world-clock-icon {
-  font-size: 1.4rem;
+/*
+ * A ledger diamond, not a checkbox tick — this is a master's record of instructions given.
+ * Pending is an open outline; fulfilled is filled jade.
+ */
+.instruction-marker {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  border: 1px solid var(--line-raised);
+}
+
+.onboarding-objective-done .instruction-marker {
+  background: var(--jade);
+  border-color: var(--jade);
+}
+
+/* A master gives one task at a time, so only the first unfulfilled row is stressed. */
+.instruction-row.current {
+  --stripe: var(--gold);
+  border-left: 3px solid var(--stripe);
+  padding-left: 0.5rem;
+  margin-left: -0.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Dim, but never struck through: an instruction obeyed is not an instruction cancelled. */
+.onboarding-objective-done {
+  color: var(--text-3);
+}
+
+/*
+ * `.clock-readout`, `.world-clock-readout`, `.world-clock-icon` and `.rank-readout` were
+ * deleted here when their three panels were deleted (step 6 folded rank and both clocks into
+ * `.sect-hero`; the orphaned components were removed once OMA confirmed nothing imported
+ * them). §3's "hero value / primary value" tiers now have no call site in the game — if one
+ * is ever needed, `.sect-hero-name` at 1.75rem is the largest type that exists.
+ */
+
+/*
+ * Finishing §3's tabular-nums sweep. Every one of these carries a number that changes
+ * while the player is looking at it; proportional figures make the row re-lay-out on
+ * each tick. Names and labels are deliberately absent — they belong to the display face.
+ */
+.recipe-cost-line,
+.mission-reward,
+.mission-meta,
+.resource-rate,
+.report-card-meta,
+.dispatch-preview,
+.building-detail-list,
+.over-level-badge,
+.founding-chip,
+.technique-known {
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-bar {
   height: 8px;
   border-radius: 4px;
-  background: #2c2e3d;
+  background: var(--line);
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.3s linear;
+  transition: width var(--t-slow) var(--ease-out);
 }
 
-.progress-bar-fill.day {
-  background: #f2d98a;
+/*
+ * Semantic bars (§11). The colour of a bar says what kind of progress it is before you
+ * read the label. `.day` used to carry six unrelated systems — the world clock, mission
+ * timers, construction, crafting, research and *cultivation* — so the most important bar
+ * in a cultivation game was identical to a crafting timer and named after the day cycle.
+ * Each system now names itself, and `.day`/`.night` belong to the clock alone.
+ */
+.progress-bar-fill.cultivation {
+  background: var(--jade); /* Jade means cultivation and nothing else (§2.2). */
 }
 
-.progress-bar-fill.night {
-  background: #6d7dd1;
+/* The one looping animation in the game (§17): held at 100%, waiting on the player. */
+.progress-bar-fill.breakthrough {
+  background: var(--gold);
+  animation: breakthrough-pulse 2s var(--ease) infinite;
+}
+
+@keyframes breakthrough-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar-fill.breakthrough {
+    animation: none;
+  }
 }
 
 .progress-bar-fill.hp {
-  background: #7fc98a;
+  background: var(--positive);
 }
 
 .progress-bar-fill.hp-critical {
-  background: #e06b6b;
+  background: var(--danger);
+}
+
+/* One honest grey for all work-in-progress: construction, crafting, research. Inventing
+   three shades of "in progress" would be worse, and none of them may be jade. */
+.progress-bar-fill.construction {
+  background: var(--text-3);
+}
+
+.progress-bar-fill.mission {
+  background: var(--info);
+}
+
+/* Faction standing isn't a timer, so it can't share the mission blue. --warn is §2.2's
+   fixed NPC-ownership colour, which makes a foreign-power gauge read as foreign. */
+.progress-bar-fill.standing {
+  background: var(--warn);
+}
+
+.progress-bar-fill.day {
+  background: var(--gold);
+}
+
+.progress-bar-fill.night {
+  background: var(--info);
 }
 
 .disciple-hp {
@@ -260,19 +998,20 @@ body {
 
 .disciple-critical-warning {
   margin: 0.3rem 0 0;
-  color: #f0b3b3;
+  color: var(--danger-soft);
   font-size: 0.8rem;
   font-weight: 600;
 }
 
+/* Critical HP is a status, not an interaction state, so it rides the stripe channel. */
 .assign-disciple-choice.critical {
-  border-color: #a24a4a;
+  --stripe: var(--danger);
 }
 
 .assign-disciple-warning {
   display: block;
   margin-top: 0.15rem;
-  color: #f0b3b3;
+  color: var(--danger-soft);
   font-size: 0.72rem;
 }
 
@@ -281,79 +1020,423 @@ body {
   align-items: flex-start;
   gap: 0.4rem;
   margin: 0.6rem 0;
+  /* The whole label is the hit area, so a raw 13px checkbox stops being the only target
+     on a touch screen — `--tap` is the floor everything interactive answers to. */
+  min-height: var(--tap);
+  padding: 0.4rem 0;
   font-size: 0.85rem;
-  color: var(--text-secondary, #b8b8b8);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.garrison-recall-toggle input {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+  accent-color: var(--gold);
 }
 
 .offline-summary-deaths h3 {
-  color: #e06b6b;
+  color: var(--danger);
 }
 
 .offline-summary-deaths li {
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
-.battle-report-deaths {
-  margin: 0.5rem 0 0;
-  color: #e06b6b;
+/* Casualties get their own block above the loot line — the dead outrank the spoils. */
+.battle-deaths {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.battle-deaths-label {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--danger-soft);
+}
+
+.battle-deaths-names {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
   font-weight: 600;
+  color: var(--danger);
 }
 
-/* Battle report narrative (Battle Narration §9) — round headers, a distinct turning point, dimmed wound lines, and the summary/full toggle. */
+.battle-loot {
+  margin: var(--space-3) 0 0;
+  font-size: 0.8rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * THE BREAKTHROUGH MOMENT (§16.3). The one full-screen narrative overlay §12 allows beside
+ * `BottomSheet`, because this is the game's central fantasy and it had no presentation at all.
+ * It reports; the engine already decided.
+ */
+.breakthrough-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.2rem;
+  padding: var(--space-4);
+  text-align: center;
+  background: rgba(8, 9, 14, 0.72);
+}
+
+.breakthrough-bloom,
+.breakthrough-ash {
+  position: absolute;
+  width: 60vmin;
+  height: 60vmin;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.breakthrough-bloom {
+  background: radial-gradient(circle, var(--jade) 0%, var(--jade-deep) 30%, transparent 70%);
+  animation: bt-bloom 1100ms var(--ease-out) forwards;
+}
+
+/*
+ * Failure desaturates by washing the jade out rather than by filtering the screen — on a
+ * palette this dark, `filter: saturate()` reads as nothing at all. The gesture contracts
+ * where success expands, which is the whole difference.
+ */
+.breakthrough-ash {
+  background: radial-gradient(circle, rgba(120, 120, 128, 0.34) 0%, transparent 65%);
+  animation: bt-collapse 900ms var(--ease) forwards;
+}
+
+.breakthrough-realm-name {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--jade);
+  animation: bt-name 1200ms var(--ease) forwards;
+}
+
+.breakthrough-moment-sub {
+  position: relative;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-3);
+  animation: bt-name 1200ms var(--ease) forwards;
+}
+
+.breakthrough-fail-title {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--danger);
+}
+
+.breakthrough-fail-line {
+  position: relative;
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--danger-soft);
+}
+
+/* A batch of breakthroughs gets a list, not a verdict — see §23. */
+.breakthrough-tally {
+  position: relative;
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.breakthrough-tally li {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.tally-title {
+  color: var(--text);
+}
+
+.tally-name {
+  font-family: var(--font-display);
+  color: var(--text);
+}
+
+.tally-good {
+  color: var(--jade);
+}
+
+.tally-bad {
+  color: var(--danger-soft);
+}
+
+@keyframes bt-bloom {
+  0% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes bt-collapse {
+  0% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+
+@keyframes bt-name {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  25% {
+    opacity: 1;
+    transform: none;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* §17: reduced motion keeps the information and drops the movement — the hold is unchanged,
+   so the moment still lands, it just doesn't travel. */
+@media (prefers-reduced-motion: reduce) {
+  .breakthrough-bloom {
+    animation: none;
+    opacity: 0.5;
+  }
+
+  .breakthrough-ash {
+    animation: none;
+    opacity: 0.4;
+  }
+
+  .breakthrough-realm-name,
+  .breakthrough-moment-sub {
+    animation: bt-name-quiet 90ms linear forwards;
+  }
+
+  @keyframes bt-name-quiet {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+ * THE BATTLE REPORT AS A NARRATED SCROLL (§16.4). Combat is simulated and non-interactive,
+ * so every gram of drama has to come from presentation and pacing. The old report was a
+ * heading plus a list: nothing was composed, and the verdict — the one dramatic fact in it —
+ * was welded to the location name with an em-dash inside a generic gold h2.
+ */
+.battle-verdict {
+  padding: var(--space-3) 0 var(--space-2);
+  text-align: center;
+}
+
+.battle-verdict h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* A seal beneath the verdict rather than a heading underline — it closes the statement. */
+.battle-verdict h2::after {
+  content: '';
+  display: block;
+  width: 3.5rem;
+  height: 1px;
+  margin: var(--space-2) auto 0;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+/* The two extremes read louder through size, not through a seventh hue. */
+.battle-verdict[data-tier='crushing'] h2,
+.battle-verdict[data-tier='catastrophic'] h2 {
+  font-size: 1.65rem;
+}
+
+.battle-verdict[data-tier='crushing'] h2,
+.battle-verdict[data-tier='decisive'] h2,
+.battle-verdict[data-tier='narrow'] h2 {
+  color: var(--positive);
+}
+
+.battle-verdict[data-tier='draw'] h2,
+.battle-verdict[data-tier='fightingRetreat'] h2 {
+  color: var(--gold);
+}
+
+.battle-verdict[data-tier='defeat'] h2 {
+  color: var(--danger-soft);
+}
+
+.battle-verdict[data-tier='catastrophic'] h2 {
+  color: var(--danger);
+}
+
+/* Was `.panel-hint` — developer-hint grey on the report's one-sentence verdict. */
+.battle-verdict-line {
+  max-width: 32ch;
+  margin: var(--space-3) auto 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* Numbers stay in UI sans (§3), and this stops borrowing the crafting screen's .recipe-meta. */
+.battle-verdict-meta {
+  margin: var(--space-2) 0 0;
+  font-size: 0.78rem;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The location, demoted: inside the sheet the header already carries it, and in the Reports
+   detail pane it's context rather than news. */
+.battle-verdict-title {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--text-3);
+}
+
+/* §9's inset segmented track, replacing two opacity-dimmed buttons. */
 .battle-report-toggle {
   display: flex;
-  gap: 0.4rem;
-  margin: 0.6rem 0 0.2rem;
+  gap: 2px;
+  margin: var(--space-3) 0 var(--space-2);
+  padding: 2px;
+  background: var(--bg);
+  border-radius: 8px;
 }
 
 .battle-report-toggle button {
+  flex: 1;
+  min-height: 36px;
+  padding: 0.2rem var(--space-2);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-3);
   font-size: 0.78rem;
-  padding: 0.2rem 0.75rem;
-  opacity: 0.55;
 }
 
 .battle-report-toggle button.active {
-  opacity: 1;
+  background: var(--surface-raised);
+  color: var(--gold);
   font-weight: 600;
 }
 
+/* Text *is* the combat art (§16.4), so the rhythm is the art direction: --space-1 between
+   beats made this a log. --space-3 makes it a narration. */
 .battle-report-events {
   list-style: none;
   padding: 0;
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-3);
 }
 
+/*
+ * A centred display-face rule with a hairline either side. `flex: 1 1 0` on both pseudo
+ * elements self-centres the label at any container width — this renders both in a full-height
+ * sheet and in the 480px Reports detail pane. Uppercase, letter-spacing and the 0.5 opacity
+ * are all retired: this label carries section hierarchy, which §3 forbids uppercase for.
+ */
 .battle-phase-label {
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  letter-spacing: 0.09em;
-  opacity: 0.5;
-  margin-top: 0.55rem;
-}
-
-.battle-beat {
-  line-height: 1.45;
-}
-
-.battle-beat-crit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
   font-weight: 600;
-  color: #e8c07a;
+  color: var(--text-3);
 }
 
+.battle-phase-label::before,
+.battle-phase-label::after {
+  content: '';
+  flex: 1 1 0;
+  min-width: var(--space-3);
+  height: 1px;
+  background: var(--line);
+}
+
+/* Narration tier (§3): display face at 1.6, the loosest line in the game. The looseness
+   is the register — it is what separates a fight from a data row. */
+.battle-beat {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+/*
+ * "Slightly larger, never bold-only" (§16.4): the isolating whitespace is the emphasis. The
+ * extra margin is what makes a critical beat land — weight alone just made it darker text.
+ */
+.battle-beat-crit {
+  margin: var(--space-2) 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+/* --danger-soft is already a dimmed token; the old 0.72 opacity dimmed it twice. */
 .battle-wound {
-  padding-left: 1rem;
-  opacity: 0.72;
+  padding-left: var(--space-4);
   font-size: 0.92em;
+  color: var(--danger-soft);
 }
 
 .save-controls-buttons {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-2);
 }
 
 .save-controls-buttons button {
@@ -368,15 +1451,18 @@ body {
 }
 
 button {
-  background: #2c2e3d;
-  color: #e8e6df;
-  border: 1px solid #3d3f52;
+  background: var(--line);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   /* Base tap floor: padding + 0.9rem text lands at ~35px on its own. */
   min-height: var(--tap);
   padding: 0.5rem 0.9rem;
   cursor: pointer;
   font-size: 0.9rem;
+  /* §17 use 1: state. Now that there are three tiers, the change between them is felt. */
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 
 /*
@@ -387,9 +1473,9 @@ input,
 select,
 textarea {
   font-size: 16px;
-  color: #e8e6df;
-  background: #2c2e3d;
-  border: 1px solid #3d3f52;
+  color: var(--text);
+  background: var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
 }
 
@@ -401,11 +1487,11 @@ input[type='radio'] {
   height: 1.15rem;
   background: initial;
   border: initial;
-  accent-color: #f2d98a;
+  accent-color: var(--gold);
 }
 
 button:hover:not(:disabled) {
-  background: #3d3f52;
+  background: var(--line-strong);
 }
 
 button:disabled {
@@ -413,9 +1499,64 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Both were missing entirely — the focus ring is an accessibility gap, not a polish item. */
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/*
+ * Buttons, §7. Three tiers, but only two class names: **secondary is the bare `button`
+ * rule above** — the default, and most buttons in the game. The other two are opt-in.
+ *
+ * PRIMARY = the point of commitment: a sheet footer or a single-instance panel action.
+ * Never inside a repeated record row — one gold button per mission offer would put gold
+ * far past §18's ~5%-of-screen ceiling and stop it meaning "the thing to press".
+ * At most one per screen or sheet.
+ */
+button.primary {
+  background: var(--gold-bg);
+  border-color: var(--gold-edge);
+  color: var(--gold);
+}
+
+/* Specificity (0,3,1) beats the base hover (0,2,1), so gold doesn't grey out on hover. */
+button.primary:hover:not(:disabled) {
+  background: var(--gold-bg);
+  border-color: var(--gold);
+}
+
+/* QUIET = a control that shouldn't compete: pickers, disclosures, destructive actions. */
+button.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-3);
+}
+
+button.quiet:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+
+button.quiet:active:not(:disabled) {
+  text-decoration: underline;
+}
+
+button.quiet.destructive {
+  color: var(--danger-soft);
+}
+
+button.quiet.destructive:hover:not(:disabled) {
+  color: var(--danger);
+}
+
 button.danger {
-  border-color: #7a3b3b;
-  color: #f0b3b3;
+  border-color: var(--danger-edge);
+  color: var(--danger-soft);
 }
 
 button.danger:hover {
@@ -447,14 +1588,14 @@ button.danger:hover {
 .resource-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
   flex: none;
 }
 
 .resource-chip-value {
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
-  color: #e8e6df;
+  color: var(--text);
 }
 
 /* Expanded readout: caps and per-hour rates, dropped under the fixed strip. */
@@ -474,15 +1615,15 @@ button.danger:hover {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-2);
-  background: #1b1d29;
-  border-bottom: 1px solid #2c2e3d;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
 }
 
 .resource-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+  gap: var(--space-2);
 }
 
 .resource-tile {
@@ -490,10 +1631,10 @@ button.danger:hover {
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.75rem 0.5rem;
+  padding: var(--space-2) 0.5rem;
   text-align: center;
 }
 
@@ -536,7 +1677,7 @@ button.danger:hover {
 
 .equipment-slot-chevron {
   margin-left: auto;
-  color: #6f6c7d;
+  color: var(--text-disabled);
 }
 
 /* Rows in the equipment picker sheet. */
@@ -548,9 +1689,7 @@ button.danger:hover {
   min-height: var(--tap);
   margin-bottom: 0.35rem;
   padding: 0.5rem 0.7rem;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
+  background: var(--bg);
   color: inherit;
   text-align: left;
 }
@@ -571,33 +1710,33 @@ button.danger:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.72rem;
-  color: #8b889a;
+  color: var(--text-4);
 }
 
 .slot-option-delta {
   flex: none;
   font-variant-numeric: tabular-nums;
   font-size: 0.85rem;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .slot-option-delta.up {
-  color: #8fd19e;
+  color: var(--positive);
 }
 
 .slot-option-delta.down {
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
 .slot-option-unequip {
   justify-content: center;
   border-style: dashed;
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
 .resource-label {
   font-size: 0.75rem;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .resource-amount {
@@ -606,21 +1745,14 @@ button.danger:hover {
 }
 
 .resource-amount.at-cap {
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
 .resource-rate {
   font-size: 0.7rem;
-  color: #8fd19e;
+  color: var(--positive);
 }
 
-/* Sect Rank */
-
-.rank-readout {
-  font-size: 1.5rem;
-  color: #f2d98a;
-  margin-bottom: 0.5rem;
-}
 
 /* Buildings */
 
@@ -646,8 +1778,8 @@ button.danger:hover {
   min-height: 6.5rem;
   padding: 0.55rem 0.5rem;
   text-align: center;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: 8px;
   color: inherit;
   cursor: pointer;
@@ -655,8 +1787,8 @@ button.danger:hover {
 }
 
 .building-tile:hover {
-  border-color: #3d3f52;
-  background: #1b1d29;
+  border-color: var(--line-strong);
+  background: var(--surface);
 }
 
 .building-tile-name {
@@ -667,22 +1799,23 @@ button.danger:hover {
 
 .building-tile-level {
   font-size: 0.8rem;
-  color: #9a97a8;
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
+/* Tiles keep their box (2-up grid, no gutter to separate them), so the ring's job moves
+   to the background channel instead — §6's "selected = edge + fill", not a glow. */
 .building-tile-active,
 .building-tile-active:hover {
-  background: #1b1d29;
-  border-color: #f2d98a;
-  box-shadow: 0 0 0 1px #f2d98a;
+  background: var(--gold-bg);
+  border-color: var(--gold-edge);
 }
 
+/* An inline category label, not a heading: uppercase goes, but it stays UI sans at the
+   micro tier because it sits inside dense rows (§3). Same for .inventory-category. */
 .building-category {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6d7dd1;
+  font-size: 0.72rem;
+  color: var(--info);
 }
 
 /* Bottom sheet — the single modal primitive (see BottomSheet.tsx). */
@@ -702,8 +1835,8 @@ button.danger:hover {
   width: 100%;
   max-width: 480px;
   max-height: var(--sheet-max-h);
-  background: #1b1d29;
-  border: 1px solid #2c2e3d;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-bottom: none;
   border-radius: 14px 14px 0 0;
   padding-bottom: var(--safe-b);
@@ -746,13 +1879,13 @@ button.danger:hover {
   width: 36px;
   height: 4px;
   border-radius: 999px;
-  background: #3d3f52;
+  background: var(--line-strong);
 }
 
 .sheet-title {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #f2d98a;
+  color: var(--gold);
 }
 
 .sheet-close {
@@ -764,7 +1897,7 @@ button.danger:hover {
   min-height: var(--tap);
   background: transparent;
   border: none;
-  color: #9a97a8;
+  color: var(--text-3);
   font-size: 0.95rem;
 }
 
@@ -780,8 +1913,8 @@ button.danger:hover {
 
 .sheet-footer {
   padding: var(--space-2);
-  border-top: 1px solid #2c2e3d;
-  background: #1b1d29;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
 }
 
 /* Lives inside the sheet body now — the sheet supplies the surface and border. */
@@ -792,7 +1925,7 @@ button.danger:hover {
 }
 
 .building-detail.over-level .building-detail-header {
-  border-bottom: 1px solid #7a3b3b;
+  border-bottom: 1px solid var(--danger-edge);
 }
 
 .building-detail-header {
@@ -811,19 +1944,25 @@ button.danger:hover {
   font-size: 1.05rem;
 }
 
+/*
+ * §3 retires uppercase + letter-spacing wherever it was standing in for hierarchy — it is
+ * the clearest SaaS tell in the stylesheet. This is a real section title, so it becomes
+ * one: display face, section-title size. Uppercase survives only in the ≤0.72rem micro
+ * tier, where it works as a label device (status pills, tier labels, phase labels).
+ */
 .building-detail-section-title {
   margin: 0.85rem 0 0.35rem;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #8b889a;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-3);
 }
 
 .building-requirements {
   list-style: none;
   margin: 0 0 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: #12131a;
+  padding: 0.5rem var(--space-2);
+  background: var(--bg);
   border-radius: 6px;
   font-size: 0.85rem;
 }
@@ -831,23 +1970,23 @@ button.danger:hover {
 .building-requirements li {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-2);
   padding: 0.2rem 0;
 }
 
 .building-requirements li span:first-child {
-  color: #8b889a;
+  color: var(--text-4);
 }
 
 .building-requirements li span:last-child {
-  color: #e8e6df;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
 .building-detail-list {
-  margin: 0.5rem 0 0.75rem;
-  padding: 0.5rem 0.75rem;
-  background: #1b1d29;
+  margin: 0.5rem 0 var(--space-2);
+  padding: 0.5rem var(--space-2);
+  background: var(--surface);
   border-radius: 6px;
   font-size: 0.85rem;
 }
@@ -855,22 +1994,22 @@ button.danger:hover {
 .building-detail-row {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-2);
   padding: 0.2rem 0;
 }
 
 .building-detail-row dt {
-  color: #8b889a;
+  color: var(--text-4);
 }
 
 .building-detail-row dd {
   margin: 0;
   text-align: right;
-  color: #e8e6df;
+  color: var(--text);
 }
 
 .building-assignment {
-  margin: 0.5rem 0 0.75rem;
+  margin: 0.5rem 0 var(--space-2);
 }
 
 .work-slot-grid {
@@ -897,7 +2036,7 @@ button.danger:hover {
 }
 
 .work-slot-tile button {
-  padding: 0.25rem 0.6rem;
+  padding: var(--space-1) 0.6rem;
   font-size: 0.8rem;
 }
 
@@ -923,7 +2062,7 @@ button.danger:hover {
 
 .assign-disciple-meta {
   font-size: 0.8rem;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .assign-disciple-pagination {
@@ -945,7 +2084,7 @@ button.danger:hover {
 }
 
 .over-level-badge {
-  color: #f0b3b3;
+  color: var(--danger-soft);
   font-size: 0.8rem;
   margin: 0 0 0.5rem;
 }
@@ -965,7 +2104,7 @@ button.danger:hover {
   z-index: 1;
   margin-top: var(--space-2);
   padding: var(--space-2) 0 var(--space-1);
-  background: linear-gradient(to bottom, rgba(27, 29, 41, 0) 0, #1b1d29 12px);
+  background: linear-gradient(to bottom, rgba(27, 29, 41, 0) 0, var(--surface) 12px);
 }
 
 .upgrade-controls button {
@@ -974,7 +2113,7 @@ button.danger:hover {
 }
 
 .upgrade-blocked-reason {
-  color: #8b889a;
+  color: var(--text-4);
   font-size: 0.78rem;
   margin: 0.4rem 0 0;
 }
@@ -983,12 +2122,12 @@ button.danger:hover {
   align-items: center;
   justify-content: center;
   border-style: dashed;
-  color: #8b889a;
+  color: var(--text-4);
 }
 
 .building-tile-empty .building-tile-name {
   font-weight: 500;
-  color: #8b889a;
+  color: var(--text-4);
 }
 
 .specialization-picker-list {
@@ -1001,10 +2140,8 @@ button.danger:hover {
 }
 
 .specialization-picker-item {
-  padding: 0.75rem 0.9rem;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
+  padding: var(--space-2) 0.9rem;
+  background: var(--bg);
 }
 
 .specialization-picker-info {
@@ -1024,8 +2161,8 @@ button.danger:hover {
   width: 100%;
   margin-top: 0.5rem;
   background: transparent;
-  border: 1px solid #7a3b3b;
-  color: #f0b3b3;
+  border: 1px solid var(--danger-edge);
+  color: var(--danger-soft);
 }
 
 .demolish-button:hover:not(:disabled) {
@@ -1034,8 +2171,8 @@ button.danger:hover {
 
 .disciple-expel {
   margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #3d3f52;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line-strong);
 }
 
 /* Disciples */
@@ -1075,10 +2212,7 @@ button.danger:hover {
 }
 
 .disciple-card {
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-left-width: 3px;
-  border-radius: 8px;
+  background: var(--bg);
   padding: var(--space-2);
 }
 
@@ -1088,8 +2222,105 @@ button.danger:hover {
   gap: var(--space-2);
 }
 
-.disciple-row-art {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+/*
+ * PORTRAIT PLAQUE (§16.2). A *plaque*, not an avatar chip: 48×58, taller than wide, squared
+ * at the top and rounded at the feet. The portrait aspect is what stops it reading as a
+ * contact photo — which is the whole point of §16.2, "characters, not records".
+ *
+ * The frame carries the grade, which is why grade is absent from the artwork and twelve
+ * portraits cover all four grades instead of forty-eight. `--bg` is the ground the keyed ink
+ * sits on; the inset top shadow reads as shading and covers the softer key edge on the one
+ * portrait whose source background was a gradient rather than flat magenta.
+ */
+.disciple-portrait {
+  position: relative;
+  flex: none;
+  width: 48px;
+  /* 0.787 — the Set E portraits are 0.780, so `cover` crops well under a pixel here.
+     At the old 48×58 (0.828) the taller art lost the top of the head. */
+  height: 61px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px 3px 10px 10px;
+  box-shadow: inset 0 2px 3px -2px rgba(0, 0, 0, 0.6);
+}
+
+.disciple-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Weighted to the top: these are busts, and the face is what has to survive at 48px. */
+  object-position: 50% 12%;
+}
+
+/*
+ * Role on a nameplate along the bottom edge. Role is real information that the costume only
+ * implies, and the plate's gradient doubles as the fade that hides the bust's chest crop.
+ */
+.disciple-portrait-role {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--bg) 55%, transparent);
+}
+
+.disciple-portrait-role img {
+  width: 12px;
+  height: 12px;
+  opacity: 0.8;
+  object-fit: contain;
+  /* Set E ships the role glyphs as dark pine ink, which vanishes on the dark nameplate.
+     Knocked out to white here; the parchment screen's cream badge resets this. */
+  filter: brightness(0) invert(1);
+}
+
+/* Grade as the frame. The plain border-color is declared first as the fallback for engines
+   without color-mix(), so the frame is always visible even if the tint isn't. */
+.disciple-portrait.grade-common {
+  border-color: var(--line-strong);
+}
+
+.disciple-portrait.grade-uncommon {
+  border-color: var(--positive-edge);
+  border-color: color-mix(in srgb, var(--positive) 50%, transparent);
+  box-shadow: inset 0 2px 3px -2px rgba(0, 0, 0, 0.6),
+    inset 0 0 9px -3px color-mix(in srgb, var(--positive) 35%, transparent);
+}
+
+.disciple-portrait.grade-rare {
+  border-color: var(--rare);
+  border-color: color-mix(in srgb, var(--rare) 60%, transparent);
+  box-shadow: inset 0 2px 3px -2px rgba(0, 0, 0, 0.6),
+    inset 0 0 9px -3px color-mix(in srgb, var(--rare) 40%, transparent);
+}
+
+.disciple-portrait.grade-genius {
+  border-color: var(--gold-edge);
+  box-shadow: inset 0 2px 3px -2px rgba(0, 0, 0, 0.6),
+    inset 0 0 10px -3px color-mix(in srgb, var(--gold) 45%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--gold) 18%, transparent);
+}
+
+/* Sheet size: same plaque, room for the face to be a face (§16.2's header block). */
+.disciple-portrait.sheet {
+  width: 96px;
+  height: 123px; /* 0.780, matching the art — see the note on the base plaque */
+  border-radius: 4px 4px 14px 14px;
+}
+
+.disciple-portrait.sheet .disciple-portrait-role {
+  height: 18px;
+}
+
+.disciple-portrait.sheet .disciple-portrait-role img {
+  width: 16px;
+  height: 16px;
 }
 
 .disciple-row-text {
@@ -1114,7 +2345,7 @@ button.danger:hover {
 
 .disciple-row-sub {
   font-size: 0.78rem;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .disciple-row-cp {
@@ -1122,7 +2353,7 @@ button.danger:hover {
   font-size: 1.05rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: #f2d98a;
+  color: var(--gold);
 }
 
 /* Two 3px bars read as one status block; full width under the row. */
@@ -1131,12 +2362,80 @@ button.danger:hover {
   margin-top: 0.35rem;
 }
 
-.disciple-card.away {
-  border-color: #6d7dd1;
+/* Condition, only when there's something to say — 2px and never full-width, so it can't be
+   mistaken for a second cultivation bar at a glance. */
+.disciple-row-bar.condition {
+  height: 2px;
+  margin-top: 3px;
+  background: transparent;
 }
 
+/*
+ * Was `.panel-hint cultivation-detail` — developer-hint styling on the card's most important
+ * status text. The lead clause now carries the state colour; everything after it stays quiet.
+ */
+.disciple-status-line {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-3);
+}
+
+.disciple-status-line .lead.cultivating {
+  color: var(--jade);
+}
+
+.disciple-status-line .lead.bad,
+.disciple-status-line .bad {
+  color: var(--danger-soft);
+}
+
+/* The one thing on the card that pairs with the pulsing gold bar above it. */
+.disciple-status-line .lead.ready {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--gold);
+}
+
+/* Detail sheet header block (§16.2): plaque, then name over realm over grade over CP. */
+.disciple-sheet-header {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  margin-bottom: var(--space-2);
+}
+
+.disciple-sheet-ident {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.disciple-sheet-ident h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.disciple-sheet-ident .disciple-realm {
+  font-size: 0.95rem;
+}
+
+.disciple-sheet-cp {
+  margin-top: 0.15rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.disciple-card.away {
+  --stripe: var(--info);
+}
+
+/* Bright --danger, not --danger-edge: a 3px sliver needs chroma to register at all.
+   Stripes always take the bright semantic token, never the dim -edge variant. */
 .disciple-card.injured {
-  border-color: #7a3b3b;
+  --stripe: var(--danger);
 }
 
 .disciple-card.selectable {
@@ -1145,40 +2444,13 @@ button.danger:hover {
 }
 
 .disciple-card.selectable:hover {
-  border-color: #4a4d63;
+  --edge: var(--line-raised);
   background: #171923;
 }
 
 .disciple-card.active {
-  border-color: #8fd19e;
+  --edge: var(--positive);
   background: #171b1f;
-}
-
-.disciple-card-status {
-  display: inline-block;
-  margin-top: 0.4rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid #3d3f52;
-  color: #9a97a8;
-}
-
-.disciple-card-status.away {
-  color: #a9b4f5;
-  border-color: #6d7dd1;
-}
-
-.disciple-card-status.injured {
-  color: #f0b3b3;
-  border-color: #7a3b3b;
-}
-
-.disciple-card-status.boosted {
-  color: #f2d98a;
-  border-color: #6a5d2f;
 }
 
 /* Disciple detail modal with prev/next navigation */
@@ -1187,7 +2459,7 @@ button.danger:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-2);
   margin-bottom: 0.5rem;
 }
 
@@ -1198,7 +2470,7 @@ button.danger:hover {
 
 .disciple-modal-nav button {
   min-width: 2.4rem;
-  padding: 0.25rem 0.7rem;
+  padding: var(--space-1) 0.7rem;
   font-size: 1.2rem;
   line-height: 1;
 }
@@ -1206,8 +2478,8 @@ button.danger:hover {
 .disciple-detail-tabs {
   display: flex;
   gap: 0.4rem;
-  margin: 0.75rem 0 0.5rem;
-  border-bottom: 1px solid #2c2e3d;
+  margin: var(--space-2) 0 0.5rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .disciple-detail-tabs button {
@@ -1215,15 +2487,15 @@ button.danger:hover {
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  color: #9a97a8;
+  color: var(--text-3);
   padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
   cursor: pointer;
 }
 
 .disciple-detail-tabs button.active {
-  color: #e8e6df;
-  border-bottom-color: #8fd19e;
+  color: var(--text);
+  border-bottom-color: var(--positive);
 }
 
 .disciple-card-header {
@@ -1238,23 +2510,28 @@ button.danger:hover {
   font-size: 1rem;
 }
 
-.disciple-grade {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #8fd19e;
-}
-
+/* "Foundation Establishment · 4th" — the disciple's identity, not a stat (§16.2). */
 .disciple-realm {
-  font-size: 0.9rem;
-  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--jade);
 }
 
+.disciple-realm-sep {
+  color: var(--text-3);
+}
+
+/*
+ * RETIRED IN STEP 7 — no markup renders this any more. The `{subRealm}/9` pill became the
+ * ordinal "· 4th" inside `.disciple-realm` (§16.2): prose needs neither the outline nor
+ * tabular figures, and the pill was double-marking a fact the jade already carried.
+ * Kept only so a reader finds this note instead of re-inventing the pill.
+ */
 .disciple-substage {
+  font-family: var(--font-ui);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-  color: #c9a23f;
-  border: 1px solid #6a5d2f;
+  color: var(--jade);
+  border: 1px solid var(--jade-edge);
   border-radius: 999px;
   padding: 0.05rem 0.4rem;
   margin-left: 0.15rem;
@@ -1269,13 +2546,16 @@ button.danger:hover {
   bottom: 0;
   z-index: 1;
   padding: var(--space-2) 0 var(--space-1);
-  background: linear-gradient(to bottom, rgba(27, 29, 41, 0) 0, #1b1d29 12px);
+  background: linear-gradient(to bottom, rgba(27, 29, 41, 0) 0, var(--surface) 12px);
 }
 
+/*
+ * §7 promotes this treatment to the general primary, so the button now carries `.primary`
+ * and only its layout stays here. The gold-fill/gold-edge/gold-text *look* is preserved
+ * exactly as §19 asks — what changed is that its one-off #4a3b1f normalized onto
+ * --gold-bg, which is also better contrast (~8.3:1 vs ~7.0:1).
+ */
 .breakthrough-controls button {
-  background: #4a3b1f;
-  border-color: #6a5d2f;
-  color: #f2d98a;
   min-height: var(--tap);
 }
 
@@ -1283,24 +2563,21 @@ button.danger:hover {
 .danger-zone {
   margin-top: var(--space-4);
   padding-top: var(--space-2);
-  border-top: 1px solid #7a3b3b;
+  border-top: 1px solid var(--danger-edge);
 }
 
+/* Also a section title, not a label. Same treatment (§3). */
 .danger-zone-title {
   margin: 0 0 0.4rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #f0b3b3;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--danger-soft);
 }
 
 .danger-zone button {
   width: 100%;
   min-height: var(--tap);
-}
-
-.breakthrough-controls button:not(:disabled):hover {
-  background: #5a4826;
 }
 
 
@@ -1310,15 +2587,15 @@ button.danger:hover {
 }
 
 .injured-badge {
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
 .away-badge {
-  color: #a9b4f5;
+  color: var(--info-soft);
 }
 
 .boosted-badge {
-  color: #f2d98a;
+  color: var(--gold);
 }
 
 .boost-controls {
@@ -1338,9 +2615,9 @@ button.danger:hover {
 
 .disciple-assignment select {
   margin-left: 0.4rem;
-  background: #2c2e3d;
-  color: #e8e6df;
-  border: 1px solid #3d3f52;
+  background: var(--line);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   padding: 0.3rem 0.5rem;
 }
@@ -1348,13 +2625,13 @@ button.danger:hover {
 .equipment-section,
 .technique-section {
   margin-top: 0.6rem;
-  border-top: 1px solid #2c2e3d;
+  border-top: 1px solid var(--line);
   padding-top: 0.5rem;
 }
 
 .technique-known {
   font-size: 0.8rem;
-  color: #8fd19e;
+  color: var(--positive);
   margin: 0.3rem 0;
 }
 
@@ -1368,12 +2645,12 @@ button.danger:hover {
 }
 
 .equipment-slot-label {
-  color: #9a97a8;
+  color: var(--text-3);
   min-width: 80px;
 }
 
 .equipment-slot-item {
-  color: #8fd19e;
+  color: var(--positive);
   flex: 1;
 }
 
@@ -1382,9 +2659,7 @@ button.danger:hover {
   width: 100%;
   min-height: var(--tap);
   padding: 0.4rem 0.5rem;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
+  background: var(--bg);
   color: inherit;
   text-align: left;
 }
@@ -1404,7 +2679,11 @@ button.danger:hover {
 
 .mission-board-panel,
 .active-missions-panel,
-.mission-log-panel {
+.mission-log-panel,
+/* The two other chronicles: EventLogPanel no longer borrows .mission-log-panel, and
+   .expedition-log-panel had no rule at all, so it sat flush against the panel above. */
+.event-log-panel,
+.expedition-log-panel {
   margin-top: 1.5rem;
 }
 
@@ -1412,7 +2691,7 @@ button.danger:hover {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .mission-board-header h2 {
@@ -1426,15 +2705,8 @@ button.danger:hover {
   margin-top: var(--space-2);
 }
 
-.mission-card {
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
 .mission-card.expanded {
-  border-color: #4a4d63;
+  --edge: var(--line-raised);
 }
 
 /* Collapsed summary row — the whole thing is the accordion toggle. */
@@ -1453,24 +2725,18 @@ button.danger:hover {
 }
 
 /* Risk as a leading colour bar; the worded label moves into the expanded body. */
-.mission-risk-bar {
-  flex: none;
-  align-self: stretch;
-  width: 4px;
-  border-radius: 0 2px 2px 0;
-  background: #4a4d63;
+/* Risk was a 4px <span> inside the header, so it stopped at the fold; it's a property of
+   the mission, not of its collapsed summary. Same stripe, now the full card height. */
+.mission-card.risk-low {
+  --stripe: var(--positive);
 }
 
-.mission-risk-bar.risk-low {
-  background: #8fd19e;
+.mission-card.risk-moderate {
+  --stripe: var(--gold);
 }
 
-.mission-risk-bar.risk-moderate {
-  background: #f2d98a;
-}
-
-.mission-risk-bar.risk-high {
-  background: #f0b3b3;
+.mission-card.risk-high {
+  --stripe: var(--danger-soft);
 }
 
 .mission-card-summary {
@@ -1496,18 +2762,18 @@ button.danger:hover {
 .mission-card-duration {
   flex: none;
   font-size: 0.78rem;
-  color: #9a97a8;
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .mission-card-chevron {
   flex: none;
-  color: #6f6c7d;
+  color: var(--text-disabled);
 }
 
 .mission-card-body {
   padding: 0 0.7rem 0.7rem;
-  border-top: 1px solid #2c2e3d;
+  border-top: 1px solid var(--line);
 }
 
 .mission-squad-button,
@@ -1516,28 +2782,9 @@ button.danger:hover {
   min-height: var(--tap);
 }
 
-.mission-risk {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.mission-risk.risk-low {
-  color: #8fd19e;
-}
-
-.mission-risk.risk-moderate {
-  color: #f2d98a;
-}
-
-.mission-risk.risk-high {
-  color: #f0b3b3;
-}
-
 .mission-meta {
   font-size: 0.8rem;
-  color: #9a97a8;
+  color: var(--text-3);
   margin: 0.35rem 0;
 }
 
@@ -1547,16 +2794,159 @@ button.danger:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.78rem;
-  color: #8fd19e;
+  color: var(--positive);
   margin: 0.1rem 0 0;
 }
 
 
 
-.mission-preview {
+/* `.mission-preview` retired in step 13 — its one run-on sentence became the muster
+   commit block in the sheet footer, and its `--info-soft` was the only use of info-blue
+   for a combat verdict anywhere in the game. */
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * EVENT TOAST (§13) — the transient half of the notification system.
+ *
+ * `z-index: 19` is deliberate: one *below* `.app-hud` (20). `.app-hud` is an opaque
+ * `--bg`, so a translateY(-100%) entry is genuinely occluded mid-slide rather than
+ * faked, `.resource-detail` (22) always wins the space when the player expands it,
+ * and the strip paints over `.app-screen` without displacing it — a toast that
+ * pushed layout would reflow the whole screen twice.
+ *
+ * Chrome, not an overlay: no scrim, blocks nothing, self-dismissing. The queue
+ * pauses while a sheet is open rather than rendering above its scrim — see
+ * EventToast.tsx.
+ * ───────────────────────────────────────────────────────────────────────── */
+.event-toast {
+  position: fixed;
+  top: calc(var(--safe-t) + var(--strip-h) + 1px); /* + the .app-hud hairline */
+  left: 0;
+  right: 0;
+  z-index: 19;
+  max-width: 480px;
+  margin: 0 auto;
+  /* 4 + 19 + 17 + 4 = 44px = var(--tap). The whole strip is the hit area, which is
+     why there is no close button — one would cost 44px of a 480px column. */
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface);
+  border-left: 3px solid var(--stripe, var(--line));
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  animation: toast-in var(--t-base) var(--ease-out) 1;
+}
+
+.event-toast.leaving {
+  animation: toast-out var(--t-fast) var(--ease-out) 1 forwards;
+}
+
+.event-toast p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The proper noun — a place, a building, a person (§3's entity-name tier). */
+.event-toast-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+/* The verb and its outcome. §13's "2-line strip" means two fields, not four lines. */
+.event-toast-line {
   font-size: 0.8rem;
-  color: #a9b4f5;
-  margin: 0 0 0.5rem;
+  line-height: 1.3;
+  color: var(--text-3);
+}
+
+/*
+ * Severity, not entity state. `.stripe.is-injured` means "this row is an injured
+ * disciple"; a toast needs "this news is bad" — overloading the entity-state names onto
+ * event severity is how a design system rots. Tokens are reused; only the names are new.
+ * `--danger` for a death is the one genuinely new stripe: §6's injury tint is
+ * `--danger-edge`, deliberately dim, and a death must be the loudest thing on screen.
+ */
+.event-toast.sev-gain {
+  --stripe: var(--positive);
+}
+
+.event-toast.sev-holding {
+  --stripe: var(--gold);
+}
+
+.event-toast.sev-doctrine {
+  --stripe: var(--jade);
+}
+
+.event-toast.sev-world {
+  --stripe: var(--info);
+}
+
+.event-toast.sev-fail {
+  --stripe: var(--warn);
+}
+
+.event-toast.sev-injury {
+  --stripe: var(--danger-edge);
+}
+
+.event-toast.sev-loss {
+  --stripe: var(--danger);
+}
+
+/* One transform and one opacity on one element: GPU-composited, no layout, no reflow.
+   §17 already budgeted this slot ("Arrival — new report/toast slides in over --t-base"),
+   so it costs nothing new. Departure is quicker than arrival, deliberately. */
+@keyframes toast-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+/* Step 9's precedent: drop the movement, keep the information. The toast still appears
+   and still holds for its full duration — only the slide goes. */
+@media (prefers-reduced-motion: reduce) {
+  .event-toast,
+  .event-toast.leaving {
+    animation-duration: 100ms;
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
 }
 
 .mission-card > button {
@@ -1566,14 +2956,12 @@ button.danger:hover {
 .active-mission-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .active-mission-card {
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
+  background: var(--bg);
   padding: 0.85rem 1rem;
 }
 
@@ -1590,7 +2978,7 @@ button.danger:hover {
 .active-mission-header span {
   flex: none;
   font-variant-numeric: tabular-nums;
-  color: #9a97a8;
+  color: var(--text-3);
   font-size: 0.82rem;
 }
 
@@ -1600,36 +2988,56 @@ button.danger:hover {
   white-space: nowrap;
 }
 
-/* Scoped to the panel: CollapsibleList renders a bare <ul> with no class of its own. */
-.mission-log-panel ul {
+/*
+ * One chronicle list for all three log panels (mission log, Sect Chronicle, expedition
+ * log). `.event-log-list` previously had no rule at all, so the World chronicle shipped
+ * with browser disc bullets and a 40px indent. The descendant selector stays because
+ * MissionLogPanel's CollapsibleList renders a bare <ul> with no class of its own.
+ * Roadmap item 8 renames these to `.chronicle-*`.
+ */
+.mission-log-panel ul,
+.mission-log-list,
+.event-log-list {
   list-style: none;
-  margin: 0.75rem 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
 
-.mission-log-entry {
-  border-left: 3px solid #2c2e3d;
-  padding: 0.3rem 0.75rem;
+/* Expedition incidents: a nested list, so tighter and without a second stripe. */
+.event-log-list ul {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.mission-log-entry,
+.event-log-list > li {
+  border-left: 3px solid var(--line);
+  padding: 0.3rem var(--space-2);
   font-size: 0.9rem;
+  line-height: 1.6; /* Chronicles are narration, not rows (§3). */
 }
 
 .mission-log-entry.success {
-  border-left-color: #8fd19e;
+  border-left-color: var(--positive);
 }
 
 .mission-log-entry.failure {
-  border-left-color: #f0b3b3;
+  border-left-color: var(--danger-soft);
 }
 
 .mission-log-entry.world {
-  border-left-color: #6d7dd1;
+  border-left-color: var(--info);
 }
 
 .mission-log-entry.narrative {
-  border-left-color: #f2d98a;
+  border-left-color: var(--gold);
 }
 
 /* Crafting & Inventory */
@@ -1644,8 +3052,19 @@ button.danger:hover {
   margin-top: 1.5rem;
 }
 
+/*
+ * Sub-headings that follow content rather than a panel title need the same break.
+ * The dimmer text keeps them a clear step below the gold h2; entity-name h3s inside
+ * cards stay at full --text brightness, so it is set here and not on the h3 rule.
+ */
+.inventory-subheading,
+.debug-subheading {
+  margin-top: var(--space-3);
+  color: var(--text-2);
+}
+
 .recipe-card.selected {
-  border-color: #f2d98a;
+  --edge: var(--gold);
   background: #1f1c12;
 }
 
@@ -1676,15 +3095,15 @@ button.danger:hover {
 
 /* Completed research: still readable, clearly not actionable. */
 .recipe-card.completed .recipe-card-header h3 {
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .recipe-card.completed .recipe-cost-line {
-  color: #8fd19e;
+  color: var(--positive);
 }
 
 .crafting-in-progress {
-  margin: 0.75rem 0 1rem;
+  margin: var(--space-2) 0 1rem;
 }
 
 .recipe-grid {
@@ -1693,15 +3112,21 @@ button.danger:hover {
   gap: 0.5rem;
 }
 
+/*
+ * §8's "one card primitive" in the only form worth the diff: these two were byte-identical
+ * parallel implementations, and `.recipe-card` was already doing duty for `.location-card`
+ * and `.card-static`. Four of §8's names, one rule. The root treatment (stripe, edge,
+ * radius) lives in the record-card group near the top of this file — add new record types
+ * THERE, not in a new rule.
+ */
+.mission-card,
 .recipe-card {
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
+  background: var(--bg);
   overflow: hidden;
 }
 
 .recipe-card.expanded {
-  border-color: #4a4d63;
+  --edge: var(--line-raised);
 }
 
 /* Unaffordable is readable without expanding — the cost line is the tell. */
@@ -1750,17 +3175,17 @@ button.danger:hover {
   white-space: nowrap;
   margin-top: 0.1rem;
   font-size: 0.76rem;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .recipe-card-chevron {
   flex: none;
-  color: #6f6c7d;
+  color: var(--text-disabled);
 }
 
 .recipe-card-body {
   padding: 0 0.7rem 0.7rem;
-  border-top: 1px solid #2c2e3d;
+  border-top: 1px solid var(--line);
 }
 
 .recipe-craft-button {
@@ -1768,24 +3193,16 @@ button.danger:hover {
   min-height: var(--tap);
 }
 
-.recipe-discipline {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6d7dd1;
-  white-space: nowrap;
-}
-
 .recipe-meta {
   font-size: 0.8rem;
-  color: #9a97a8;
+  color: var(--text-3);
   margin: 0.35rem 0 0.6rem;
 }
 
 
 .inventory-list {
   list-style: none;
-  margin: 0.75rem 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: 1fr;
@@ -1798,22 +3215,13 @@ button.danger:hover {
   flex-wrap: wrap;
   gap: 0.4rem;
   min-height: var(--tap);
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 6px;
+  background: var(--bg);
+  border-radius: 0 6px 6px 0;
   padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
 }
 
 /* Quality colour as a leading dot; neutral for materials, which have no quality. */
-.inventory-dot {
-  flex: none;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: #4a4d63;
-}
-
 .inventory-name {
   flex: 1;
   min-width: 0;
@@ -1823,15 +3231,13 @@ button.danger:hover {
 }
 
 .inventory-category {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6d7dd1;
+  font-size: 0.72rem;
+  color: var(--info);
 }
 
 .inventory-rarity {
   font-size: 0.75rem;
-  color: #8fd19e;
+  color: var(--positive);
 }
 
 .inventory-quality {
@@ -1841,7 +3247,7 @@ button.danger:hover {
 
 .inventory-qty {
   font-variant-numeric: tabular-nums;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .inventory-affixes {
@@ -1850,17 +3256,17 @@ button.danger:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.72rem;
-  color: #b98cf0;
+  color: var(--rare);
 }
 
 .equipment-slot-affixes {
-  color: #b98cf0;
+  color: var(--rare);
 }
 
 .inventory-subtitle {
   font-size: 0.72rem;
   font-weight: 400;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 .inventory-provenance,
@@ -1878,25 +3284,25 @@ button.danger:hover {
   gap: 0.15rem;
   padding: 0.5rem 0.65rem;
   margin-bottom: 0.5rem;
-  border: 1px solid #8fd19e55;
-  border-radius: 6px;
-  background: #8fd19e11;
+  border-left: 3px solid var(--positive-edge);
+  border-radius: 0 6px 6px 0;
+  background: var(--positive-bg);
 }
 
 .equipment-set-name {
   font-weight: 600;
-  color: #8fd19e;
+  color: var(--positive);
 }
 
 .equipment-set-bonuses {
   font-size: 0.78rem;
-  color: #c8c5d6;
+  color: var(--text-2);
 }
 
 .equipment-set-lore {
   font-size: 0.72rem;
   font-style: italic;
-  color: #9a97a8;
+  color: var(--text-3);
 }
 
 
@@ -1910,7 +3316,7 @@ button.danger:hover {
 .offline-summary-sections h3 {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
-  color: #8fd19e;
+  color: var(--positive);
 }
 
 .collapse-toggle {
@@ -1921,13 +3327,13 @@ button.danger:hover {
   padding: 0.3rem 0.6rem;
   background: transparent;
   border: none;
-  color: #9a97a8;
+  color: var(--text-3);
   font-size: 0.82rem;
 }
 
 .collapse-toggle:hover {
   background: transparent;
-  color: #f2d98a;
+  color: var(--gold);
 }
 
 .collapse-arrow {
@@ -1979,7 +3385,7 @@ button.danger:hover {
 
 .decision-event-choice-description {
   display: block;
-  color: #9a97a8;
+  color: var(--text-3);
   font-size: 0.8rem;
   margin-top: 0.2rem;
 }
@@ -1993,18 +3399,25 @@ button.danger:hover {
     calc(var(--bar-h) + var(--safe-b) + var(--space-3));
 }
 
+/*
+ * The game's name, §3's one 1.75rem title. It was a 0.78rem grey uppercase kicker above
+ * a 1.5rem "Found Your Sect" — the title of the game set smaller than the step it sits on.
+ */
 .founding-game-title {
   margin: 0;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #8b889a;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--gold);
 }
 
+/* Now the screen title beneath the game title, so it takes the 1.25rem tier and drops
+   the gold — two gold headings stacked would compete. */
 .founding-header h1 {
-  color: #f2d98a;
-  margin: 0.2rem 0 0.25rem;
-  font-size: 1.5rem;
+  color: var(--text);
+  margin: 0.35rem 0 var(--space-1);
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .founding-steps {
@@ -2026,21 +3439,21 @@ button.danger:hover {
 }
 
 .founding-steps li {
-  color: #8b889a;
+  color: var(--text-4);
   font-size: 0.9rem;
   padding: 0.3rem 0.7rem;
-  border: 1px solid #2c2e3d;
+  border: 1px solid var(--line);
   border-radius: 999px;
 }
 
 .founding-steps li.active {
-  color: #f2d98a;
-  border-color: #6a5a2a;
+  color: var(--gold);
+  border-color: var(--gold-edge);
   background: #26241a;
 }
 
 .founding-steps li.done {
-  color: #9fd0a2;
+  color: var(--positive);
   border-color: #315a34;
 }
 
@@ -2054,27 +3467,27 @@ button.danger:hover {
 .founding-card {
   display: block;
   text-align: left;
-  background: #16171f;
-  border: 1px solid #2c2e3d;
-  border-radius: 10px;
+  background: var(--bg);
+  border-radius: 0 10px 10px 0;
   padding: 1rem 1.1rem;
   cursor: pointer;
 }
 
 .founding-card:hover {
-  border-color: #3d3f52;
-  background: #1b1d29;
+  --edge: var(--line-strong);
+  background: var(--surface);
 }
 
+/* Full --gold, and the doubled ring goes (§5: no shadow on inline cards). With no
+   resting box, a gold edge appearing is the whole signal — it needs no reinforcement. */
 .founding-card.selected {
-  border-color: #6a5a2a;
+  --edge: var(--gold);
   background: #201f16;
-  box-shadow: 0 0 0 1px #6a5a2a;
 }
 
 .founding-card h3 {
   margin: 0 0 0.35rem;
-  color: #e8e6df;
+  color: var(--text);
 }
 
 .founding-card-meta {
@@ -2083,7 +3496,7 @@ button.danger:hover {
 
 .founding-card-desc {
   font-size: 0.88rem;
-  color: #c7c4d2;
+  color: var(--text-2);
   margin: 0.35rem 0 0.6rem;
 }
 
@@ -2096,9 +3509,9 @@ button.danger:hover {
 
 .founding-chip {
   font-size: 0.78rem;
-  color: #c7c4d2;
-  background: #23252f;
-  border: 1px solid #2c2e3d;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.15rem 0.45rem;
 }
@@ -2114,7 +3527,7 @@ button.danger:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
-  margin: 0.75rem 0;
+  margin: var(--space-2) 0;
 }
 
 .node-filter-row .founding-chip-row {
@@ -2126,21 +3539,21 @@ button.danger:hover {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.78rem;
-  color: #c7c4d2;
+  color: var(--text-2);
 }
 
 .node-filter-select {
   font-size: 0.78rem;
-  color: #c7c4d2;
-  background: #23252f;
-  border: 1px solid #2c2e3d;
+  color: var(--text-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.15rem 0.4rem;
 }
 
 .node-filter-count {
   font-size: 0.78rem;
-  color: #8f8ca0;
+  color: var(--text-3);
   margin-left: auto;
 }
 
@@ -2148,7 +3561,7 @@ button.danger:hover {
   background: none;
   border: none;
   padding: 0;
-  color: #8fb7ff;
+  color: var(--info-soft);
   text-decoration: underline;
   cursor: pointer;
   font: inherit;
@@ -2166,8 +3579,8 @@ button.danger:hover {
   margin: 0 auto;
   padding: var(--space-2);
   padding-bottom: calc(var(--space-2) + var(--safe-b));
-  background: #12131a;
-  border-top: 1px solid #2c2e3d;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
 }
 
 .founding-nav button {
@@ -2179,22 +3592,21 @@ button.danger:hover {
   margin-left: auto;
 }
 
-button.secondary {
-  background: transparent;
-  color: #b9b6c6;
-}
+/* NOTE: there is deliberately no `button.secondary`. §7's Secondary tier *is* the bare
+   `button` rule; FoundingScreen's old `.secondary` was transparent — that's Quiet, and it
+   now uses `.quiet`. Defining `.secondary` per §7 would have inverted a live class. */
 
 .founding-warning {
   color: #f0c987;
-  background: #2a2213;
-  border: 1px solid #6a5a2a;
-  border-radius: 8px;
+  background: var(--gold-bg);
+  border-left: 3px solid var(--gold);
+  border-radius: 0 8px 8px 0;
   padding: 0.6rem 0.8rem;
   margin: 1rem 0;
 }
 
 .spirit-vein-badge strong {
-  color: #b8a2e0;
+  color: var(--rare);
 }
 
 .modifier-list {
@@ -2211,7 +3623,7 @@ button.secondary {
 }
 
 .modifier-list li.mod-good {
-  color: #9fd0a2;
+  color: var(--positive);
 }
 
 .modifier-list li.mod-bad {
@@ -2224,36 +3636,53 @@ button.secondary {
 }
 
 /* Segmented control: equal widths, full bleed, scrolls if labels don't fit at 360px. */
-.world-subnav {
+/*
+ * THE SEGMENTED CONTROL (§9). One inset track for the whole game — it reads as carved stone
+ * rather than a web tab strip, which is why §9 picks it over the underline pattern. The
+ * active segment's `#3a3550` literal became `--surface-raised`, the token §5 already
+ * reserves for "selected rows, active chips".
+ */
+.segmented {
   display: flex;
   gap: 2px;
-  margin-bottom: var(--space-2);
-  padding: 2px;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
-.world-subnav::-webkit-scrollbar {
-  display: none;
-}
-
-.world-subnav button {
-  flex: 1 0 auto;
-  min-height: var(--tap);
-  padding: 0.4rem 0.6rem;
+.segmented-item {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
   background: transparent;
   border: none;
   border-radius: 6px;
-  font-size: 0.82rem;
+  color: var(--text-3);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.world-subnav button.active {
-  background: #3a3550;
-  color: #f2d98a;
+.segmented-item:hover {
+  color: var(--text-2);
+}
+
+.segmented-item.active {
+  background: var(--surface-raised);
+  color: var(--gold);
+}
+
+.world-subnav {
+  margin-bottom: var(--space-2);
 }
 
 .world-view-header {
@@ -2267,29 +3696,8 @@ button.secondary {
   margin: 0;
 }
 
-.world-view-toggle {
-  display: flex;
-  flex: none;
-  gap: 2px;
-  padding: 2px;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
-}
-
-.world-view-toggle button {
-  min-height: var(--tap);
-  padding: 0.2rem 0.7rem;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.78rem;
-}
-
-.world-view-toggle button.active {
-  background: #3a3550;
-  color: #f2d98a;
-}
+/* `.world-view-toggle` was deleted in step 11 — its Sites/Map options are now segments of
+   the one World subnav, which removed a whole nav strip from the top of the screen. */
 
 /*
  * Sites list — the default view. The map is 1000×700, so in a portrait column it
@@ -2309,33 +3717,26 @@ button.secondary {
   gap: 0.6rem;
   width: 100%;
   min-height: var(--tap);
-  padding: 0.4rem 0.6rem 0.4rem 0;
-  background: #12131a;
-  border: 1px solid #2c2e3d;
-  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg);
   color: inherit;
   text-align: left;
   overflow: hidden;
 }
 
 /* Same ownership colours as the map nodes, so the two views can't disagree. */
-.site-row-tier {
-  flex: none;
-  align-self: stretch;
-  width: 4px;
-  background: #4a4f60;
+/* Ownership colour is fixed game-wide (§2.2). Was a 4px child <span>; it is the same
+   stripe as every other record now, so the span is gone from both call sites. */
+.site-row.owner-player {
+  --stripe: var(--gold);
 }
 
-.site-row.owner-player .site-row-tier {
-  background: #f2d98a;
+.site-row.owner-npc {
+  --stripe: var(--warn);
 }
 
-.site-row.owner-npc .site-row-tier {
-  background: #d97a6b;
-}
-
-.site-row.owner-neutral .site-row-tier {
-  background: #7fae86;
+.site-row.owner-neutral {
+  --stripe: var(--positive-edge);
 }
 
 .site-row-text {
@@ -2354,20 +3755,12 @@ button.secondary {
 .site-row-owner {
   display: block;
   font-size: 0.74rem;
-  color: #9a97a8;
-}
-
-.site-row-tier-label {
-  flex: none;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #8b889a;
+  color: var(--text-3);
 }
 
 .site-row-chevron {
   flex: none;
-  color: #6f6c7d;
+  color: var(--text-disabled);
 }
 
 /* Standings reuse the site-row shape; strength trails, tabular so it doesn't jitter. */
@@ -2376,7 +3769,7 @@ button.secondary {
   font-size: 0.9rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: #f2d98a;
+  color: var(--gold);
   padding-right: 0.6rem;
 }
 
@@ -2391,95 +3784,161 @@ button.secondary {
   overflow-x: auto;
 }
 
+/* The ground moved into the SVG itself as layered ink (§16.5): paper, wash, two ridges,
+   grain and a vignette. A single CSS radial-gradient can't do ridges or grain. */
 .world-map-svg {
   width: 100%;
   max-width: 100%;
   height: auto;
-  background: radial-gradient(circle at 50% 40%, #1b2430, #12131a 70%);
   border-radius: 8px;
 }
 
 
-.world-map-node circle {
-  fill: #232735;
-  stroke: #4a4f60;
-  stroke-width: 3;
-  transition: fill 0.15s, stroke 0.15s;
+/*
+ * SEAL NODES (§16.5): a filled disc inside a thin outer ring. Site *state* rides the disc and
+ * *ownership* rides the ring, so the two can never overwrite each other — which they did when
+ * both lived on one circle's fill and stroke.
+ */
+.world-map-node .node-disc {
+  fill: var(--surface);
+  transition: fill var(--t-fast) var(--ease);
 }
 
-.world-map-node.reachable circle {
+.world-map-node .node-ring {
+  fill: none;
+  stroke: var(--line-raised);
+  stroke-width: 2.5;
+  transition: stroke var(--t-fast) var(--ease);
+}
+
+.world-map-node.reachable .node-disc {
   fill: #2a3245;
+}
+
+.world-map-node.reachable .node-ring {
   stroke: #6b7794;
   stroke-dasharray: 5 4;
 }
 
-.world-map-node.discovered circle {
-  fill: #2c3a2f;
-  stroke: #7fae86;
+.world-map-node.discovered .node-disc {
+  fill: var(--positive-bg);
 }
 
-.world-map-node.sect circle {
-  fill: #3a3320;
-  stroke: #f2d98a;
-  stroke-width: 4;
+.world-map-node.discovered .node-ring {
+  stroke: var(--positive-edge);
 }
 
-.world-map-node.locked circle {
-  fill: #1a1b22;
-  stroke: #33353f;
+.world-map-node.sect .node-disc,
+.world-map-node.owner-player .node-disc {
+  fill: var(--gold-bg);
 }
 
-.world-map-node:not(.locked):hover circle {
-  stroke: #f2d98a;
+.world-map-node.sect .node-ring,
+.world-map-node.owner-player .node-ring {
+  stroke: var(--gold);
+  stroke-width: 3.5;
 }
 
+/*
+ * "Discovery should feel like ink appearing" (§16.5): an unknown site fades toward the paper
+ * instead of taking a distinct locked grey. It's the only state with group opacity below 1 and
+ * a disc that matches the ground — a presence difference, not a hue, so a dashed distant-but-
+ * known site can never be mistaken for it.
+ */
+.world-map-node.locked {
+  opacity: 0.55;
+}
+
+.world-map-node.locked .node-disc {
+  fill: var(--bg);
+}
+
+.world-map-node.locked .node-ring {
+  stroke: var(--line);
+  stroke-opacity: 0.45;
+}
+
+.world-map-node:not(.locked):hover .node-ring {
+  stroke: var(--gold);
+}
+
+/*
+ * All 32 labels render; only the seat, the selection and the hovered node are visible. A
+ * 10-character label is ~62px, so 32 at once is ~2000px of text inside a 432px box — the
+ * darker ground doesn't change that arithmetic. Reveal is CSS, so it costs no motion budget.
+ */
 .world-map-label {
-  fill: #e8e6df;
+  fill: var(--text);
   font-size: 22px;
   font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.world-map-label.shown,
+.world-map-node:hover .world-map-label {
+  opacity: 1;
+}
+
+/* The rules text, now below the map rather than above it. */
+.world-map-rules {
+  margin: var(--space-3) 0 0;
 }
 
 
 .world-map-node.locked .world-map-label {
-  fill: #6b6d78;
+  fill: var(--text-disabled);
 }
 
 /* First Realm sect-site ownership colouring (FIRST_REALM_PLAN §7). */
-.world-map-node.owner-player circle {
-  fill: #3a3320;
-  stroke: #f2d98a;
-  stroke-width: 4;
-}
 
-.world-map-node.owner-npc circle {
+
+.world-map-node.owner-npc .node-disc {
   fill: #3a2320;
-  stroke: #d97a6b;
 }
 
-.world-map-node.owner-neutral circle {
+.world-map-node.owner-npc .node-ring {
+  stroke: var(--warn);
+}
+
+.world-map-node.owner-neutral .node-disc {
   fill: #223420;
-  stroke: #7fae86;
+}
+
+.world-map-node.owner-neutral .node-ring {
+  stroke: var(--positive-edge);
   stroke-dasharray: 5 4;
 }
 
-.world-map-node.site-tier-good circle {
-  stroke-width: 5;
+.world-map-node.site-tier-good .node-ring {
+  stroke-width: 4;
 }
 
-.world-map-node.selected circle {
+.world-map-node.selected .node-ring {
   stroke: #ffffff;
+  stroke-width: 4;
 }
 
-.world-map-node:hover circle {
-  filter: brightness(1.2);
+/* Tier survives any owner colour as an inner hairline, rather than competing for the ring. */
+.world-map-node.site-tier-good .node-disc {
+  stroke: var(--gold-edge);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
 }
 
 .standings-card.declining {
   opacity: 0.6;
 }
 
+/*
+ * §16.5 asks for "a very low-opacity --gold-wash fill so holdings read as area" — which was
+ * already here. Note for anyone tempted to add `fill-opacity` on top: `--gold-wash` is itself
+ * `rgba(242, 217, 138, 0.08)`, so a further 0.1 multiplies to 0.008 alpha and erases the fill
+ * instead of tuning it. Adjust the token, or use a separate rgba, never both.
+ */
 .world-map-influence {
-  fill: rgba(242, 217, 138, 0.08);
+  fill: var(--gold-wash);
   stroke: rgba(242, 217, 138, 0.35);
   stroke-width: 2;
   stroke-dasharray: 6 5;
@@ -2496,8 +3955,8 @@ button.secondary {
 }
 
 .assign-disciple-choice.selected {
-  background: #2c3a2f;
-  border-color: #7fae86;
+  background: var(--positive-bg);
+  --edge: var(--positive-edge);
 }
 
 .dispatch-cycle-stepper {
@@ -2512,16 +3971,177 @@ button.secondary {
   font-size: 1rem;
 }
 
-.dispatch-preview {
-  background: #1b1c24;
+.dispatch-preview,
+.muster-brief {
+  background: var(--surface-sunken); /* §5: content well inside a sheet. */
   border-radius: 6px;
   padding: 0.6rem 0.8rem;
   margin: 0.6rem 0;
   font-size: 0.85rem;
 }
 
-.dispatch-preview p {
-  margin: 0.25rem 0;
+.dispatch-preview p,
+.muster-brief p {
+  margin: var(--space-1) 0;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * MUSTER — the pre-battle preparation vocabulary (§16.4's first half).
+ *
+ * Three surfaces are the same decision wearing three faces: the expedition
+ * dispatch sheet, the mission squad sheet and the garrison sheet. Each answers
+ * "who goes · what they face · what it costs" in that order. The brief is
+ * static and sits above the roster; the commit block is live and is pinned in
+ * the sheet footer, because §16.4's "this is where tension is built" means the
+ * stakes have to be visible at the moment the thumb lands — not scrolled past
+ * on the way down.
+ *
+ * Shared vocabulary: left stripe = threat · --gold = your strength · --warn =
+ * theirs · display-face tier-coloured line = the verdict · --danger-soft
+ * sentence above the button = the cost.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Threat rides the stripe on the same ladder `.mission-card.risk-*` already
+   uses, so world danger and mission risk finally read as one scale. */
+.muster-brief {
+  border-left: 3px solid var(--stripe, var(--line));
+  border-radius: 0 6px 6px 0;
+}
+
+.muster-brief.threat-low {
+  --stripe: var(--positive);
+}
+
+.muster-brief.threat-mid {
+  --stripe: var(--gold);
+}
+
+.muster-brief.threat-high {
+  --stripe: var(--danger-soft);
+}
+
+/* Seat conquest — the one irreversible action in the game, and so the only
+   red-striped brief. No fill: §2.2 says accents are strokes and stripes, and
+   the old `.founding-warning` gold *fill* here was both off-rule and spending
+   gold the confirm button needs. `.founding-warning` itself is untouched — it
+   still belongs to the founding screen. */
+.muster-brief.grave {
+  --stripe: var(--danger);
+  background: none;
+  padding-left: 0.8rem;
+}
+
+.muster-brief.grave p {
+  color: var(--danger-soft);
+}
+
+/* The ground line teaches an invisible mechanic: TERRAIN_EFFECTS' multiplier is
+   already baked into the defender power below, so this reads as the reason that
+   number is what it is. The battle report already names terrain after the
+   fact — this is consistency, not invention. */
+.muster-ground {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.muster-facts {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.muster-commit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.muster-commit p {
+  margin: 0;
+}
+
+/* Who is going. `DiscipleSelectList` paginates five at a time, so a party drawn
+   from two pages was previously invisible as a whole — the party *is* the
+   decision. Clamped to two lines: this is the first thing sacrificed if the
+   block ever runs tall, never the verdict and never the consequence. */
+.muster-party {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.muster-party.empty {
+  color: var(--text-4);
+}
+
+/* The verdict reuses step 10's outcome-tier ladder, one size down (1rem against
+   the report's 1.5rem) so the prediction never outshouts the outcome. The report
+   you read later is coloured like the odds you accepted. */
+.muster-verdict {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--verdict, var(--gold));
+}
+
+.muster-verdict.tier-5,
+.muster-verdict.tier-4 {
+  --verdict: var(--positive);
+}
+
+.muster-verdict.tier-3,
+.muster-verdict.tier-2 {
+  --verdict: var(--gold);
+}
+
+.muster-verdict.tier-1 {
+  --verdict: var(--danger-soft);
+}
+
+.muster-verdict.tier-0 {
+  --verdict: var(--danger);
+}
+
+.muster-powers {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.muster-power-own {
+  color: var(--gold); /* §2.2: gold is the player's own, everywhere. */
+}
+
+.muster-power-other {
+  color: var(--warn);
+  text-align: right;
+  min-width: 0;
+}
+
+/*
+ * ⚠ The bar is texture under the verdict, never the statement itself.
+ * `winProbability` is defender-favoured — "Even Footing" is p ≥ 0.28, i.e.
+ * already a losing position — so a 50% power share is NOT a 50% win chance.
+ * Therefore: the worded band must always be present, and this bar must never be
+ * rebound to `band.tier`. Same discipline as step 8 (words above the button,
+ * not geometry) and step 11 (the stage-mark reversion).
+ */
+.progress-bar.opposed {
+  height: 6px;
+  background: var(--warn);
+}
+
+.progress-bar-fill.own {
+  background: var(--gold);
 }
 
 
@@ -2577,7 +4197,7 @@ button.secondary {
   height: 1.1rem;
   padding: 0 0.3rem;
   border-radius: 999px;
-  background: #c85c5c;
+  background: var(--danger);
   color: #fff;
   font-size: 0.7rem;
   font-weight: 700;
@@ -2609,36 +4229,36 @@ button.secondary {
   flex: none;
   min-height: var(--tap);
   background: transparent;
-  border: 1px solid #2c2e3d;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 0.3rem 0.75rem;
-  color: #9a97a8;
+  padding: 0.3rem var(--space-2);
+  color: var(--text-3);
   font-size: 0.82rem;
   white-space: nowrap;
 }
 
 .reports-filter-chips .chip:hover {
-  color: #e8e6df;
+  color: var(--text);
 }
 
 .reports-filter-chips .chip.active {
-  border-color: #f2d98a;
-  color: #f2d98a;
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 .reports-unread-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #8b889a;
+  color: var(--text-4);
   font-size: 0.82rem;
   margin-left: 0.4rem;
 }
 
 .reports-mark-all {
-  background: #2c2e3d;
-  border: 1px solid #3d3f52;
-  color: #e8e6df;
+  background: var(--line);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
   font-size: 0.82rem;
 }
 
@@ -2656,12 +4276,9 @@ button.secondary {
   text-align: left;
   width: 100%;
   min-height: var(--tap);
-  background: #16171f;
-  border: 1px solid #2c2e3d;
-  border-left: 3px solid #2c2e3d;
-  border-radius: 8px;
+  background: var(--bg);
   padding: 0.5rem 0.7rem;
-  color: #e8e6df;
+  color: var(--text);
 }
 
 .report-card-title,
@@ -2673,16 +4290,18 @@ button.secondary {
 }
 
 .report-card:hover {
-  border-color: #3d3f52;
+  --edge: var(--line-strong);
 }
 
 .report-card.unread {
-  border-left-color: #f2d98a;
+  --stripe: var(--gold);
 }
 
+/* --surface-raised, not --surface: the resting card now sits at --bg, and --surface would
+   make a selected report exactly the panel behind it — selecting it would erase it. */
 .report-card.selected {
-  background: #1b1d29;
-  border-color: #f2d98a;
+  background: var(--surface-raised);
+  --edge: var(--gold);
 }
 
 .report-card-title {
@@ -2697,46 +4316,824 @@ button.secondary {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: #f2d98a;
+  background: var(--gold);
   flex-shrink: 0;
 }
 
+/* Layout only — the badge rule owns the rest. */
 .report-card-tier {
   margin-left: auto;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #8b889a;
 }
 
 .report-card-tier.tier-crushing,
 .report-card-tier.tier-decisive,
 .report-card-tier.tier-narrow {
-  color: #8fd19e;
+  color: var(--positive);
 }
 
 .report-card-tier.tier-draw,
 .report-card-tier.tier-fightingRetreat {
-  color: #f2d98a;
+  color: var(--gold);
 }
 
 .report-card-tier.tier-defeat,
 .report-card-tier.tier-catastrophic {
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
 .report-card-meta {
   font-size: 0.78rem;
-  color: #8b889a;
+  color: var(--text-4);
 }
 
 .report-card-roster {
   font-size: 0.78rem;
-  color: #7d7a8c;
+  color: var(--text-4);
 }
 
 .report-card-deaths {
-  color: #f0b3b3;
+  color: var(--danger-soft);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * PARCHMENT — the Disciples screen (OMA, 2026-08-12 · rebuilt on Set E art 2026-08-15)
+ *
+ * The game's whole ground is inverted here: light parchment cards on a deep green
+ * ground, instead of dark cards on near-black. This deliberately contradicts two
+ * recorded decisions — step 3's de-boxing of twelve card types, and §2.2's
+ * "accents are strokes and stripes, never fills". Both are declared in §23.
+ *
+ * THE COMPOSITION (2026-08-15). The screen used to open with an administrative ledger
+ * card: headcount, capacity, upkeep and two buttons, all above the first face. That
+ * block is now two quiet register lines and the plate opens the screen. Below it the
+ * roll is grouped under realm rules, highest realm first — a person's realm *is* their
+ * rank in a cultivation world, so the grouping shows the sect's spiritual altitude and
+ * lets every card drop the realm name and carry only its stage ordinal.
+ *
+ * WHY IT'S SCOPED: every rule below is a descendant of `.parchment`, the token-only class
+ * above, which `DisciplesScreen` puts around the roster alongside `.disciples-parchment`
+ * (layout, the negative margin and the green ground — roster-only, and deliberately not
+ * generalised, §19). The other eight screens are untouched. The split is what lets a
+ * portalled `BottomSheet` opt into this surface; `:root` graduation is a separate decision
+ * and is NOT a prerequisite for it.
+ * ═════════════════════════════════════════════════════════════════════════ */
+/*
+ * THE PARCHMENT LADDER — tokens only, no layout.
+ *
+ * Split out of `.disciples-parchment` so it can be mounted more than once. Custom properties
+ * inherit from the element that declares them, and `createPortal` does not change that — so
+ * putting this class on `.sheet-panel` gives a portalled sheet the full ladder without the
+ * tokens graduating to `:root`. §12 and §19 both say that graduation is the only fix for the
+ * portalled detail sheet; it is not, and this class is why. The real blocker was the 85
+ * ancestor selectors below, which is why they now key off `.parchment` rather than off the
+ * roster's own wrapper.
+ *
+ * Mount points: `DisciplesScreen`'s wrapper, and any `BottomSheet` passing `panelClassName`.
+ */
+.parchment {
+  --pg: #16211f; /* ground — deep green-black, not the game's --bg */
+  --parch: #f5efe2; /* card face */
+  --parch-low: #e5dccb; /* card face, foot */
+  --ink: #2a2521; /* text on parchment */
+  --ink-2: #6d6355; /* 5.0:1 on the face */
+  --ink-3: #655c50; /* the card foot */
+  --qi-ink: #236047; /* the realm line: --qi itself is only 4.13:1 on cream */
+  --ready: #6d5210; /* the call to action, 6.2:1 */
+  --edge: #2f4a41; /* card outer rule */
+  --edge-gold: #b08d3a; /* card inner hairline */
+  --qi: #2f7f60; /* the screen's lead accent — green, not gold */
+  --qi-bright: #4fbf90;
+  --seal-gold: #d9b45c;
+}
+
+.disciples-parchment {
+  position: relative;
+  z-index: 0; /* own stacking context, so the fixed ground below can sit at -1 */
+  margin: calc(var(--space-2) * -1);
+  padding: var(--space-2);
+  background: var(--pg);
+}
+
+/*
+ * The ground (asset C1). Fixed rather than scrolling, so the peaks behave like a backdrop
+ * the roster passes in front of instead of a long image dragged along with it.
+ *
+ * Scaled to 130% of the viewport height and anchored near the top: the asset puts its peaks
+ * in the lower two-thirds, which in this composition is where the opaque roll cards sit. At
+ * this size and position the ridge line lands behind the title band and the register, which
+ * is where the ground is actually open.
+ */
+.disciples-parchment::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  /* Constrained to the centred column. `inset: 0` on a fixed element with no transformed
+     ancestor resolves against the *viewport*, so on any window wider than 480px the peaks
+     painted across the whole screen. The transform belongs here, not on the wrapper —
+     transforming the wrapper would re-anchor this to it and make the ground scroll again. */
+  left: 50%;
+  width: 100%;
+  max-width: 480px;
+  transform: translateX(-50%);
+  z-index: -1;
+  pointer-events: none;
+  background:
+    url('./assets/icons/parchment/ground.png') center 20% / auto 130% no-repeat,
+    var(--pg);
+}
+
+.parchment .panel {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+/* --- Title plate ---------------------------------------------------------- */
+/* The band (asset E) is a full cartouche whose centre third is empty by design — that is
+   where the title sits. Its natural aspect is 4.2:1, so at the 456px column it stands
+   115px tall; `100% auto` keeps the fret undistorted. Inset the band if that ever needs
+   to come down — squashing gold linework does not survive. */
+.parchment .roster-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 115px;
+  margin-bottom: var(--space-2);
+  background: url('./assets/icons/parchment/header-band.png') center center / 100% auto no-repeat;
+}
+
+.parchment .roster-titlebar h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #f0e9dc;
+}
+
+/* --- The register: the administrative facts as a colophon, not a card ------ */
+.parchment .roster-register {
+  margin: 0 0 var(--space-3);
+}
+
+.parchment .roster-register-line {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #a9bcb2;
+}
+
+.parchment .roster-register-value {
+  color: var(--seal-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.parchment .roster-register-warn {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--danger-soft);
+}
+
+/*
+ * The recruit foot rides above the tab bar instead of sinking with the roll.
+ *
+ * `sticky`, not `fixed`. Sticky only engages while there is still list below it, so a sect
+ * with three disciples pays nothing and a sect with twelve keeps the action in reach — where
+ * a third fixed bar would spend 44px of the ~600px between the two real ones (§1.6) in every
+ * state. It also settles into its natural place at the end of the roll rather than hovering
+ * over it, so the list still has a proper end.
+ *
+ * The gradient is not decoration: the roll scrolls underneath, so the button needs its own
+ * ground or the cards read straight through the gap around its rounded corners.
+ */
+.parchment .roster-foot {
+  position: sticky;
+  z-index: 3;
+  /* Bottom edge flush with the top of the tab bar, so the ground runs all the way down and
+     no card can show through the gap beneath the button. */
+  bottom: calc(var(--bar-h) + var(--safe-b));
+  margin-top: var(--space-3);
+  padding: 26px 0 var(--space-2);
+  background: linear-gradient(
+    180deg,
+    rgba(22, 33, 31, 0) 0%,
+    rgba(22, 33, 31, 0.85) 40%,
+    var(--pg) 68%,
+    var(--pg) 100%
+  );
+}
+
+.parchment .roster-foot .roster-action {
+  margin-top: 0;
+}
+
+.parchment .roster-action {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin: var(--space-2) 0 0;
+  background: #24332e;
+  border: 1px solid #3f5a50;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: #e4dccb;
+}
+
+.parchment .roster-action.primary {
+  background: #2b3a2c;
+  border-color: var(--edge-gold);
+  color: var(--seal-gold);
+}
+
+.parchment .roster-action:disabled {
+  opacity: 0.45;
+}
+
+/* A new player's first Disciples screen was still an unscoped `.panel-hint` in the old
+   grey — the one moment the language has to be right, and it wasn't. */
+.parchment .roster-empty {
+  margin: var(--space-3) 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: #a9bcb2;
+}
+
+/* --- The realm rule ------------------------------------------------------- */
+/*
+ * §18's calligraphic rule. The tapered brush asset is not generated yet; a hairline that
+ * fades at both ends reads as a tapered stroke at 456px and is the drop-in point — swap the
+ * gradient for `url(...) center / 100% auto no-repeat` when the art lands.
+ */
+.parchment .realm-group {
+  margin-top: var(--space-3);
+}
+
+.parchment .realm-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 26px;
+  margin-bottom: var(--space-2);
+}
+
+.parchment .realm-rule-name {
+  order: 0;
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: #e4dccb;
+}
+
+.parchment .realm-rule::after {
+  content: '';
+  order: 1;
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(228, 220, 203, 0) 0%,
+    rgba(228, 220, 203, 0.5) 22%,
+    rgba(228, 220, 203, 0.5) 78%,
+    rgba(228, 220, 203, 0) 100%
+  );
+}
+
+.parchment .realm-rule-count {
+  order: 2;
+  flex: none;
+  font-size: 0.7rem;
+  color: #8fa39a;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- The card ------------------------------------------------------------- */
+/*
+ * The notched clip-path is gone: the Set E art is drawn with rounded corners, so the card
+ * can use a real border again and the three stacked background layers it needed to fake one
+ * drop out. Edge and gold hairline are `border` + `inset` shadow; the face is one background
+ * pair with the paper multiplied over the warm fill.
+ */
+.parchment .disciple-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.parchment .disciple-card {
+  position: relative;
+  isolation: isolate; /* contains the plate's z-index:-1 wash */
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--edge-gold);
+  background:
+    url('./assets/icons/parchment/paper.png') center / 180px repeat,
+    linear-gradient(180deg, var(--parch) 0%, var(--parch) 55%, var(--parch-low) 100%);
+  background-blend-mode: multiply;
+  clip-path: none;
+}
+
+/* State rides the gold hairline — same two-channel idea the notched card used, now carried
+   by a real inset ring instead of a clipped layer. */
+.parchment .disciple-card.away {
+  box-shadow: inset 0 0 0 1px var(--info);
+}
+
+.parchment .disciple-card.injured {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+/* --- The roll card: a vertical three-up cell ------------------------------ */
+.parchment .disciple-card.compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 7px;
+  text-align: center;
+}
+
+.parchment .disciple-card.compact h3 {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parchment .disciple-compact-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.parchment .disciple-stage {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  color: var(--qi-ink);
+  white-space: nowrap;
+}
+
+/* --- The plate: the one card that is more than it needs to be ------------- */
+/*
+ * §3's "one thing". Material applied to every row is a *ground*, not a peak — a uniform
+ * upgrade raises the floor and within seconds becomes the new baseline. The plate is the
+ * peak: the only lit object on the screen, and the only place §2.2's "never a fill" is
+ * deliberately spent.
+ */
+.parchment .disciple-card.plate {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: var(--space-2);
+}
+
+.parchment .disciple-card.plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* above the card's own background, below its content */
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(75% 90% at 22% 40%, var(--hero-wash, transparent) 0%, transparent 70%);
+}
+
+.parchment .disciple-card.plate.grade-uncommon {
+  --hero-wash: rgba(47, 127, 96, 0.16);
+}
+
+.parchment .disciple-card.plate.grade-rare {
+  --hero-wash: rgba(107, 79, 160, 0.18);
+}
+
+.parchment .disciple-card.plate.grade-genius {
+  --hero-wash: rgba(217, 180, 92, 0.26);
+}
+
+.parchment .disciple-card.plate .disciple-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.parchment .disciple-card.plate .disciple-row-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+/* The person is louder than the stat. The first pass claimed this in a comment and did the
+   opposite — the name was 1.25rem ink and Combat Power was 1.3rem gold in the strongest
+   terminal position, so the stat outranked the person on every row. */
+.parchment .disciple-card.plate h3 {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 1.95rem;
+  font-weight: 600;
+  line-height: 1.12;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parchment .disciple-card.plate .disciple-row-cp {
+  font-size: 1.2rem;
+}
+
+.parchment .disciple-card.plate .disciple-realm {
+  font-size: 1.05rem;
+}
+
+.parchment .disciple-card.plate .disciple-row-bar {
+  height: 14px;
+  margin-top: 4px;
+}
+
+.parchment .disciple-card.plate .disciple-status-line {
+  font-size: 0.78rem;
+  padding-top: 5px;
+  margin-top: 6px;
+}
+
+.parchment .disciple-card.plate .disciple-status-line .lead.ready {
+  font-size: 1.02rem;
+}
+
+/* --- Portrait: the plate wears the frame, the roll card does not ---------- */
+.parchment .disciple-portrait.plate,
+.parchment .disciple-portrait.grid {
+  /* The frame art carries the edge now, so the container drops its own border, radius and
+     inset shadow entirely. `overflow` goes too — the halo sits outside the box. */
+  position: relative;
+  flex: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+}
+
+.parchment .disciple-portrait.plate {
+  width: 118px;
+  height: 151px;
+}
+
+/*
+ * The image is positioned into the frame's interior opening, measured by flood-filling the
+ * art: 6.25%–93.55% across, 5.03%–95.27% down.
+ *
+ * Two traps here, both hit in build. Percentage *padding* resolves against the containing
+ * block's WIDTH on all four sides — against the 428px card, not the 118px plaque — so it
+ * cannot express this. And `inset` alone does not stretch a replaced element: an absolutely
+ * positioned `img` with `width: auto` renders at its intrinsic 340×436 and escapes the card
+ * entirely. Offsets *and* explicit percentage width/height together are the combination that
+ * resolves against the plaque, and it stays correct at any plaque size.
+ *
+ * The arch reaches full width 31% of the way down the opening — that is the elliptical
+ * radius. Portrait and frame are both 0.780, so nothing is stretched.
+ */
+.parchment .disciple-portrait.plate img {
+  position: absolute;
+  top: 5.03%;
+  left: 6.25%;
+  width: 87.3%;
+  height: 90.24%;
+  object-fit: cover;
+  object-position: 50% 0;
+  border-radius: 50% 50% 4px 4px / 31% 31% 2% 2%;
+  background: #efe7d6;
+}
+
+.parchment .disciple-portrait.plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url('./assets/icons/parchment/plaque-frame.png') center / 100% 100% no-repeat;
+}
+
+/*
+ * GRADE IS ON THE FRAME. `drop-shadow` rather than a ring, because it follows the frame
+ * art's arched alpha silhouette; a box-shadow would draw a rectangle around it. Common
+ * stays bare on purpose — absence is the signal for "ordinary".
+ */
+.parchment .disciple-portrait.plate.grade-uncommon::after {
+  filter: drop-shadow(0 0 3px rgba(47, 127, 96, 0.85));
+}
+
+.parchment .disciple-portrait.plate.grade-rare::after {
+  filter: drop-shadow(0 0 4px rgba(107, 79, 160, 0.95));
+}
+
+.parchment .disciple-portrait.plate.grade-genius::after {
+  filter: drop-shadow(0 0 5px rgba(217, 180, 92, 1));
+}
+
+/*
+ * The role mark is a chip on both card shapes, not a nameplate band on the plate.
+ *
+ * The band was tried first, following the mockup, and failed on contact with the art: the
+ * Set E glyphs are a solid pine fill, so knocking them out to white against a dark band
+ * produces a featureless pale blob at 14px, and the band's gradient dulls the bottom of the
+ * portrait it sits on. The cream chip keeps the glyph's own linework, keeps the artwork
+ * clean, and gives the plate and the roll cards one vocabulary instead of two.
+ */
+.parchment .disciple-portrait.plate .disciple-portrait-role,
+.parchment .disciple-portrait.grid .disciple-portrait-role {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 1px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(245, 239, 226, 0.92);
+  box-shadow: 0 0 0 1px rgba(176, 141, 58, 0.5);
+}
+
+.parchment .disciple-portrait.plate .disciple-portrait-role,
+.parchment .disciple-portrait.grid .disciple-portrait-role {
+  width: 21px;
+  height: 21px;
+}
+
+.parchment .disciple-portrait.plate .disciple-portrait-role {
+  /* Inside the arch's interior opening, not on the plaque's outer edge. */
+  right: 9%;
+  bottom: 8%;
+  width: 26px;
+  height: 26px;
+}
+
+.parchment .disciple-portrait.plate .disciple-portrait-role img,
+.parchment .disciple-portrait.grid .disciple-portrait-role img {
+  opacity: 1;
+  filter: none; /* resets the base knock-out — here the glyph sits on a cream chip */
+}
+
+.parchment .disciple-portrait.plate .disciple-portrait-role img {
+  width: 16px;
+  height: 16px;
+}
+
+/* The roll card has no frame at all: the figure stands on the parchment behind a
+   grade-coloured halo, which is what carries grade at this size. */
+.parchment .disciple-portrait.grid {
+  width: 100%;
+  /* Capped, or a 147px cell gives a 188px-tall figure and the card runs to 335px. */
+  max-width: 96px;
+  /* `height` must be released explicitly: the base plaque sets 61px, and `aspect-ratio` is
+     ignored the moment both axes are specified — which letterboxed the figure to a 61px
+     landscape box. */
+  height: auto;
+  aspect-ratio: 92 / 118;
+  margin: 1px auto 0;
+}
+
+.parchment .disciple-portrait.grid img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  border-radius: 0;
+  background: none;
+}
+
+.parchment .disciple-portrait.grid::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 4%;
+  width: 82%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--halo, transparent) 0%, transparent 68%);
+}
+
+.parchment .disciple-portrait.grid.grade-uncommon {
+  --halo: rgba(47, 127, 96, 0.3);
+}
+
+.parchment .disciple-portrait.grid.grade-rare {
+  --halo: rgba(107, 79, 160, 0.32);
+}
+
+.parchment .disciple-portrait.grid.grade-genius {
+  --halo: rgba(217, 180, 92, 0.4);
+}
+
+.parchment .disciple-portrait.grid .disciple-portrait-role img {
+  width: 13px;
+  height: 13px;
+}
+
+/* --- Type shared by both card shapes -------------------------------------- */
+.parchment .disciple-grade {
+  flex: none;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.parchment .disciple-grade.grade-rare {
+  color: #553a86; /* was #6b4fa0 — 3.9:1 at 0.6rem */
+}
+
+.parchment .disciple-grade.grade-genius {
+  color: #7a5c12; /* was #9a7420 — 3.65:1 at 0.6rem */
+}
+
+/* Still gold, still the one number — but it no longer outranks the name. */
+.parchment .disciple-row-cp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  /* 4.98:1. At this size it no longer clears WCAG's large-text threshold (18.66px bold),
+     so the old #8a6a12 fell to 4.30:1 the moment the size came down. */
+  color: #7f6014;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.parchment .disciple-realm {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--qi-ink); /* green leads on this screen; gold is reserved for the number */
+}
+
+.parchment .disciple-realm-sep {
+  opacity: 0.55;
+}
+
+/* --- Bars: dark track on light card, with a qi bloom --------------------- */
+.parchment .disciple-row-bar {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  margin-top: 3px;
+  background: #cfc6b3;
+  border-radius: 6px;
+  /* The base `.progress-bar` is `overflow: hidden`, which clipped the blooms below to a
+     few pixels of haze inside the track. The fill carries its own radius, so releasing
+     the clip costs nothing and is the only way the glow renders at all. */
+  overflow: visible;
+}
+
+.parchment .disciple-row-bar.condition {
+  height: 4px;
+  border-radius: 2px;
+  margin-top: 3px;
+}
+
+.parchment .disciple-row-bar .progress-bar-fill {
+  border-radius: inherit;
+}
+
+/* The bar carries its own number rather than handing it to a caption. */
+.parchment .bar-pct {
+  position: absolute;
+  z-index: 1;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #4a3f1c;
+  font-variant-numeric: tabular-nums;
+}
+
+.parchment .disciple-card.plate .bar-pct {
+  font-size: 0.68rem;
+}
+
+.parchment .disciple-row-bar.condition .bar-pct {
+  display: none;
+}
+
+.parchment .progress-bar-fill.cultivation {
+  background: linear-gradient(90deg, var(--qi), var(--qi-bright));
+  box-shadow: 0 0 6px rgba(79, 191, 144, 0.55);
+}
+
+/* `--positive` is 1.9:1 on cream — it was legible on the dark ground and is not here. Health
+   keeps its own hue, a step darker, and stays separable from qi by height and by the absence
+   of a bloom rather than by colour alone. */
+.parchment .progress-bar-fill.hp {
+  background: #6fa87f;
+}
+
+.parchment .progress-bar-fill.hp-critical {
+  background: #c2544f;
+}
+
+/*
+ * The global `breakthrough-pulse` animates opacity 1 → 0.55. On the old dark ground that
+ * read as a glow; on cream it blends the gold toward the #cfc6b3 track, so the game's one
+ * permitted loop read as the bar *draining* — the opposite of "act now". Same loop, same
+ * 2s period, driven through the bloom instead so it brightens rather than fades.
+ */
+.parchment .progress-bar-fill.breakthrough {
+  background: linear-gradient(90deg, #b08d3a, var(--seal-gold));
+  animation: parchment-breakthrough-pulse 2s var(--ease) infinite;
+}
+
+@keyframes parchment-breakthrough-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(217, 180, 92, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(217, 180, 92, 0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parchment .progress-bar-fill.breakthrough {
+    animation: none;
+    box-shadow: 0 0 7px rgba(217, 180, 92, 0.7);
+  }
+}
+
+/* --- The footing: state left, rate right, under a hairline ---------------- */
+.parchment .disciple-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: var(--space-1);
+  width: 100%;
+  margin: 4px 0 0;
+  padding-top: 4px;
+  border-top: 1px solid rgba(42, 37, 33, 0.14);
+  font-size: 0.63rem;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--ink-2);
+}
+
+.parchment .disciple-status-line .lead {
+  min-width: 0;
+  color: var(--ink-2);
+}
+
+/* The screen's whole job is finding who's ready and acting. This was the smallest, dimmest
+   text on the card — quieter than a stat the player can't act on. */
+.parchment .disciple-status-line .lead.ready {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ready);
+}
+
+.parchment .disciple-status-line .lead.bad {
+  color: #a33b3b;
+}
+
+.parchment .disciple-status-line .rate {
+  flex: none;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The Combat Power ember (Set E). Left UNSCOPED on purpose, exactly as `.cp-glyph` was:
+ * it is new markup inside `DiscipleCard`, so if only the wrapper were deleted it would
+ * render at its intrinsic 123×176. Base sizing outside the scope is what makes "delete the
+ * wrapper to revert" true rather than approximately true.
+ */
+.cp-ember {
+  flex: none;
+  width: 13px;
+  height: 19px;
+  object-fit: contain;
+}
+
+.parchment .disciple-card.plate .cp-ember {
+  width: 15px;
+  height: 21px;
+}

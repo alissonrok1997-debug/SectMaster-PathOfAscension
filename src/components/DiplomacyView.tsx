@@ -22,7 +22,7 @@ export function DiplomacyView() {
 
   return (
     <section className="panel world-panel">
-      <h2>World &amp; Diplomacy</h2>
+      <h2>Diplomacy</h2>
       <p className="panel-hint">
         Reputation: <strong>{Math.round(state.reputation)}</strong> ({getReputationTier(state.reputation)})
       </p>
@@ -31,7 +31,7 @@ export function DiplomacyView() {
         <div className="crafting-in-progress">
           <div className="progress-bar">
             <div
-              className="progress-bar-fill night"
+              className="progress-bar-fill standing"
               style={{
                 width: `${Math.min(
                   100,

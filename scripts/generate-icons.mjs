@@ -52,13 +52,16 @@ for (const size of SIZES) {
     .toFile(join(iconDir, `icon-${size}.png`))
 
   // Maskable: shrink into the safe zone, pad the rest with the background colour.
+  // `inner + 2 * pad` is already `size`, so there must be NO trailing .resize() here:
+  // sharp honours only one resize per pipeline and the later call wins, which silently
+  // skipped the shrink and emitted size/0.8 files (230 and 614) that disagreed with the
+  // `sizes` the manifest declares.
   const inner = Math.round(size * SAFE_ZONE)
   const pad = Math.round((size - inner) / 2)
   await sharp(source)
     .resize(inner, inner, { fit: 'cover' })
     .flatten({ background: BACKGROUND })
     .extend({ top: pad, bottom: pad, left: pad, right: pad, background: BACKGROUND })
-    .resize(size, size)
     .png({ compressionLevel: 9 })
     .toFile(join(iconDir, `icon-maskable-${size}.png`))
 }

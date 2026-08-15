@@ -5,11 +5,17 @@ import App from './App'
 import './App.css'
 
 /**
- * Offline support. `autoUpdate` swaps in a new build on the next launch — safe here
- * because the save lives in localStorage, not in the cache, so an update never costs
- * progress.
+ * Offline support for the web build. `autoUpdate` swaps in a new build on the next
+ * launch — safe here because the save lives in localStorage, not in the cache, so an
+ * update never costs progress.
+ *
+ * Skipped inside the Android APK: its assets are served from a virtual origin by the
+ * WebView, so there is nothing for a service worker to cache and registration would
+ * only fail noisily.
  */
-registerSW({ immediate: true })
+if (location.hostname !== 'appassets.local') {
+  registerSW({ immediate: true })
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

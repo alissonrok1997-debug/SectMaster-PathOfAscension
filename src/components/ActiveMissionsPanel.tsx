@@ -28,7 +28,7 @@ export function ActiveMissionsPanel() {
                 <span>{formatCountdown(remaining)} remaining</span>
               </div>
               <div className="progress-bar">
-                <div className="progress-bar-fill day" style={{ width: `${progress}%` }} />
+                <div className="progress-bar-fill mission" style={{ width: `${progress}%` }} />
               </div>
               <p className="panel-hint">Squad: {squadNames.join(', ')}</p>
             </div>

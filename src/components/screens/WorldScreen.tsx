@@ -14,7 +14,20 @@ import { StandingsView } from '../StandingsView'
  * existing factions/diplomacy/territory panels sit under Diplomacy until Phase 5
  * relocates them into a dedicated DiplomacyView.
  */
-type WorldTab = 'map' | 'expeditions' | 'standings' | 'diplomacy'
+/**
+ * `sites` and `map` are two views of the same data, so they are peers of the other three
+ * rather than a second toggle nested inside Map. That collapses the audit's "three nav layers
+ * on World" — subnav + view toggle + the global tab bar — down to two.
+ */
+type WorldTab = 'map' | 'sites' | 'expeditions' | 'standings' | 'diplomacy'
+
+const WORLD_TABS: { id: WorldTab; label: string }[] = [
+  { id: 'map', label: 'Map' },
+  { id: 'sites', label: 'Sites' },
+  { id: 'expeditions', label: 'Expeditions' },
+  { id: 'standings', label: 'Standing' },
+  { id: 'diplomacy', label: 'Diplomacy' },
+]
 
 export function WorldScreen() {
   const [tab, setTab] = useState<WorldTab>('map')
@@ -23,28 +36,24 @@ export function WorldScreen() {
   return (
     <div className="world-screen">
       {/* The province sub-view owns the screen: its own back header replaces the subnav. */}
-      <nav className="world-subnav" hidden={selection !== null}>
-        <button
-          className={tab === 'map' ? 'active' : ''}
-          onClick={() => {
-            setTab('map')
-            setSelection(null)
-          }}
-        >
-          Map
-        </button>
-        <button className={tab === 'expeditions' ? 'active' : ''} onClick={() => setTab('expeditions')}>
-          Expeditions
-        </button>
-        <button className={tab === 'standings' ? 'active' : ''} onClick={() => setTab('standings')}>
-          Standings
-        </button>
-        <button className={tab === 'diplomacy' ? 'active' : ''} onClick={() => setTab('diplomacy')}>
-          Diplomacy
-        </button>
+      <nav className="segmented world-subnav" hidden={selection !== null}>
+        {WORLD_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`segmented-item ${tab === t.id ? 'active' : ''}`}
+            aria-current={tab === t.id ? 'true' : undefined}
+            onClick={() => {
+              setTab(t.id)
+              if (t.id === 'map' || t.id === 'sites') setSelection(null)
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </nav>
 
-      {tab === 'map' &&
+      {(tab === 'map' || tab === 'sites') &&
         (selection ? (
           <ProvinceDetailView
             provinceId={selection.provinceId}
@@ -52,7 +61,10 @@ export function WorldScreen() {
             onBack={() => setSelection(null)}
           />
         ) : (
-          <WorldMapView onSelectProvince={(provinceId, regionId) => setSelection({ provinceId, regionId })} />
+          <WorldMapView
+            view={tab === 'sites' ? 'list' : 'map'}
+            onSelectProvince={(provinceId, regionId) => setSelection({ provinceId, regionId })}
+          />
         ))}
 
       {tab === 'expeditions' && (

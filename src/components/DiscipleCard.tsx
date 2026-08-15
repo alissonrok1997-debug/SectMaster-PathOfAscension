@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react'
 import { useGameStore } from '../game/state/store'
 import { getDiscipleCultivationRate, isReadyForBreakthrough } from '../game/engine/cultivation'
 import { getEffectiveMaxHp, getInjurySeverity } from '../game/engine/injury'
@@ -7,16 +8,18 @@ import { getResearchCultivationRateMultiplier } from '../game/engine/research'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { getWorldModifiers } from '../game/engine/world/worldModifiers'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
-import { ROLE_ART } from '../assets/icons'
-import { GameIcon } from './GameIcon'
+import { EMBER_ART } from '../assets/icons'
+import { DisciplePortrait, RealmLine, subRealmOrdinal } from './DisciplePortrait'
 
 interface DiscipleCardProps {
   discipleId: string
   onSelect?: (id: string) => void
   active?: boolean
+  /** §3's "one thing": the roster promotes exactly one card to the hero plate. */
+  hero?: boolean
 }
 
-export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps) {
+export function DiscipleCard({ discipleId, onSelect, active, hero }: DiscipleCardProps) {
   // Subscribing to the whole state so countdowns (away/injury) and live cultivation rate re-render every tick.
   const state = useGameStore((s) => s.state)
 
@@ -50,71 +53,152 @@ export function DiscipleCard({ discipleId, onSelect, active }: DiscipleCardProps
         : `+${cultivationRate.toFixed(2)} pts/s`
   const readyForBreakthrough = isReadyForBreakthrough(disciple)
   const combatPower = getDiscipleCombatPower(disciple, doctrineMods.combatPowerMult)
+  const progressPct = Math.round(disciple.cultivationProgress)
 
   const statusBadge = isAway ? 'Away' : isDownedNow ? 'Downed' : isInjured ? 'Injured' : isBoosted ? 'Boosted' : null
+  const showGrade = disciple.grade === 'Rare' || disciple.grade === 'Genius'
 
-  return (
-    <div
-      className={`disciple-card ${isAway ? 'away' : ''} ${isInjured ? 'injured' : ''} ${
-        onSelect ? 'selectable' : ''
-      } ${active ? 'active' : ''}`}
-      onClick={onSelect ? () => onSelect(disciple.id) : undefined}
-      role={onSelect ? 'button' : undefined}
-      tabIndex={onSelect ? 0 : undefined}
-      onKeyDown={
-        onSelect
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onSelect(disciple.id)
-              }
-            }
-          : undefined
-      }
-    >
-      <div className="disciple-row-main">
-        <GameIcon className="disciple-row-art" src={ROLE_ART[disciple.role]} alt="" size={40} />
+  const interaction = {
+    onClick: onSelect ? () => onSelect(disciple.id) : undefined,
+    role: onSelect ? ('button' as const) : undefined,
+    tabIndex: onSelect ? 0 : undefined,
+    onKeyDown: onSelect
+      ? (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(disciple.id)
+          }
+        }
+      : undefined,
+  }
 
-        <div className="disciple-row-text">
-          <div className="disciple-row-line">
-            <h3>{disciple.name}</h3>
-            <span className="disciple-grade">{disciple.grade}</span>
-          </div>
-          <div className="disciple-row-line disciple-row-sub">
-            <span className="disciple-realm">
-              {disciple.realm} <span className="disciple-substage">{disciple.subRealm}/9</span>
-            </span>
-            {statusBadge && <span className={`disciple-card-status ${statusBadge.toLowerCase()}`}>{statusBadge}</span>}
-          </div>
-        </div>
+  /* The grade class rides the card as well as the plaque, so the plate's wash can take its
+     colour from it without a second prop. `hero` is kept as the prop name because the
+     roster's selection logic is unchanged — only the composition it renders is new. */
+  const className = [
+    'disciple-card',
+    hero ? `plate grade-${disciple.grade.toLowerCase()}` : 'compact',
+    isAway ? 'away' : '',
+    isInjured ? 'injured' : '',
+    onSelect ? 'selectable' : '',
+    active ? 'active' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
-        <span className="disciple-row-cp" title="Combat Power">
-          {combatPower}
-        </span>
-      </div>
+  /* The ember is 0.699, not square, so it is a plain `img` rather than `GameIcon` — which
+     forces a square box and would letterbox the flame. */
+  const combatPowerReadout = (
+    <span className="disciple-row-cp" title="Combat Power">
+      <img className="cp-ember" src={EMBER_ART} alt="" aria-hidden="true" draggable={false} />
+      {combatPower}
+    </span>
+  )
 
-      <div className="progress-bar disciple-row-bar">
-        <div className="progress-bar-fill day" style={{ width: `${disciple.cultivationProgress}%` }} />
-      </div>
-      <div className="progress-bar disciple-row-bar">
-        <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
-      </div>
+  /*
+   * One bar per stage: it fills for the current sub-realm and resets at each one. The
+   * nine-stage binding was tried in step 8 and reverted — see §11. The percentage rides
+   * inside the track rather than beside it, so the bar carries its own number.
+   */
+  const cultivationBar = (
+    <div className="progress-bar disciple-row-bar">
+      <div
+        className={`progress-bar-fill ${readyForBreakthrough ? 'breakthrough' : 'cultivation'}`}
+        style={{ width: `${disciple.cultivationProgress}%` }}
+      />
+      <span className="bar-pct">{progressPct}%</span>
+    </div>
+  )
 
-      <p className="panel-hint cultivation-detail">
+  /*
+   * Condition only appears when there's something to say. A full bar carries no information,
+   * and jade (cultivation) beside --positive (health) at the same height read as the same bar
+   * twice — so this one is thinner and absent at full health, which leaves height, gap and
+   * fill-width as three separate cues.
+   */
+  const conditionBar = hpPct < 99.5 && (
+    <div className="progress-bar disciple-row-bar condition">
+      <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
+    </div>
+  )
+
+  /* Split into lead and trailing rate so the footing can sit under a hairline with the state
+     on the left and the rate on the right. */
+  const statusLine = (
+    <p className="disciple-status-line">
+      <span className={`lead ${readyForBreakthrough ? 'ready' : isDownedNow || isCritical ? 'bad' : 'cultivating'}`}>
         {readyForBreakthrough
           ? 'Ready to break through'
           : isDownedNow
             ? 'Downed — recovering'
             : etaToNextStage
-              ? `${etaToNextStage} to next stage`
+              ? `Next stage: ${etaToNextStage}`
               : 'Not cultivating'}
-        {rateLabel && ` · ${rateLabel}`}
-        {isInjured && ` · ${injurySeverity} injury`}
-      </p>
+        {/* The status badge folded in here: one line instead of a badge plus a warning row. */}
+        {statusBadge && !readyForBreakthrough && !isDownedNow && <> · {statusBadge}</>}
+        {isCritical && !isAway && !isDownedNow && <span className="bad"> · Critical</span>}
+        {isInjured && !isCritical && ` · ${injurySeverity} injury`}
+      </span>
+      {rateLabel && <span className="rate">{rateLabel}</span>}
+    </p>
+  )
 
-      {isCritical && !isAway && !isDownedNow && (
-        <p className="disciple-critical-warning">⚠ Critical — dispatching risks their death.</p>
-      )}
+  /*
+   * THE PLATE — portrait beside a stacked text column. The arched frame overlays the
+   * portrait, and the realm line is spelled in full here because the plate sits above the
+   * first realm rule rather than inside a group.
+   */
+  if (hero) {
+    return (
+      <div className={className} {...interaction}>
+        <DisciplePortrait disciple={disciple} variant="plate" />
+
+        <div className="disciple-row-text">
+          <div className="disciple-row-line">
+            <h3>{disciple.name}</h3>
+            {combatPowerReadout}
+          </div>
+
+          {/* Only the two rare grades announce themselves; for Common and Uncommon the
+              plaque's halo says it, and absence becomes the signal for "ordinary". */}
+          {showGrade && (
+            <div className="disciple-row-line">
+              <span className={`disciple-grade grade-${disciple.grade.toLowerCase()}`}>{disciple.grade}</span>
+            </div>
+          )}
+
+          <div className="disciple-row-line disciple-row-sub">
+            <RealmLine disciple={disciple} />
+          </div>
+
+          {cultivationBar}
+          {conditionBar}
+          {statusLine}
+        </div>
+      </div>
+    )
+  }
+
+  /*
+   * THE ROLL CARD — a vertical three-up cell. The realm rule above the group already names
+   * the realm, so the card carries only the stage ordinal; that de-duplication is what the
+   * grouping pays for, and it is the phrase `DiscipleDetailPanel` already uses.
+   */
+  return (
+    <div className={className} {...interaction}>
+      <h3>{disciple.name}</h3>
+      {showGrade && <span className={`disciple-grade grade-${disciple.grade.toLowerCase()}`}>{disciple.grade}</span>}
+
+      <DisciplePortrait disciple={disciple} variant="grid" />
+
+      <div className="disciple-compact-stat">
+        <span className="disciple-stage">{subRealmOrdinal(disciple.subRealm)} stage</span>
+        {combatPowerReadout}
+      </div>
+
+      {cultivationBar}
+      {conditionBar}
+      {statusLine}
     </div>
   )
 }

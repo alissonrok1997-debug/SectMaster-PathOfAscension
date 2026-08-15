@@ -29,16 +29,17 @@ const HIT_RADIUS = 46
  * re-renders every 250ms, §12 pitfall #12).
  */
 export function WorldMapView({
+  view,
   onSelectProvince,
 }: {
+  /** Owned by `WorldScreen` now: Sites and Map are segments of the one World subnav, not a
+      second toggle stacked underneath it (§9, and the audit's "three nav layers" finding). */
+  view: 'list' | 'map'
   onSelectProvince: (provinceId: string, regionId?: RegionId) => void
 }) {
   const state = useGameStore((s) => s.state)
   const setDefenseLeader = useGameStore((s) => s.setDefenseLeader)
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
-  // List is the default: a 1000×700 map in a portrait column letterboxes to a short
-  // band with sub-finger nodes, so the list is the practical way to act on 32 sites.
-  const [view, setView] = useState<'list' | 'map'>('list')
   const [dispatch, setDispatch] = useState<{ locationId: string; purpose: 'raid' | 'claim' | 'survey' } | null>(null)
 
   const locations = state.world?.locations
@@ -78,19 +79,7 @@ export function WorldMapView({
     <section className="panel world-map-view">
       <div className="world-view-header">
         <h2>{WORLD_DEF.name}</h2>
-        <div className="world-view-toggle">
-          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
-            Sites
-          </button>
-          <button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>
-            Map
-          </button>
-        </div>
       </div>
-      <p className="panel-hint">
-        Poor sites are always safe; Normal and Good sites are held by rival sects and can be raided or conquered.
-        Claim/Garrison on a resource node only works inside your influence range.
-      </p>
 
       {view === 'list' ? (
         <div className="site-list">
@@ -101,7 +90,6 @@ export function WorldMapView({
               className={`site-row ${ownerClass(site.id)}`}
               onClick={() => setSelectedSiteId(site.id)}
             >
-              <span className={`site-row-tier tier-${site.tier}`} aria-hidden="true" />
               <span className="site-row-text">
                 <span className="site-row-name">{site.name}</span>
                 <span className="site-row-owner">{ownerLabel(site.id)}</span>
@@ -116,6 +104,43 @@ export function WorldMapView({
       ) : (
         <div className="world-map-svg-wrap">
           <svg viewBox={`0 0 ${W} ${H}`} className="world-map-svg" role="img" aria-label="World map">
+            {/*
+             * §16.5's ink wash, as SVG rather than raster (§21.2): paper, a soft wash behind the
+             * cluster, two low-contrast ridges, a grain pass and a vignette. Every layer is
+             * darker than every node fill, so none of it costs node contrast.
+             *
+             * The grain rect is a *sibling* of the node graph, never an ancestor — as an
+             * ancestor, every hover and selection would re-run the turbulence across 32 nodes.
+             */}
+            <defs>
+              <radialGradient id="wm-wash" cx="0.5" cy="0.38" r="0.72">
+                <stop offset="0" stopColor="#1b2430" stopOpacity="0.9" />
+                <stop offset="1" stopColor="#1b2430" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="wm-vignette" cx="0.5" cy="0.45" r="0.72">
+                <stop offset="0.55" stopColor="#0b0d12" stopOpacity="0" />
+                <stop offset="1" stopColor="#0b0d12" stopOpacity="0.55" />
+              </radialGradient>
+              <filter id="wm-grain" x="0" y="0" width="100%" height="100%">
+                {/* numOctaves 2, not 3–4: one rasterisation at first paint is affordable, four is not. */}
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" stitchTiles="stitch" result="n" />
+                <feColorMatrix in="n" type="saturate" values="0" />
+              </filter>
+            </defs>
+            <rect width={W} height={H} fill="var(--bg)" />
+            <rect width={W} height={H} fill="url(#wm-wash)" />
+            <path
+              d={`M0 ${H * 0.78}L${W * 0.16} ${H * 0.6}L${W * 0.3} ${H * 0.71}L${W * 0.47} ${H * 0.52}L${W * 0.63} ${H * 0.68}L${W * 0.81} ${H * 0.56}L${W} ${H * 0.73}V${H}H0Z`}
+              fill="var(--surface)"
+              opacity="0.28"
+            />
+            <path
+              d={`M0 ${H * 0.88}L${W * 0.22} ${H * 0.74}L${W * 0.41} ${H * 0.85}L${W * 0.58} ${H * 0.7}L${W * 0.78} ${H * 0.83}L${W} ${H * 0.76}V${H}H0Z`}
+              fill="var(--surface-raised)"
+              opacity="0.22"
+            />
+            <rect width={W} height={H} filter="url(#wm-grain)" opacity="0.05" pointerEvents="none" />
+            <rect width={W} height={H} fill="url(#wm-vignette)" pointerEvents="none" />
             <circle
               className="world-map-influence"
               cx={influence.center.x * W}
@@ -134,20 +159,36 @@ export function WorldMapView({
                   {/* Transparent hit target: tier radii are 16–28 viewBox units, which
                       scale to well under a finger at portrait width. */}
                   <circle cx={px} cy={py} r={Math.max(r, HIT_RADIUS)} fill="transparent" />
-                  <circle cx={px} cy={py} r={r} />
-                  {/* Labels collide at portrait width — only the selected site and the
-                      player's own seat get one. */}
-                  {(selected || isSeat) && (
-                    <text x={px} y={py + r + 22} className="world-map-label" textAnchor="middle">
-                      {site.name}
-                    </text>
-                  )}
+                  {/* A seal, not a pip (§16.5): a filled disc inside a thin ring, with ownership
+                      on the ring and site state on the disc, so the two never fight. */}
+                  <circle className="node-disc" cx={px} cy={py} r={r * 0.72} />
+                  <circle className="node-ring" cx={px} cy={py} r={r} />
+                  {/*
+                   * All 32 labels render but only the selected site, the player's seat and the
+                   * hovered node are visible — 32 labels at once is ~2000px of text in a 432px
+                   * box. Revealing on hover is CSS-only and costs no motion budget.
+                   */}
+                  <text
+                    x={px}
+                    y={py + r + 22}
+                    className={`world-map-label${selected || isSeat ? ' shown' : ''}`}
+                    textAnchor="middle"
+                  >
+                    {site.name}
+                  </text>
                 </g>
               )
             })}
           </svg>
         </div>
       )}
+
+      {/* Moved below the content: the audit's fix for `.panel-hint` occupying the highest-priority
+          slot on every screen is positional. The rules still matter, they just aren't the headline. */}
+      <p className="panel-hint world-map-rules">
+        Poor sites are always safe; Normal and Good sites are held by rival sects and can be raided or conquered.
+        Claim and Garrison on a resource node only work inside your influence range.
+      </p>
 
       <BottomSheet
         open={selectedSite !== undefined}

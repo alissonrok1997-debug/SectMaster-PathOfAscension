@@ -6,7 +6,7 @@ export function EventLogPanel() {
   if (eventLog.length === 0) return null
 
   return (
-    <section className="panel mission-log-panel">
+    <section className="panel event-log-panel">
       <h2>Sect Chronicle</h2>
       <p className="panel-hint">Resolved world and narrative events, newest first.</p>
       <ul className="mission-log-list">

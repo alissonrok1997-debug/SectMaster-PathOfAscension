@@ -15,11 +15,10 @@ export function InventoryPanel() {
       <h2>Inventory</h2>
       {heldMaterials.length > 0 && (
         <>
-          <h3 className="inventory-subheading">Crafting Materials</h3>
+          <h3 className="inventory-subheading">Materials</h3>
           <ul className="inventory-list">
             {heldMaterials.map((m) => (
               <li className="inventory-entry" key={m.id}>
-                <span className="inventory-dot" aria-hidden="true" />
                 <span className="inventory-name">{m.name}</span>
                 <span className="inventory-category">Material</span>
                 <span className="inventory-qty">×{materials[m.id]}</span>
@@ -35,14 +34,14 @@ export function InventoryPanel() {
           {items.map((item) => {
             const def = getItemDef(item.itemId)
             const qualityDef = item.quality ? getItemQualityDef(item.quality) : undefined
+            // Quality rides the row's left stripe instead of a 0.5rem dot: same colour
+            // source (one table, in itemQualityDefs), but scannable as a column.
             return (
-              <li className="inventory-entry" key={item.id}>
-                {/* Same quality colour the detail view uses — one source, no second table. */}
-                <span
-                  className="inventory-dot"
-                  style={qualityDef ? { background: qualityDef.color } : undefined}
-                  aria-hidden="true"
-                />
+              <li
+                className="inventory-entry"
+                key={item.id}
+                style={qualityDef ? ({ '--stripe': qualityDef.color } as React.CSSProperties) : undefined}
+              >
                 <span className="inventory-name">
                   {item.forgedName ?? def.name}
                   {item.forgedName && <span className="inventory-subtitle"> — {def.name}</span>}

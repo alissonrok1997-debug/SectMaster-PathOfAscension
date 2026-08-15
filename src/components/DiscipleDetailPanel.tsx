@@ -19,6 +19,11 @@ import { describeSetBonus } from '../game/data/equipmentSetDefs'
 import { getActiveEquipmentSets } from '../game/engine/itemAffixes'
 import { describeProvenance } from '../game/engine/itemProvenance'
 import { formatCountdown } from '../game/utils/formatDuration'
+import { getDiscipleCombatPower } from '../game/engine/combatPower'
+import { getDoctrineModifiers } from '../game/engine/doctrine'
+import { DisciplePortrait, RealmLine, subRealmOrdinal } from './DisciplePortrait'
+import { publishBreakthroughMoment } from './breakthroughChannel'
+import { useValueFlash } from './useValueFlash'
 import { getEffectiveMaxHp, getHealthRegenPerSecond, getInjurySeverity } from '../game/engine/injury'
 import { isDowned } from '../game/engine/downed'
 import { CULTIVATION_REALMS, type EquipmentSlotId, type InjurySeverity } from '../game/types'
@@ -99,18 +104,91 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
       return def.category === 'Equipment' && def.slotType === SLOT_MATCHES_ITEM[slot]
     })
 
+  /*
+   * The breakthrough moment reads the outcome the engine already decided (§16.3).
+   * `attemptBreakthrough` is a synchronous zustand action, so snapshotting the realm here
+   * and re-reading the store straight after tells us what happened without a store field
+   * or a save migration for something that lives 1.2 seconds.
+   *
+   * A missing disciple afterwards is not an error: a failed breakthrough wounds, and
+   * `resolveDownedDisciples` can remove a disciple who hits 0 HP. `undefined` means death.
+   */
+  const onAttemptBreakthrough = () => {
+    const before = { name: disciple.name, realm: disciple.realm }
+    attemptBreakthrough(disciple.id)
+    const after = useGameStore.getState().state.disciples.find((d) => d.id === disciple.id)
+    if (!after) {
+      publishBreakthroughMoment({ kind: 'failure', name: before.name, consequence: 'death' })
+      return
+    }
+    if (after.realm !== before.realm) {
+      publishBreakthroughMoment({ kind: 'success', name: after.name, realm: after.realm })
+      return
+    }
+    publishBreakthroughMoment({
+      kind: 'failure',
+      name: after.name,
+      consequence: isDowned(after, Date.now()) ? 'downed' : 'wound',
+    })
+  }
+
+  // Combat Power only changes on discrete events (equip, breakthrough, technique, injury),
+  // so it needs no threshold — any movement of a whole point is worth acknowledging.
+  const combatPower = getDiscipleCombatPower(disciple, getDoctrineModifiers(state).combatPowerMult)
+  const cpFlash = useValueFlash({ cp: combatPower }, () => 1)
+
   const canUseHealing = healingPillStock > 0 && disciple.health < effectiveMaxHp
   const canUseQi = qiPillStock > 0 && !isAway && !isFinalRealm
 
   return (
     <div className="disciple-detail">
-      <div className="disciple-card-header">
-        <h3>{disciple.name}</h3>
-        <span className="disciple-grade">{disciple.grade}</span>
+      {/*
+       * Portrait + name + realm as one header block (§16.2). The old "{role} · {realm} n/9"
+       * hint line is gone: the plaque's nameplate carries the role and the jade line carries
+       * the realm, so it was restating both in developer-hint grey.
+       */}
+      <div className="disciple-sheet-header">
+        <DisciplePortrait disciple={disciple} variant="sheet" />
+        <div className="disciple-sheet-ident">
+          <h3>{disciple.name}</h3>
+          <RealmLine disciple={disciple} />
+          <span className={`disciple-grade grade-${disciple.grade.toLowerCase()}`}>{disciple.grade}</span>
+          <span className={`disciple-sheet-cp ${cpFlash.cp ?? ''}`} title="Combat Power">
+            {combatPower}
+          </span>
+        </div>
       </div>
-      <p className="panel-hint">
-        {disciple.role} &middot; {disciple.realm} <span className="disciple-substage">{disciple.subRealm}/9</span>
-      </p>
+      {/*
+       * The cultivation bar (§16.3), directly under the identity block because cultivation
+       * *is* the disciple's identity — HP stays below at 8px.
+       *
+       * One bar per stage: it measures `cultivationProgress` within the current sub-realm and
+       * resets at each one. Step 8 tried a bar spanning all nine sub-realms with stage marks;
+       * it was reverted because the marks don't read at either size (§11). The caption carries
+       * the position in the realm instead, which is what a player actually wants to know.
+       */}
+      <section className="disciple-cultivation">
+        <div className="cultivation-stage-line">
+          <span className="cultivation-realm-name">{disciple.realm}</span>
+          <span className="cultivation-stage">{subRealmOrdinal(disciple.subRealm)} stage</span>
+        </div>
+        <div className="progress-bar hero">
+          <div
+            className={`progress-bar-fill ${readyForBreakthrough ? 'breakthrough' : 'cultivation'}`}
+            style={{ width: `${disciple.cultivationProgress}%` }}
+          />
+        </div>
+        <p className={`cultivation-caption${readyForBreakthrough ? ' ready' : ''}`}>
+          {isFinalRealm && disciple.subRealm === 9
+            ? 'Ninth stage · no realm lies beyond'
+            : readyForBreakthrough
+              ? `Peak of ${disciple.realm} — the realm gate stands open`
+              : disciple.subRealm === 9
+                ? `Final stage · ${Math.round(disciple.cultivationProgress)}% to the realm gate`
+                : `Stage ${disciple.subRealm} of 9 · ${Math.round(disciple.cultivationProgress)}% to the next stage`}
+        </p>
+      </section>
+
       {(() => {
         const mult = getMoraleCultivationMultiplier(disciple.morale)
         const pct = Math.round((mult - 1) * 100)
@@ -190,9 +268,23 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
 
       {readyForBreakthrough && (
         <div className="boost-controls breakthrough-controls">
-          <button disabled={!breakthroughEligibility.canBreakthrough} onClick={() => attemptBreakthrough(disciple.id)}>
-            Break through to next realm ({breakthroughEligibility.cost} Qi Stone &middot;{' '}
-            {Math.round(breakthroughEligibility.successChance * 100)}% success)
+          {/* The risk in plain language above the action, never in a tooltip (§16.3). The
+              numbers leave the button so the button can say one thing. */}
+          <p className="breakthrough-risk">
+            {breakthroughEligibility.cost} Qi Stone. {Math.round(breakthroughEligibility.successChance * 100)}% chance
+            to succeed.
+          </p>
+          <p className={`breakthrough-risk-warning${isCritical ? ' grave' : ''}`}>
+            {isCritical
+              ? `If it fails: a major wound. At this condition it could kill ${disciple.name}.`
+              : 'If it fails: a major wound, and the stage falls back.'}
+          </p>
+          <button
+            className="primary breakthrough-ready"
+            disabled={!breakthroughEligibility.canBreakthrough}
+            onClick={onAttemptBreakthrough}
+          >
+            Attempt the breakthrough
           </button>
           {!breakthroughEligibility.canBreakthrough && breakthroughEligibility.reason && (
             <p className="upgrade-blocked-reason">{breakthroughEligibility.reason}</p>
@@ -205,7 +297,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
           Equipment
         </button>
         <button className={tab === 'consumables' ? 'active' : ''} onClick={() => setTab('consumables')}>
-          Consumables
+          Pills
         </button>
         <button className={tab === 'techniques' ? 'active' : ''} onClick={() => setTab('techniques')}>
           Techniques
@@ -340,7 +432,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         <p className="danger-zone-title">Danger zone</p>
         <button
           type="button"
-          className="demolish-button"
+          className="demolish-button quiet destructive"
           disabled={!expelEligibility.canExpel}
           onClick={() => {
             if (
