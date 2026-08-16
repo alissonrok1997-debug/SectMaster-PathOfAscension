@@ -2,31 +2,23 @@ import { useState } from 'react'
 import type { RegionId } from '../../game/types'
 import { WorldMapView } from '../WorldMapView'
 import { ProvinceDetailView } from '../ProvinceDetailView'
-import { ActiveExpeditionsPanel } from '../ActiveExpeditionsPanel'
-import { ExpeditionLogPanel } from '../ExpeditionLogPanel'
-import { DiplomacyView } from '../DiplomacyView'
 import { StandingsView } from '../StandingsView'
 
 /**
  * The World tab container (WORLD_MAP_DESIGN §12.1). Sub-view selection is LOCAL
  * React state, never GameState — which map screen the player is looking at is not
- * game state and must never be saved. Phase 4 fills Map + Expeditions; the
- * existing factions/diplomacy/territory panels sit under Diplomacy until Phase 5
- * relocates them into a dedicated DiplomacyView.
- */
-/**
- * `sites` and `map` are two views of the same data, so they are peers of the other three
+ * game state and must never be saved.
+ *
+ * `sites` and `map` are two views of the same data, so they are peers of Standing
  * rather than a second toggle nested inside Map. That collapses the audit's "three nav layers
  * on World" — subnav + view toggle + the global tab bar — down to two.
  */
-type WorldTab = 'map' | 'sites' | 'expeditions' | 'standings' | 'diplomacy'
+type WorldTab = 'map' | 'sites' | 'standings'
 
 const WORLD_TABS: { id: WorldTab; label: string }[] = [
   { id: 'map', label: 'Map' },
   { id: 'sites', label: 'Sites' },
-  { id: 'expeditions', label: 'Expeditions' },
   { id: 'standings', label: 'Standing' },
-  { id: 'diplomacy', label: 'Diplomacy' },
 ]
 
 export function WorldScreen() {
@@ -67,16 +59,7 @@ export function WorldScreen() {
           />
         ))}
 
-      {tab === 'expeditions' && (
-        <div className="panel-grid">
-          <ActiveExpeditionsPanel />
-          <ExpeditionLogPanel />
-        </div>
-      )}
-
       {tab === 'standings' && <StandingsView />}
-
-      {tab === 'diplomacy' && <DiplomacyView />}
     </div>
   )
 }
