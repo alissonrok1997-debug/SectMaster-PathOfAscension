@@ -37,7 +37,15 @@ export function EquipmentSlotPicker({
   const equippedCp = equipped ? getEquipmentCombatPower(equipped.itemId, equipped.quality) : 0
 
   return (
-    <BottomSheet open onClose={onClose} title={slotLabel} height="full">
+    /* Opens stacked ON the leaf, so it takes the same surface — otherwise a dark sheet
+       slides over a parchment one. */
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={slotLabel}
+      height="full"
+      panelClassName="parchment leaf"
+    >
       {equipped && (
         <button
           type="button"

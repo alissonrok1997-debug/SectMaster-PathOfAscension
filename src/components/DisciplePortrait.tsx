@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import type { DiscipleInstance } from '../game/types'
-import { PORTRAIT_ART, ROLE_ART } from '../assets/icons'
+import { EMBER_ART, PORTRAIT_ART, ROLE_ART } from '../assets/icons'
 
 /**
  * The two identity primitives shared by the roster card and the detail sheet
@@ -33,9 +34,11 @@ function variantIndex(id: string, count: number): number {
  * Four variants, because the Set E art gave the plaque two genuinely different jobs:
  *
  *   card   the original dark-screen plaque, unchanged
- *   sheet  the same, larger, in the detail header
- *   plate  the hero plate — the arched gold frame overlays the portrait, which is clipped
- *          to the frame's interior opening
+ *   sheet  DEPRECATED. The detail sheet used to have its own size; it now wears `plate`, so
+ *          the roster's peak and the leaf's peak are one object at one size. Kept only
+ *          because the base plaque outside `.parchment` still resolves it.
+ *   plate  the peak — the arched gold frame overlays the portrait, which is clipped to the
+ *          frame's interior opening. Used by BOTH the roster's hero card and the leaf.
  *   grid   the three-up roll card — no frame at all; the figure floats on the parchment
  *          behind a grade-coloured halo, with the role glyph as a corner badge
  *
@@ -87,5 +90,70 @@ export function RealmLine({ disciple }: { disciple: DiscipleInstance }) {
       <span className="disciple-realm-sep"> · </span>
       {ORDINALS[disciple.subRealm] ?? `${disciple.subRealm}th`}
     </span>
+  )
+}
+
+
+/**
+ * THE IDENTITY BLOCK — portrait, name, Combat Power, grade, realm.
+ *
+ * Extracted so the roster's hero plate and the detail leaf are not two pieces of markup that
+ * happen to agree, but one component. §0's test is "does it look like it came from the same
+ * game", and the strongest way to pass it is for the two peaks to BE the same object; the
+ * roster and the leaf are never on screen together, so nothing competes.
+ *
+ * `children` land inside `.disciple-row-text`, under the realm line — the roster passes its
+ * bars and status line, the leaf passes nothing and carries cultivation in its own section
+ * so it can keep the caption sentence (§11).
+ */
+export function DiscipleIdentity({
+  disciple,
+  combatPower,
+  /** Flash classes from `useValueFlash`. §23: Combat Power flashes on the detail sheet only. */
+  cpClassName = '',
+  /**
+   * The roster announces only Rare and Genius — absence is its signal for "ordinary" (§8).
+   * The leaf always names the grade: it is the disciple's record, not a scannable list, and
+   * absence-as-signal only works where there is a list to compare against.
+   */
+  alwaysShowGrade = false,
+  children,
+}: {
+  disciple: DiscipleInstance
+  combatPower: number
+  cpClassName?: string
+  alwaysShowGrade?: boolean
+  children?: ReactNode
+}) {
+  const showGrade = alwaysShowGrade || disciple.grade === 'Rare' || disciple.grade === 'Genius'
+
+  return (
+    <>
+      <DisciplePortrait disciple={disciple} variant="plate" />
+
+      <div className="disciple-row-text">
+        <div className="disciple-row-line">
+          <h3>{disciple.name}</h3>
+          {/* The ember is 0.699, not square, so it is a plain `img` rather than `GameIcon` —
+              which forces a square box and would letterbox the flame. */}
+          <span className={`disciple-row-cp ${cpClassName}`.trim()} title="Combat Power">
+            <img className="cp-ember" src={EMBER_ART} alt="" aria-hidden="true" draggable={false} />
+            {combatPower}
+          </span>
+        </div>
+
+        {showGrade && (
+          <div className="disciple-row-line">
+            <span className={`disciple-grade grade-${disciple.grade.toLowerCase()}`}>{disciple.grade}</span>
+          </div>
+        )}
+
+        <div className="disciple-row-line disciple-row-sub">
+          <RealmLine disciple={disciple} />
+        </div>
+
+        {children}
+      </div>
+    </>
   )
 }

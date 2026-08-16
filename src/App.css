@@ -92,7 +92,7 @@
  * Regenerate with pyftsubset from src/assets/fonts/Noto_Serif/static/ if the set changes.
  *
  * There is no italic face — the game has exactly one italic display element
- * (`.equipment-set-lore`, 0.72rem), and a synthesized oblique is cheaper than 13KB for it.
+ * (`.leaf-set-lore`, 0.72rem), and a synthesized oblique is cheaper than 13KB for it.
  * Add a `font-style: italic` face here if narration italics spread (step 10 may want them).
  */
 @font-face {
@@ -157,7 +157,7 @@ h3,
 .battle-beat,
 .mission-log-entry,
 .event-log-list > li,
-.equipment-set-lore,
+.leaf-set-lore,
 .decision-event-choice-description,
 .founding-card-desc {
   font-family: var(--font-display);
@@ -520,13 +520,13 @@ h3,
   }
 }
 
-.disciple-sheet-cp.flash-gain-a,
-.disciple-sheet-cp.flash-gain-b {
+.leaf .disciple-row-cp.flash-gain-a,
+.leaf .disciple-row-cp.flash-gain-b {
   animation: cp-gain 1.2s var(--ease-out) 1;
 }
 
-.disciple-sheet-cp.flash-loss-a,
-.disciple-sheet-cp.flash-loss-b {
+.leaf .disciple-row-cp.flash-loss-a,
+.leaf .disciple-row-cp.flash-loss-b {
   animation: cp-loss 0.6s var(--ease-out) 1;
 }
 
@@ -552,14 +552,14 @@ h3,
     color: var(--danger);
   }
 
-  .disciple-sheet-cp.flash-gain-a,
-  .disciple-sheet-cp.flash-gain-b {
+  .leaf .disciple-row-cp.flash-gain-a,
+  .leaf .disciple-row-cp.flash-gain-b {
     animation: none;
     color: var(--positive);
   }
 
-  .disciple-sheet-cp.flash-loss-a,
-  .disciple-sheet-cp.flash-loss-b {
+  .leaf .disciple-row-cp.flash-loss-a,
+  .leaf .disciple-row-cp.flash-loss-b {
     animation: none;
     color: var(--danger);
   }
@@ -715,7 +715,6 @@ button.primary.breakthrough-ready:not(:disabled) {
 .site-row,
 .inventory-entry,
 .founding-card,
-.equipment-slot-row,
 .slot-option,
 .specialization-picker-item,
 .assign-disciple-choice {
@@ -990,10 +989,6 @@ h3 {
 
 .progress-bar-fill.night {
   background: var(--info);
-}
-
-.disciple-hp {
-  margin-top: 0.4rem;
 }
 
 .disciple-critical-warning {
@@ -1665,20 +1660,6 @@ button.danger:hover {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55));
 }
 
-
-.equipment-slot-art {
-  opacity: 0.45;
-  transition: opacity 0.15s ease;
-}
-
-.equipment-slot-art.filled {
-  opacity: 1;
-}
-
-.equipment-slot-chevron {
-  margin-left: auto;
-  color: var(--text-disabled);
-}
 
 /* Rows in the equipment picker sheet. */
 .slot-option {
@@ -2397,37 +2378,6 @@ button.danger:hover {
 }
 
 /* Detail sheet header block (§16.2): plaque, then name over realm over grade over CP. */
-.disciple-sheet-header {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-  margin-bottom: var(--space-2);
-}
-
-.disciple-sheet-ident {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.disciple-sheet-ident h3 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.disciple-sheet-ident .disciple-realm {
-  font-size: 0.95rem;
-}
-
-.disciple-sheet-cp {
-  margin-top: 0.15rem;
-  font-size: 1.3rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--gold);
-}
-
 .disciple-card.away {
   --stripe: var(--info);
 }
@@ -2454,49 +2404,6 @@ button.danger:hover {
 }
 
 /* Disciple detail modal with prev/next navigation */
-
-.disciple-modal-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: 0.5rem;
-}
-
-.disciple-modal-nav .panel-hint {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.disciple-modal-nav button {
-  min-width: 2.4rem;
-  padding: var(--space-1) 0.7rem;
-  font-size: 1.2rem;
-  line-height: 1;
-}
-
-.disciple-detail-tabs {
-  display: flex;
-  gap: 0.4rem;
-  margin: var(--space-2) 0 0.5rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.disciple-detail-tabs button {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--text-3);
-  padding: 0.4rem 0.6rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.disciple-detail-tabs button.active {
-  color: var(--text);
-  border-bottom-color: var(--positive);
-}
 
 .disciple-card-header {
   display: flex;
@@ -2607,21 +2514,6 @@ button.danger:hover {
   font-size: 0.8rem;
 }
 
-.disciple-assignment {
-  display: block;
-  font-size: 0.85rem;
-  margin: 0.5rem 0;
-}
-
-.disciple-assignment select {
-  margin-left: 0.4rem;
-  background: var(--line);
-  color: var(--text);
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-}
-
 .equipment-section,
 .technique-section {
   margin-top: 0.6rem;
@@ -2633,35 +2525,6 @@ button.danger:hover {
   font-size: 0.8rem;
   color: var(--positive);
   margin: 0.3rem 0;
-}
-
-.equipment-slot-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  margin: 0.3rem 0;
-  flex-wrap: wrap;
-}
-
-.equipment-slot-label {
-  color: var(--text-3);
-  min-width: 80px;
-}
-
-.equipment-slot-item {
-  color: var(--positive);
-  flex: 1;
-}
-
-/* The slot row is a button opening the picker sheet — no native select remains. */
-.equipment-slot-row {
-  width: 100%;
-  min-height: var(--tap);
-  padding: 0.4rem 0.5rem;
-  background: var(--bg);
-  color: inherit;
-  text-align: left;
 }
 
 .consumable-controls {
@@ -3259,50 +3122,18 @@ button.danger:hover {
   color: var(--rare);
 }
 
-.equipment-slot-affixes {
-  color: var(--rare);
-}
-
 .inventory-subtitle {
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--text-3);
 }
 
-.inventory-provenance,
-.equipment-slot-provenance {
+.inventory-provenance {
   flex-basis: 100%;
   display: block;
   font-size: 0.7rem;
   font-style: italic;
   color: #8a8796;
-}
-
-.equipment-set-banner {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.5rem 0.65rem;
-  margin-bottom: 0.5rem;
-  border-left: 3px solid var(--positive-edge);
-  border-radius: 0 6px 6px 0;
-  background: var(--positive-bg);
-}
-
-.equipment-set-name {
-  font-weight: 600;
-  color: var(--positive);
-}
-
-.equipment-set-bonuses {
-  font-size: 0.78rem;
-  color: var(--text-2);
-}
-
-.equipment-set-lore {
-  font-size: 0.72rem;
-  font-style: italic;
-  color: var(--text-3);
 }
 
 
@@ -4395,15 +4226,77 @@ button.danger:hover {
   --parch: #f5efe2; /* card face */
   --parch-low: #e5dccb; /* card face, foot */
   --ink: #2a2521; /* text on parchment */
-  --ink-2: #6d6355; /* 5.0:1 on the face */
-  --ink-3: #655c50; /* the card foot */
-  --qi-ink: #236047; /* the realm line: --qi itself is only 4.13:1 on cream */
-  --ready: #6d5210; /* the call to action, 6.2:1 */
+  --ink-2: #4d463c; /* body. 5.61:1 on the darkest painted face, 6.90:1 on the lightest */
+  --ink-3: #595146; /* card foot, rates, provenance. 4.70:1 on the darkest painted face */
+  --qi-ink: #225c44; /* the realm line. 4.72:1 on the darkest painted face */
+  --ready: var(--cp-gold); /* see the note below: on paper there is one gold */
   --edge: #2f4a41; /* card outer rule */
   --edge-gold: #b08d3a; /* card inner hairline */
   --qi: #2f7f60; /* the screen's lead accent — green, not gold */
   --qi-bright: #4fbf90;
   --seal-gold: #d9b45c;
+
+  /*
+   * §2.1 documents these six as canon. Until now they were literals scattered through the
+   * rules below — a value written in the design doc and not in the stylesheet is drift the
+   * doc cannot see. Values unchanged; only the indirection is new.
+   */
+  --cp-gold: #684e10; /* Combat Power. 4.71:1 on the darkest painted face */
+  --track: #cfc6b3; /* progress-bar track on paper */
+  --hp-paper: #6fa87f; /* health. --positive is 1.9:1 here and must never appear */
+  --hp-crit: #c2544f; /* health, critical */
+  --rare-ink: #553a86; /* Rare grade pill. 5.42:1 on the darkest painted face — passes
+                          once the pill's opacity comes off, so the value is unchanged. */
+  --genius-ink: var(--cp-gold); /* likewise */
+
+  /*
+   * Item quality on paper (§2.3: "on paper, use the -ink variants"). Each is its dark-ground
+   * counterpart at the SAME hue and saturation, darkened until it clears AA on the face —
+   * the same derivation that produced --qi-ink from --qi. Poor/Normal fall back to --ink-3
+   * and --ink-2; Perfect and Masterwork reuse --rare-ink and --cp-gold.
+   *
+   * --positive is 1.90:1 on cream and --info is 3.13:1 — both fail outright, which is why
+   * itemQualityDefs' colours cannot be used on a parchment surface as they stand.
+   */
+  --fine-ink: #265d32; /* Fine, --positive's hue 134deg. 4.70:1 on the darkest painted face */
+  --excellent-ink: #394c9d; /* Excellent, --info's hue 229deg. 4.70:1 on the darkest face */
+  /*
+   * Derived against the PAINTED face rgb(212,205,189), not against the flat --parch token.
+   * The paper tile multiplied over the --parch -> --parch-low gradient lands 8-12% darker
+   * than the token, which costs about 1.5 contrast points — measured, not estimated. On the
+   * flat token this reads 8.0:1; on the surface the eye actually sees, 5.18:1.
+   */
+  --danger-ink: #982020; /* 5.18:1 on the darkest card face, 6.06:1 on the plate */
+
+  /*
+   * WHY THESE MOVED (2026-08-15). Every figure §2.1 published was measured against the flat
+   * token --parch #f5efe2. No pixel on a card is ever #f5efe2: paper.png is MULTIPLIED over a
+   * gradient running to --parch-low, and the grade wash darkens it further, so the painted
+   * face measures rgb(208,200,186) to rgb(228,222,210). That costs about 1.5 contrast points,
+   * and four values the doc certified as passing were in fact below AA on the surface the
+   * player sees. These are re-derived against rgb(208,200,186), the darkest face measured on
+   * either surface, each along its own hue and saturation.
+   *
+   * --ready and --genius-ink COLLAPSED INTO --cp-gold. Derived honestly they land within
+   * 0.04 of it, because they were already within 0.25 and the correction pushed all three
+   * against the same ceiling. Aliasing states the truth §2.3 already asserts — "on paper gold
+   * is reserved for the one number" — instead of maintaining three names for one colour.
+   * If "act now" must read differently from "Combat Power", hue is no longer the channel
+   * available: use the display face, size and weight, which the plate already does.
+   */
+  /* The hairline that divides regions on paper. The same expression the roll card's footing
+     already uses, promoted to a token because the leaf is built almost entirely from it. */
+  --rule: rgba(42, 37, 33, 0.14);
+
+  /*
+   * The inline bar percentage. It rides at the RIGHT of the track, so it lands on the paper
+   * track, on the gold breakthrough fill, or on the BRIGHT end of the qi gradient — never on
+   * qi's dark end, which is at the left. Its shipped #4a3f1c cleared the first two and
+   * measured 4.41:1 on the third, which only shows at the final realm's ninth stage: a state
+   * that reaches 100% cultivation without turning gold, because there is no gate beyond it.
+   * Worst case across all three is now 5.53:1.
+   */
+  --bar-pct-ink: #3a3011;
 }
 
 .disciples-parchment {
@@ -4954,15 +4847,17 @@ button.danger:hover {
   font-size: 0.6rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: 0.85;
+  /* The 0.85 alpha is gone. Softening with opacity and then darkening the colour to
+     compensate is circular: at 0.85 the Genius pill needed #4e3b0c, nearly black, to clear
+     AA. At full alpha the derived golds stay recognisably gold, and Rare passes unchanged. */
 }
 
 .parchment .disciple-grade.grade-rare {
-  color: #553a86; /* was #6b4fa0 — 3.9:1 at 0.6rem */
+  color: var(--rare-ink); /* was #6b4fa0 — 3.9:1 at 0.6rem */
 }
 
 .parchment .disciple-grade.grade-genius {
-  color: #7a5c12; /* was #9a7420 — 3.65:1 at 0.6rem */
+  color: var(--genius-ink); /* was #9a7420 — 3.65:1 at 0.6rem */
 }
 
 /* Still gold, still the one number — but it no longer outranks the name. */
@@ -4974,7 +4869,7 @@ button.danger:hover {
   font-weight: 600;
   /* 4.98:1. At this size it no longer clears WCAG's large-text threshold (18.66px bold),
      so the old #8a6a12 fell to 4.30:1 the moment the size came down. */
-  color: #7f6014;
+  color: var(--cp-gold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -4985,8 +4880,16 @@ button.danger:hover {
   color: var(--qi-ink); /* green leads on this screen; gold is reserved for the number */
 }
 
+/* The global rule leaves this at --text-3, a DARK-ground token, which lands at 1.47:1 on
+   paper. --ink-3 takes it to 2.16:1 at the shipped opacity; the 0.55 is what caps it, and
+   it stays because this is a middot between two legible words, not content. The point of
+   the change is that no dark-ground token should touch a light surface (§2.1). */
 .parchment .disciple-realm-sep {
-  opacity: 0.55;
+  /* The 0.55 alpha is gone for the same reason it came off the grade pill: no colour clears
+     AA through it, so the alpha was the failure, not the hue. At full strength --ink-3 reads
+     4.70:1 and the separator still recedes — it is neutral grey between two jade words, so
+     it is quieter by hue rather than by being faded out. */
+  color: var(--ink-3);
 }
 
 /* --- Bars: dark track on light card, with a qi bloom --------------------- */
@@ -4995,7 +4898,7 @@ button.danger:hover {
   width: 100%;
   height: 12px;
   margin-top: 3px;
-  background: #cfc6b3;
+  background: var(--track);
   border-radius: 6px;
   /* The base `.progress-bar` is `overflow: hidden`, which clipped the blooms below to a
      few pixels of haze inside the track. The fill carries its own radius, so releasing
@@ -5023,7 +4926,7 @@ button.danger:hover {
   font-size: 0.6rem;
   font-weight: 600;
   line-height: 1;
-  color: #4a3f1c;
+  color: var(--bar-pct-ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5044,16 +4947,16 @@ button.danger:hover {
    keeps its own hue, a step darker, and stays separable from qi by height and by the absence
    of a bloom rather than by colour alone. */
 .parchment .progress-bar-fill.hp {
-  background: #6fa87f;
+  background: var(--hp-paper);
 }
 
 .parchment .progress-bar-fill.hp-critical {
-  background: #c2544f;
+  background: var(--hp-crit);
 }
 
 /*
  * The global `breakthrough-pulse` animates opacity 1 → 0.55. On the old dark ground that
- * read as a glow; on cream it blends the gold toward the #cfc6b3 track, so the game's one
+ * read as a glow; on cream it blends the gold toward the --track colour, so the game's one
  * permitted loop read as the bar *draining* — the opposite of "act now". Same loop, same
  * 2s period, driven through the bloom instead so it brightens rather than fades.
  */
@@ -5110,8 +5013,20 @@ button.danger:hover {
   color: var(--ready);
 }
 
-.parchment .disciple-status-line .lead.bad {
-  color: #a33b3b;
+/*
+ * BOTH selectors, deliberately. The global rule at the top of this file colours
+ * `.disciple-status-line .lead.bad` AND the bare `.disciple-status-line .bad` in
+ * --danger-soft; the scope used to override only the first. So `· Critical` — the word that
+ * says dispatching this disciple may kill them — shipped on the card face at 1.16:1, which
+ * is invisible. Caught by sampling rendered pixels; grepping for --danger-soft in this
+ * section finds nothing, because the rule that leaks lives outside it.
+ *
+ * The literal #a33b3b it replaces was within one hex digit of --danger-ink, arrived at
+ * independently. Same colour, one name.
+ */
+.parchment .disciple-status-line .lead.bad,
+.parchment .disciple-status-line .bad {
+  color: var(--danger-ink);
 }
 
 .parchment .disciple-status-line .rate {
@@ -5136,4 +5051,588 @@ button.danger:hover {
 .parchment .disciple-card.plate .cp-ember {
   width: 15px;
   height: 21px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * LEAF — the disciple detail sheet, on the same paper as the card that opened it
+ *
+ * `BottomSheet` portals to <body>, so no PARCHMENT rule above can reach it through the
+ * roster's wrapper. `DiscipleDetailModal` passes `panelClassName="parchment leaf"`:
+ * `.parchment` carries the token ladder, `.leaf` carries the material. §12 and §19 say this
+ * needs the tokens in `:root`; measured, it does not.
+ *
+ * `.leaf` is a SHEET VARIANT, never a global. `.sheet-panel` is shared by all twelve sheets
+ * in the game and is untouched for the other eleven.
+ *
+ * ── THE REMAP, and why it is a bridge rather than a hack ─────────────────────
+ *
+ * `DiscipleDetailPanel` is still built from dark-ground rules that live OUTSIDE this
+ * section — .panel-hint, .status-badge, .danger-zone, the buttons — and item quality arrives as an INLINE style
+ * (`getItemQualityDef().color` returns `var(--info)`), which no stylesheet rule can override.
+ *
+ * So rather than shadowing three dozen selectors, the leaf redeclares the dark ladder in
+ * terms of the paper one. Every un-migrated rule inside resolves to a paper value with no
+ * edit, and the inline quality colour comes along for free.
+ *
+ * Temporary by construction: steps 5-10 replace the panel's structure, and each one that
+ * lands deletes a line from here. When the rebuild is done this should be surfaces only.
+ * ═════════════════════════════════════════════════════════════════════════ */
+.sheet-panel.leaf {
+  /* Material (§5). 512px, NOT the roster's 180px: the tile is invisible on a 147x282 roll
+     card, smaller than one tile, but on a 480x751 leaf it repeats about 3x4 and the eye
+     locks onto the grid. The setting is per-surface. */
+  background:
+    url('./assets/icons/parchment/paper.png') center / 512px repeat,
+    linear-gradient(180deg, var(--parch) 0%, var(--parch) 55%, var(--parch-low) 100%);
+  background-blend-mode: multiply;
+  border: 1px solid var(--edge);
+  border-bottom: none;
+  box-shadow: inset 0 0 0 1px var(--edge-gold);
+  border-radius: 16px 16px 0 0;
+  color: var(--ink);
+
+  /* Text ladder */
+  --text: var(--ink);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+  --text-4: var(--ink-3);
+  --text-disabled: #6b6356; /* chevrons. 3.55:1 on the darkest painted face (non-text, 3:1) */
+
+  /* Semantics */
+  --gold: var(--cp-gold);
+  --gold-deep: var(--cp-gold);
+  --gold-edge: var(--edge-gold);
+  --gold-bg: rgba(176, 141, 58, 0.12);
+  --jade: var(--qi-ink);
+  --jade-deep: var(--qi);
+  --jade-edge: var(--qi-ink);
+  --positive: var(--fine-ink);
+  --positive-edge: var(--fine-ink);
+  --positive-bg: rgba(48, 116, 63, 0.08);
+  --info: var(--excellent-ink);
+  --info-soft: var(--excellent-ink);
+  --rare: var(--rare-ink);
+  --danger: var(--danger-ink);
+  --danger-soft: var(--danger-ink);
+  --danger-edge: rgba(152, 32, 32, 0.34);
+  --warn: #8a5a20;
+
+  /* Surfaces. Every dark box in the panel is a --bg / --surface fill; on paper the same
+     rules should read as paper with a hairline, so fills go transparent and lines become
+     ink at low alpha. */
+  --bg: transparent;
+  --surface: transparent;
+  --surface-raised: rgba(42, 37, 33, 0.055);
+  --surface-sunken: rgba(42, 37, 33, 0.04);
+  --line: var(--rule);
+  --line-strong: rgba(42, 37, 33, 0.26);
+  --line-raised: rgba(42, 37, 33, 0.32);
+}
+
+/* --- The identity plate --------------------------------------------------- */
+/*
+ * The leaf wears `.disciple-card.plate` for its type scale, its 118x151 portrait and its
+ * grade wash — every one of those rules applies verbatim, which is the point: the roster's
+ * peak and the leaf's peak are the same object.
+ *
+ * What it does NOT wear is the card. The sheet is already parchment with its own edge, so a
+ * bordered, filled card sitting on it would be a box inside a box (§4). `position: relative`
+ * and `isolation: isolate` stay, or the wash's `z-index: -1` escapes the plate.
+ */
+.leaf .disciple-card.plate {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  padding: 14px 0 4px;
+  margin-bottom: 0;
+}
+
+/* --- Cultivation and The Standing ----------------------------------------- */
+/*
+ * §11's plate bar at 14px. Two lines are load-bearing and neither is cosmetic: the base
+ * `.progress-bar` has no `position: relative`, so the inline percentage would anchor to the
+ * nearest positioned ancestor instead of the track; and it is `overflow: hidden`, which clips
+ * the qi bloom to a few pixels of haze. The roster hit both on `.disciple-row-bar` and solved
+ * them the same way.
+ */
+.leaf .progress-bar.hero {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--track);
+  overflow: visible;
+}
+
+.leaf .progress-bar.hero .progress-bar-fill {
+  border-radius: inherit;
+}
+
+/*
+ * THE STANDING — condition, morale and loyalty as one register on a rule, replacing three
+ * grey sentences and a full-height HP bar. Read at a glance rather than read.
+ */
+.leaf-standing {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rule);
+}
+
+.leaf-stat {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Uppercase micro is licensed below 0.6rem as a label device (§3). */
+.leaf-stat-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.leaf-stat-value {
+  font-size: 0.95rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaf-stat-value.bad {
+  color: var(--danger-ink);
+}
+
+/* The qualifiers that only sometimes apply: injury, recovery estimate, morale effect. */
+.leaf-standing-note {
+  margin: 5px 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-3);
+}
+
+/* --- The tappable row ----------------------------------------------------- */
+/*
+ * `[label / value ......... chevron]` between two hairlines. The shape the Posting control
+ * takes, and the shape step 9's equipment slots take — one vocabulary for "tap to change
+ * this", replacing a native <select> on one row and a bordered dark box on four others.
+ */
+.leaf .leaf-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap);
+  margin: var(--space-2) 0 0;
+  padding: 6px 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+.leaf-row-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.leaf-row-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.leaf-row-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.leaf .leaf-row-chevron {
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* --- Picker rows ---------------------------------------------------------- */
+/* `.slot-option` comes from the equipment picker; on paper it loses the dark fill and gains
+   a hairline, and the row already chosen carries the gold ring the roster uses for state. */
+.leaf .slot-option {
+  border: 1px solid transparent;
+  border-bottom-color: var(--rule);
+  border-radius: 0;
+  background: none;
+}
+
+.leaf .slot-option.current {
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--edge-gold);
+  border-bottom-color: transparent;
+  color: var(--ink);
+}
+
+/* --- Sub-navigation (§9) -------------------------------------------------- */
+/* The one segmented control, in paper values. The dark original is an inset --bg track with a
+   --surface-raised active segment and --gold text, none of which mean anything here. */
+.leaf .segmented {
+  margin: var(--space-3) 0 var(--space-2);
+  background: #e0d6c2;
+  border: 1px solid #cfc6b3;
+  box-shadow: inset 0 1px 2px rgba(42, 37, 33, 0.12);
+}
+
+.leaf .segmented-item {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+
+.leaf .segmented-item.active {
+  background: var(--parch);
+  border-color: var(--edge-gold);
+  color: var(--ink);
+}
+
+/* --- Equipment set banner ------------------------------------------------- */
+/* A band, not a box: one 2px gold rule down the left edge and nothing else. The dark original
+   was a green-washed fill, which on paper is a coloured rectangle competing with the plate. */
+.leaf .leaf-set {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+  padding-left: 10px;
+  border-left: 2px solid var(--edge-gold);
+}
+
+.leaf .leaf-set-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.leaf .leaf-set-bonuses {
+  font-size: 0.72rem;
+  color: var(--ready);
+}
+
+.leaf .leaf-set-lore {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+/* --- Equipment slots ------------------------------------------------------ */
+/*
+ * Deliberately NOT the old `.equipment-slot-row`, which carried `--edge: transparent` from a
+ * shared rule and shadowed the parchment card edge for its whole subtree. That class and its
+ * seven siblings are now deleted outright — this step took their last markup users.
+ */
+.leaf .leaf-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 7px 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+.leaf .leaf-slot:last-child {
+  border-bottom: 0;
+}
+
+.leaf-slot-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.leaf-slot-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.leaf-slot-name {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+.leaf-slot-name.empty {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.leaf-slot-base {
+  color: var(--ink-3);
+}
+
+/* Affixes and provenance share one quiet line; they used to run on after the name. */
+.leaf-slot-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.66rem;
+  color: var(--ink-3);
+}
+
+/* §2.3: on paper gold is spent once, on the number. */
+.leaf-slot-cp {
+  flex: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--cp-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A disabled slot row keeps its text at full strength. §7's `opacity: .45` is right for a
+ * button whose LABEL is the whole content — but this row's content is the record of what the
+ * disciple is wearing, and an away disciple is exactly when a player wants to read it. Dimming
+ * the row to 45% put every name, label, affix and CP number between 1.89:1 and 2.50:1.
+ *
+ * WCAG exempts inactive controls from contrast, so this passed the letter of the rule and
+ * failed the point of it. Only the affordance dims; the information does not.
+ */
+.leaf .leaf-slot:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.leaf .leaf-slot:disabled .leaf-row-chevron {
+  opacity: 0.3;
+}
+
+/* Technique rows are the same shape without the whole row being the control. */
+.leaf .leaf-slot-static {
+  cursor: default;
+}
+
+.leaf .leaf-slot-action {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+}
+
+/* --- Sheet chrome --------------------------------------------------------- */
+/* Three items across, and the right one has to clear `.sheet-close`, which is absolutely
+   positioned at `right: var(--space-2)` and paints ON TOP of the flow.
+   `--tap` alone is not enough: measured, it left the `›` target overlapping the ✕ by 12px, so
+   a tap on that strip closed the sheet instead of stepping. The reserve is the close button's
+   width PLUS its offset. */
+.leaf .sheet-header {
+  border-bottom: 1px solid var(--rule);
+}
+
+/*
+ * Only the header that actually CONTAINS a stepper spreads out. Scoping this to `.leaf`
+ * alone was a step-4 mistake: it assumed every leaf-surfaced sheet had prev/next, so the
+ * posting and equipment pickers — which use the plain `title` render — had their titles
+ * shoved to the left edge. Caught by rendering the picker, not the sheet it opens from.
+ */
+.leaf .sheet-header:has(.leaf-step) {
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-1) calc(var(--tap) + var(--space-2)) var(--space-1) 0;
+}
+
+.leaf .leaf-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-2);
+}
+
+.leaf .leaf-step:disabled {
+  opacity: 0.35;
+}
+
+/* One glyph, mirrored, rather than a second asset for the same shape. */
+.leaf .leaf-step .flip {
+  transform: scaleX(-1);
+}
+
+.leaf-ident {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.leaf-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+
+.leaf-count {
+  font-size: 0.62rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.leaf .sheet-grip { background: var(--track); }
+
+/* An entity name on paper: display face and ink. --gold is 2.1:1 here. */
+.leaf .sheet-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+/*
+ * THE FOOTER — the sheet's one action, pinned below the scroll (§12). It used to sit a third
+ * of the way down the body, between a dropdown and a tab strip: the game's central moment
+ * (§16.3), reachable only by scrolling past the equipment you were not thinking about.
+ *
+ * The risk lines ride directly above the button in plain language, never in a tooltip, and the
+ * numbers stay off the button so the button says one thing.
+ */
+.leaf .sheet-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: none;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+}
+
+.leaf .sheet-footer .breakthrough-risk,
+.leaf .sheet-footer .breakthrough-risk-warning,
+.leaf .sheet-footer .upgrade-blocked-reason {
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.leaf .sheet-footer .breakthrough-risk {
+  color: var(--ink-2);
+}
+
+.leaf .sheet-footer .breakthrough-risk-warning {
+  color: var(--danger-ink);
+}
+
+.leaf .sheet-footer button.primary {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/*
+ * EXPEL. No heading, no box, no full-width destructive button — §7's quiet tier, at the very
+ * foot, under a hairline. It is irreversible and rarely wanted; it should be findable, not
+ * offered.
+ */
+.leaf .disciple-expel {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rule);
+  text-align: center;
+}
+
+/* --- Buttons (§7) --------------------------------------------------------- */
+/* Deliberately LOW specificity (0,1,1) so every rule below wins without !important. */
+.leaf button {
+  min-height: var(--tap);
+  border-radius: 8px;
+  border: 1px solid rgba(42, 37, 33, 0.22);
+  background: rgba(42, 37, 33, 0.045);
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.leaf .sheet-close {
+  min-height: var(--tap);
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+}
+
+/* One primary per sheet: the breakthrough. Keeps the dark green fill so it reads as the
+   single loud object on the page. */
+.leaf button.primary,
+.leaf .breakthrough-controls button {
+  background: #2b3a2c;
+  border: 1px solid var(--edge-gold);
+  color: var(--seal-gold);
+}
+
+/* Quiet tier — destructive. Not a button shape at all. */
+.leaf .demolish-button.quiet.destructive {
+  min-height: 0;
+  border: 0;
+  background: none;
+  color: var(--danger-ink);
+  font-size: 0.72rem;
+  text-decoration: underline;
+}
+
+.leaf select {
+  background: rgba(42, 37, 33, 0.045);
+  border: 1px solid rgba(42, 37, 33, 0.22);
+  color: var(--ink);
+}
+
+/* --- Type the remap cannot infer ------------------------------------------ */
+.leaf .cultivation-realm-name { color: var(--ink); }
+.leaf .cultivation-stage { color: var(--qi-ink); }
+.leaf .cultivation-caption.ready { color: var(--ready); }
+
+/* An eighth untokenised dark-ground literal, #8a8796, which the remap cannot reach because
+   it is not a var(). 2.2:1 on paper. */
+.leaf .inventory-provenance {
+  color: var(--ink-3);
+}
+
+/* Slot glyphs are pale gold line art drawn for the dark ground — 1.6:1 on paper.
+   Luminance-flatten, darken and tint to pine: measured 10.5:1. §15's rule against knocking
+   glyphs out governs SOLID silhouettes; these are open line work and survive it cleanly. */
+.leaf .leaf-slot-art {
+  /* Pale gold line art drawn for the dark ground — 1.6:1 on paper. Luminance-flatten, darken
+     and tint to pine: measured 10.5:1. §15's rule against knocking glyphs out governs SOLID
+     silhouettes; these are open line work and survive it cleanly. */
+  flex: none;
+  filter: grayscale(1) brightness(0.34) sepia(1) hue-rotate(90deg) saturate(2.2);
+}
+
+/* Empty is the same glyph, quieter — the art is already outline, so "outline vs filled"
+   cannot be the signal. Opacity plus the word is. */
+.leaf .leaf-slot-art.empty {
+  opacity: 0.38;
 }
