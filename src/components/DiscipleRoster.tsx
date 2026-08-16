@@ -78,6 +78,16 @@ export function DiscipleRoster() {
     })
   }
 
+  /*
+   * THE ON-SCREEN ORDER — the plate, then each realm group top to bottom. The detail sheet's
+   * prev/next steps this, so the arrows follow what the player can actually see.
+   *
+   * `DiscipleDetailModal` used to re-sort by talent, which was right until the roll was
+   * grouped by realm and then quietly was not: `›` from the plate could land anywhere. Pure
+   * derivation over values computed just above; no store, no state, no save field.
+   */
+  const order = [...(hero ? [hero.id] : []), ...groups.flatMap((g) => g.members.map((d) => d.id))]
+
   return (
     <section className="panel disciple-roster-panel">
       {/* Title over the ornamental band (asset C4/E), whose centre third is empty by design.
@@ -170,7 +180,11 @@ export function DiscipleRoster() {
       </div>
 
       {openDiscipleId && (
-        <DiscipleDetailModal initialDiscipleId={openDiscipleId} onClose={() => setOpenDiscipleId(null)} />
+        <DiscipleDetailModal
+          initialDiscipleId={openDiscipleId}
+          order={order}
+          onClose={() => setOpenDiscipleId(null)}
+        />
       )}
     </section>
   )

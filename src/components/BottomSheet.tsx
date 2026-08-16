@@ -12,7 +12,10 @@ const DISMISS_DISTANCE_PX = 80
 interface BottomSheetProps {
   open: boolean
   onClose: () => void
-  /** Rendered in the header bar; the grab handle and close button are always present. */
+  /**
+   * Rendered in the header bar; the grab handle and close button are always present.
+   * Required even when `header` replaces its visual role — it is the panel's `aria-label`.
+   */
   title?: string
   /** 'auto' hugs its content up to --sheet-max-h, 'full' always fills it. */
   height?: 'auto' | 'full'
@@ -23,6 +26,20 @@ interface BottomSheetProps {
    * relocation prune that gates the whole shell): no overlay tap, Escape, swipe or ✕.
    */
   dismissible?: boolean
+  /**
+   * Appended to `.sheet-panel`. The opt-in for a surface variant — a sheet passing
+   * `"parchment"` gets the token ladder that the roster's wrapper cannot reach, because this
+   * panel is portalled to <body> and no descendant selector of that wrapper applies to it.
+   * Absent, the panel is exactly the dark sheet it has always been.
+   */
+  panelClassName?: string
+  /**
+   * Replaces the default `.sheet-title` render. The grip and the close button still render,
+   * and `.sheet-close` is absolutely positioned at the right, so a custom header must leave
+   * room for it. Use when a sheet's header has to carry more than a name — stepper arrows,
+   * a count, a subtitle. Absent, the title renders exactly as before.
+   */
+  header?: ReactNode
   children: ReactNode
 }
 
@@ -32,6 +49,11 @@ interface BottomSheetProps {
  *
  * Portalled to <body> so an ancestor's stacking context can't trap it, and depth-aware
  * so sheets can stack.
+ *
+ * `panelClassName` and `header` are additive and default to nothing: with neither passed,
+ * this renders the identical DOM it always did (§19 lists this component under "preserve —
+ * working, don't touch", so the drag, focus trap, depth refcount, Escape handling and
+ * `dismissible` behaviour are deliberately untouched).
  */
 export function BottomSheet({
   open,
@@ -40,6 +62,8 @@ export function BottomSheet({
   height = 'auto',
   footer,
   dismissible = true,
+  panelClassName,
+  header,
   children,
 }: BottomSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -92,6 +116,19 @@ export function BottomSheet({
   // Swipe-down to dismiss, driven straight off the DOM node so dragging doesn't re-render.
   const onHandlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dismissible) return
+    /*
+     * A press that STARTS on a control in the header must not take the pointer.
+     * `setPointerCapture` retargets the whole gesture to the capturing element, and the
+     * click that follows is dispatched against that element rather than the button — so the
+     * button's handler never runs.
+     *
+     * This was live: measured in headless Chromium, the ✕ received 0 of 1 clicks with the
+     * capture unguarded and 1 of 1 with this line, while drag-to-dismiss fired in both. It
+     * went unnoticed because tapping the scrim, pressing Escape and dragging all close a
+     * sheet too, so ✕ appeared to work. Worth a spot-check on iOS Safari, where pointer
+     * capture and compatibility mouse events have their own history.
+     */
+    if ((e.target as HTMLElement).closest('button, a, input, select, textarea')) return
     dragStartY.current = e.clientY
     e.currentTarget.setPointerCapture(e.pointerId)
   }
@@ -120,7 +157,10 @@ export function BottomSheet({
       onKeyDown={onKeyDown}
     >
       <div
-        className={`sheet-panel sheet-panel-${height}`}
+        /* `.filter(Boolean)` rather than a template literal: with panelClassName undefined
+           the joined string is byte-identical to the old `sheet-panel sheet-panel-${height}`,
+           with no trailing space for a caller to trip over. */
+        className={['sheet-panel', `sheet-panel-${height}`, panelClassName].filter(Boolean).join(' ')}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -136,7 +176,9 @@ export function BottomSheet({
           onPointerCancel={onHandlePointerUp}
         >
           {dismissible && <span className="sheet-grip" aria-hidden="true" />}
-          {title && <span className="sheet-title">{title}</span>}
+          {/* `??`, not `||`: an explicitly empty header stays empty, while undefined (every
+              existing call site) falls through to the title exactly as before. */}
+          {header ?? (title && <span className="sheet-title">{title}</span>)}
           {dismissible && (
             <button type="button" className="sheet-close" onClick={onClose} aria-label="Close">
               ✕

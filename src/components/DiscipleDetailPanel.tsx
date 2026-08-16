@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
-import { getBuildingDef, SECT_HALL_ID } from '../game/data/buildingDefs'
+import { getBuildingDef } from '../game/data/buildingDefs'
 import { getBoostEligibility } from '../game/engine/cultivationBoost'
-import { getBreakthroughEligibility, getMoraleCultivationMultiplier, isReadyForBreakthrough } from '../game/engine/cultivation'
-import { getAssignEligibility } from '../game/engine/buildingAssignment'
+import { getMoraleCultivationMultiplier, isReadyForBreakthrough } from '../game/engine/cultivation'
 import { getExpelEligibility } from '../game/engine/recruitment'
 import { getDiscoveredTechniques, getTeachEligibility } from '../game/engine/techniques'
 import { getTechniqueDef } from '../game/data/techniqueDefs'
@@ -11,6 +10,8 @@ import { EQUIPMENT_SLOTS } from '../game/engine/equipment'
 import { SLOT_ART } from '../assets/icons'
 import { GameIcon } from './GameIcon'
 import { EquipmentSlotPicker } from './EquipmentSlotPicker'
+import { AssignBuildingPicker } from './AssignBuildingPicker'
+import { UiIcon } from './UiIcon'
 import { getEquipmentCombatPower } from '../game/engine/itemQuality'
 import { getItemDef } from '../game/data/itemDefs'
 import { getItemQualityDef } from '../game/data/itemQualityDefs'
@@ -21,8 +22,7 @@ import { describeProvenance } from '../game/engine/itemProvenance'
 import { formatCountdown } from '../game/utils/formatDuration'
 import { getDiscipleCombatPower } from '../game/engine/combatPower'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
-import { DisciplePortrait, RealmLine, subRealmOrdinal } from './DisciplePortrait'
-import { publishBreakthroughMoment } from './breakthroughChannel'
+import { DiscipleIdentity, subRealmOrdinal } from './DisciplePortrait'
 import { useValueFlash } from './useValueFlash'
 import { getEffectiveMaxHp, getHealthRegenPerSecond, getInjurySeverity } from '../game/engine/injury'
 import { isDowned } from '../game/engine/downed'
@@ -54,22 +54,17 @@ type DetailTab = 'equipment' | 'consumables' | 'techniques'
 export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   // Subscribing to the whole state so countdowns (away/injury/boost/learning) re-render every tick.
   const state = useGameStore((s) => s.state)
-  const assignDisciple = useGameStore((s) => s.assignDisciple)
   const activateCultivationBoost = useGameStore((s) => s.activateCultivationBoost)
-  const attemptBreakthrough = useGameStore((s) => s.attemptBreakthrough)
   const useConsumable = useGameStore((s) => s.useConsumable)
   const teachTechnique = useGameStore((s) => s.teachTechnique)
   const expelDisciple = useGameStore((s) => s.expelDisciple)
 
   const [tab, setTab] = useState<DetailTab>('equipment')
   const [pickerSlot, setPickerSlot] = useState<EquipmentSlotId | null>(null)
+  const [postingOpen, setPostingOpen] = useState(false)
 
   const disciple = state.disciples.find((d) => d.id === discipleId)
   if (!disciple) return null
-
-  const assignableBuildings = Object.keys(state.buildings)
-    .filter((id) => id !== SECT_HALL_ID)
-    .map((id) => getBuildingDef(id))
 
   const isAway = disciple.awayUntil !== undefined
   const isDownedNow = isDowned(disciple, Date.now())
@@ -85,7 +80,6 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   const isFinalRealm = CULTIVATION_REALMS.indexOf(disciple.realm) === CULTIVATION_REALMS.length - 1
   const boostEligibility = getBoostEligibility(state, disciple.id)
   const readyForBreakthrough = isReadyForBreakthrough(disciple)
-  const breakthroughEligibility = getBreakthroughEligibility(state, disciple.id)
   const expelEligibility = getExpelEligibility(state, disciple.id)
 
   const discoveredTechniques = getDiscoveredTechniques(state)
@@ -104,34 +98,6 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
       return def.category === 'Equipment' && def.slotType === SLOT_MATCHES_ITEM[slot]
     })
 
-  /*
-   * The breakthrough moment reads the outcome the engine already decided (§16.3).
-   * `attemptBreakthrough` is a synchronous zustand action, so snapshotting the realm here
-   * and re-reading the store straight after tells us what happened without a store field
-   * or a save migration for something that lives 1.2 seconds.
-   *
-   * A missing disciple afterwards is not an error: a failed breakthrough wounds, and
-   * `resolveDownedDisciples` can remove a disciple who hits 0 HP. `undefined` means death.
-   */
-  const onAttemptBreakthrough = () => {
-    const before = { name: disciple.name, realm: disciple.realm }
-    attemptBreakthrough(disciple.id)
-    const after = useGameStore.getState().state.disciples.find((d) => d.id === disciple.id)
-    if (!after) {
-      publishBreakthroughMoment({ kind: 'failure', name: before.name, consequence: 'death' })
-      return
-    }
-    if (after.realm !== before.realm) {
-      publishBreakthroughMoment({ kind: 'success', name: after.name, realm: after.realm })
-      return
-    }
-    publishBreakthroughMoment({
-      kind: 'failure',
-      name: after.name,
-      consequence: isDowned(after, Date.now()) ? 'downed' : 'wound',
-    })
-  }
-
   // Combat Power only changes on discrete events (equip, breakthrough, technique, injury),
   // so it needs no threshold — any movement of a whole point is worth acknowledging.
   const combatPower = getDiscipleCombatPower(disciple, getDoctrineModifiers(state).combatPowerMult)
@@ -143,20 +109,21 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
   return (
     <div className="disciple-detail">
       {/*
-       * Portrait + name + realm as one header block (§16.2). The old "{role} · {realm} n/9"
-       * hint line is gone: the plaque's nameplate carries the role and the jade line carries
-       * the realm, so it was restating both in developer-hint grey.
+       * THE PLATE (§8). The same component the roster's hero card renders, at the same
+       * 118x151 portrait and the same 1.95rem name — so tapping a card opens a larger version
+       * of the object you tapped rather than a differently-proportioned header.
+       *
+       * `.disciple-card plate` is worn for the type scale and the grade wash only; inside the
+       * leaf the card's border, ring and fill are subtracted, because the sheet is already
+       * paper and a bordered card on it would be a box inside a box (§4).
        */}
-      <div className="disciple-sheet-header">
-        <DisciplePortrait disciple={disciple} variant="sheet" />
-        <div className="disciple-sheet-ident">
-          <h3>{disciple.name}</h3>
-          <RealmLine disciple={disciple} />
-          <span className={`disciple-grade grade-${disciple.grade.toLowerCase()}`}>{disciple.grade}</span>
-          <span className={`disciple-sheet-cp ${cpFlash.cp ?? ''}`} title="Combat Power">
-            {combatPower}
-          </span>
-        </div>
+      <div className={`disciple-card plate grade-${disciple.grade.toLowerCase()}`}>
+        <DiscipleIdentity
+          disciple={disciple}
+          combatPower={combatPower}
+          cpClassName={cpFlash.cp ?? ''}
+          alwaysShowGrade
+        />
       </div>
       {/*
        * The cultivation bar (§16.3), directly under the identity block because cultivation
@@ -177,6 +144,10 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
             className={`progress-bar-fill ${readyForBreakthrough ? 'breakthrough' : 'cultivation'}`}
             style={{ width: `${disciple.cultivationProgress}%` }}
           />
+          {/* The bar carries its own number (§11), the same way every bar on the roster does.
+              The caption below still carries the sentence — §11's third lesson is that the
+              sentence outperforms marks, and the number and the sentence say different things. */}
+          <span className="bar-pct">{Math.round(disciple.cultivationProgress)}%</span>
         </div>
         <p className={`cultivation-caption${readyForBreakthrough ? ' ready' : ''}`}>
           {isFinalRealm && disciple.subRealm === 9
@@ -189,25 +160,64 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         </p>
       </section>
 
+      {/*
+       * THE STANDING. Three facts that used to be three separate grey sentences — morale and
+       * loyalty in one `.panel-hint`, HP in another beneath its own full-height bar, and the
+       * injury clause buried inside that one. A register is read at a glance; three sentences
+       * have to be read.
+       *
+       * Nothing is dropped. The clauses that only sometimes apply — the injury, the recovery
+       * estimate, the morale effect — move to the single note line below, where the roster
+       * card already puts its qualifiers.
+       */}
       {(() => {
         const mult = getMoraleCultivationMultiplier(disciple.morale)
         const pct = Math.round((mult - 1) * 100)
         const effect = pct === 0 ? 'normal cultivation' : `cultivation ${pct > 0 ? '+' : ''}${pct}%`
+        const showInjury = isInjured && !isDownedNow
+        const recovery = showInjury && Number.isFinite(msToFullHp) ? `recovers in ~${formatCountdown(msToFullHp)}` : null
+        const notes = [showInjury ? INJURY_LABEL[injurySeverity] : null, recovery, effect].filter(Boolean)
+
         return (
-          <p className="panel-hint">
-            Morale {disciple.morale} &middot; {effect} &middot; Loyalty {disciple.loyalty}
-          </p>
+          <>
+            <div className="leaf-standing">
+              <div className="leaf-stat">
+                <span className="leaf-stat-label">Condition</span>
+                {/* Whole percent. `toFixed(2)` reads as instrument noise in a slot sized for a
+                    glanceable value; the bar carries the proportion. */}
+                <span className={`leaf-stat-value${isCritical ? ' bad' : ''}`}>{Math.round(hpPct)}%</span>
+                {/*
+                 * Inside the Condition cell, not spanning the register. Rendered full width
+                 * beneath all three columns it read as a divider under the whole row — a bar
+                 * under three numbers implies it measures three numbers. In the cell it is
+                 * unambiguously bound to the one it belongs to, and a third of the column is
+                 * still long enough to read a proportion from.
+                 *
+                 * Shown only below 99.5% (§11): a full bar carries no information.
+                 */}
+                {hpPct < 99.5 && (
+                  <div className="progress-bar disciple-row-bar condition">
+                    <div
+                      className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`}
+                      style={{ width: `${hpPct}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="leaf-stat">
+                <span className="leaf-stat-label">Morale</span>
+                <span className="leaf-stat-value">{disciple.morale}</span>
+              </div>
+              <div className="leaf-stat">
+                <span className="leaf-stat-label">Loyalty</span>
+                <span className="leaf-stat-value">{disciple.loyalty}</span>
+              </div>
+            </div>
+
+            <p className="leaf-standing-note">{notes.join(' · ')}</p>
+          </>
         )
       })()}
-
-      <div className="disciple-hp">
-        <div className="progress-bar">
-          <div className={`progress-bar-fill ${isCritical ? 'hp-critical' : 'hp'}`} style={{ width: `${hpPct}%` }} />
-        </div>
-        <p className="panel-hint">
-          HP {hpPct.toFixed(2)}%{isInjured && !isDownedNow ? ` · ${INJURY_LABEL[injurySeverity]}${Number.isFinite(msToFullHp) ? ` · recovers in ~${formatCountdown(msToFullHp)}` : ''}` : ''}
-        </p>
-      </div>
 
       {isDownedNow ? (
         <p className="status-badge injured-badge">
@@ -235,24 +245,32 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
       ) : isDownedNow ? (
         <p className="panel-hint">Incapacitated — cannot be assigned or dispatched until recovered.</p>
       ) : (
-        <label className="disciple-assignment">
-          Assigned to:{' '}
-          <select
-            value={disciple.assignedBuildingId ?? ''}
-            onChange={(e) => assignDisciple(disciple.id, e.target.value || undefined)}
-          >
-            <option value="">Idle / Rest</option>
-            {assignableBuildings.map((def) => {
-              const full = !getAssignEligibility(state, disciple.id, def.id).canAssign
-              return (
-                <option key={def.id} value={def.id} disabled={full}>
-                  {def.name}
-                  {full ? ' (slots full)' : ''}
-                </option>
-              )
-            })}
-          </select>
-        </label>
+        /*
+         * POSTING. Was a native <select>, the most jarring control on a hand-inked parchment
+         * sheet and the last one on this screen (two remain in `ProvinceDetailView`, which is
+         * un-migrated). It is now the same row-plus-picker shape `EquipmentSlotPicker` already
+         * established, so the leaf has one vocabulary for "tap to change a slot", not two.
+         *
+         * No building glyph: `buildings/trainingGround.png` and its thirteen siblings are
+         * full-colour isometric dioramas on floating rock, which at 28px beside flat pine-ink
+         * slot glyphs read as an object from a different game. The name in the display face
+         * was the information; the icon was decoration.
+         */
+        <>
+          <button type="button" className="leaf-row" onClick={() => setPostingOpen(true)}>
+            <span className="leaf-row-text">
+              <span className="leaf-row-label">Posting</span>
+              <span className="leaf-row-value">
+                {disciple.assignedBuildingId ? getBuildingDef(disciple.assignedBuildingId).name : 'Idle / Rest'}
+              </span>
+            </span>
+            <UiIcon name="chevron" className="leaf-row-chevron" />
+          </button>
+
+          {postingOpen && (
+            <AssignBuildingPicker discipleId={disciple.id} onClose={() => setPostingOpen(false)} />
+          )}
+        </>
       )}
 
       {disciple.assignedBuildingId === 'trainingGround' && !isAway && (
@@ -266,99 +284,105 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         </div>
       )}
 
-      {readyForBreakthrough && (
-        <div className="boost-controls breakthrough-controls">
-          {/* The risk in plain language above the action, never in a tooltip (§16.3). The
-              numbers leave the button so the button can say one thing. */}
-          <p className="breakthrough-risk">
-            {breakthroughEligibility.cost} Qi Stone. {Math.round(breakthroughEligibility.successChance * 100)}% chance
-            to succeed.
-          </p>
-          <p className={`breakthrough-risk-warning${isCritical ? ' grave' : ''}`}>
-            {isCritical
-              ? `If it fails: a major wound. At this condition it could kill ${disciple.name}.`
-              : 'If it fails: a major wound, and the stage falls back.'}
-          </p>
+      {/*
+       * §9 codifies ONE sub-navigation control game-wide, and this strip was the last holdout
+       * — recorded as debt in §9, in §19's "known debt", and in DISCIPLES_SCREEN_BUILD. It was
+       * deferred twice because converting it inside a World-map step would have widened that
+       * step for zero World gain. This is the step it belongs to.
+       */}
+      <div className="segmented">
+        {(
+          [
+            ['equipment', 'Equipment'],
+            ['consumables', 'Pills'],
+            ['techniques', 'Techniques'],
+          ] as [DetailTab, string][]
+        ).map(([id, label]) => (
           <button
-            className="primary breakthrough-ready"
-            disabled={!breakthroughEligibility.canBreakthrough}
-            onClick={onAttemptBreakthrough}
+            key={id}
+            type="button"
+            className={`segmented-item${tab === id ? ' active' : ''}`}
+            onClick={() => setTab(id)}
           >
-            Attempt the breakthrough
+            {label}
           </button>
-          {!breakthroughEligibility.canBreakthrough && breakthroughEligibility.reason && (
-            <p className="upgrade-blocked-reason">{breakthroughEligibility.reason}</p>
-          )}
-        </div>
-      )}
-
-      <div className="disciple-detail-tabs">
-        <button className={tab === 'equipment' ? 'active' : ''} onClick={() => setTab('equipment')}>
-          Equipment
-        </button>
-        <button className={tab === 'consumables' ? 'active' : ''} onClick={() => setTab('consumables')}>
-          Pills
-        </button>
-        <button className={tab === 'techniques' ? 'active' : ''} onClick={() => setTab('techniques')}>
-          Techniques
-        </button>
+        ))}
       </div>
 
       {tab === 'equipment' && (
         <div className="equipment-section">
           {getActiveEquipmentSets(disciple).map(({ def, equippedCount }) => (
-            <div className="equipment-set-banner" key={def.id}>
-              <span className="equipment-set-name">
+            <div className="leaf-set" key={def.id}>
+              <span className="leaf-set-name">
                 {def.name} ({equippedCount}/{def.pieces.length})
               </span>
-              <span className="equipment-set-bonuses">
+              <span className="leaf-set-bonuses">
                 {def.bonuses
                   .map((b) => `${equippedCount >= b.count ? '✓ ' : ''}${describeSetBonus(b)}`)
                   .join(' · ')}
               </span>
-              <span className="equipment-set-lore">{def.lore}</span>
+              <span className="leaf-set-lore">{def.lore}</span>
             </div>
           ))}
+          {/*
+           * `.leaf-slot`, NOT `.equipment-slot-row`. The shared rule that styles that class
+           * sets `--edge: transparent` on it, which shadows the parchment card edge for the
+           * whole subtree — measured before this step, not guessed. It also drags in a 3px
+           * left stripe (the dark screens' state channel, replaced on paper by the gold ring,
+           * §6) and `background: var(--bg)`. And `.equipment-slot-item` is `--positive`, which
+           * §2.1 forbids on paper outright.
+           *
+           * The anatomy also changes. Everything used to run together on one wrapping line —
+           * name, quality, CP, affixes, provenance — so a Masterwork sword with two affixes
+           * wrapped to four lines of undifferentiated text. Now the slot is a label, the item
+           * and its quality are the line that matters, the CP delta is a right-aligned number
+           * in gold, and affixes and provenance share one quiet line beneath.
+           */}
           {EQUIPMENT_SLOTS.map((slot) => {
             const equipped = disciple.equipment[slot]
             const equippedDef = equipped ? getItemDef(equipped.itemId) : undefined
+            const affixes = equipped?.affixes?.length ? equipped.affixes.map(describeAffix).join(' · ') : null
+            const sub = equipped ? [affixes, describeProvenance(equipped)].filter(Boolean).join(' · ') : null
 
             return (
               <button
                 type="button"
-                className="equipment-slot-row"
+                className="leaf-slot"
                 key={slot}
                 disabled={isAway}
                 onClick={() => setPickerSlot(slot)}
               >
                 <GameIcon
-                  className={`equipment-slot-art ${equipped ? 'filled' : ''}`}
+                  className={`leaf-slot-art${equipped ? '' : ' empty'}`}
                   src={SLOT_ART[slot]}
                   alt=""
-                  size={26}
+                  size={28}
                 />
-                <span className="equipment-slot-label">{SLOT_LABELS[slot]}</span>
-                {equipped && equippedDef ? (
-                  <span className="equipment-slot-item">
-                    {equipped.forgedName ?? equippedDef.name}
-                    {equipped.forgedName && <span className="inventory-subtitle"> — {equippedDef.name}</span>}
-                    {equipped.quality && (
-                      <span style={{ color: getItemQualityDef(equipped.quality).color }}>
-                        {' '}&middot; {equipped.quality}
+
+                <span className="leaf-slot-text">
+                  <span className="leaf-slot-label">{SLOT_LABELS[slot]}</span>
+                  {equipped && equippedDef ? (
+                    <>
+                      <span className="leaf-slot-name">
+                        {equipped.forgedName ?? equippedDef.name}
+                        {equipped.forgedName && <span className="leaf-slot-base"> — {equippedDef.name}</span>}
+                        {equipped.quality && (
+                          <span style={{ color: getItemQualityDef(equipped.quality).color }}>
+                            {' '}&middot; {equipped.quality}
+                          </span>
+                        )}
                       </span>
-                    )}{' '}
-                    (+{getEquipmentCombatPower(equipped.itemId, equipped.quality)} CP)
-                    {equipped.affixes && equipped.affixes.length > 0 && (
-                      <span className="equipment-slot-affixes"> · {equipped.affixes.map(describeAffix).join(' · ')}</span>
-                    )}
-                    <span className="equipment-slot-provenance">{describeProvenance(equipped)}</span>
-                  </span>
-                ) : (
-                  <span className="panel-hint">Empty</span>
-                )}
-                <span className="equipment-slot-chevron" aria-hidden="true">
-                  ›
+                      {sub && <span className="leaf-slot-sub">{sub}</span>}
+                    </>
+                  ) : (
+                    <span className="leaf-slot-name empty">Empty</span>
+                  )}
                 </span>
+
+                {equipped && (
+                  <span className="leaf-slot-cp">+{getEquipmentCombatPower(equipped.itemId, equipped.quality)}</span>
+                )}
+                <UiIcon name="chevron" className="leaf-row-chevron" />
               </button>
             )
           })}
@@ -411,14 +435,23 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
           {teachableTechniques.map((technique) => {
             const eligibility = getTeachEligibility(state, disciple.id, technique.id)
             return (
-              <div className="equipment-slot-row" key={technique.id}>
-                <span className="equipment-slot-label">{technique.name}</span>
-                <button disabled={!eligibility.canTeach} onClick={() => teachTechnique(disciple.id, technique.id)}>
+              /* Same row vocabulary as the equipment slots — one shape for "a thing with an
+                 action", instead of a dark box sitting in a tab whose siblings are clean. */
+              <div className="leaf-slot leaf-slot-static" key={technique.id}>
+                <span className="leaf-slot-text">
+                  <span className="leaf-slot-name">{technique.name}</span>
+                  {!eligibility.canTeach && eligibility.reason && (
+                    <span className="leaf-slot-sub">{eligibility.reason}</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="leaf-slot-action"
+                  disabled={!eligibility.canTeach}
+                  onClick={() => teachTechnique(disciple.id, technique.id)}
+                >
                   Teach
                 </button>
-                {!eligibility.canTeach && eligibility.reason && (
-                  <span className="panel-hint">{eligibility.reason}</span>
-                )}
               </div>
             )
           })}
@@ -428,8 +461,13 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
         </div>
       )}
 
-      <div className="disciple-expel danger-zone">
-        <p className="danger-zone-title">Danger zone</p>
+      {/*
+       * Expel is not a feature. It was a "Danger zone" heading over a full-width destructive
+       * button — §7's quiet tier exists precisely so a rarely-used, irreversible action can
+       * sit at the foot without competing with the sheet's real content. The confirm stays:
+       * replacing `window.confirm` would be a second overlay pattern (§12).
+       */}
+      <div className="disciple-expel">
         <button
           type="button"
           className="demolish-button quiet destructive"

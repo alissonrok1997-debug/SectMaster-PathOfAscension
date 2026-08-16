@@ -9,7 +9,7 @@ import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { getWorldModifiers } from '../game/engine/world/worldModifiers'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
 import { EMBER_ART } from '../assets/icons'
-import { DisciplePortrait, RealmLine, subRealmOrdinal } from './DisciplePortrait'
+import { DiscipleIdentity, DisciplePortrait, subRealmOrdinal } from './DisciplePortrait'
 
 interface DiscipleCardProps {
   discipleId: string
@@ -151,30 +151,14 @@ export function DiscipleCard({ discipleId, onSelect, active, hero }: DiscipleCar
   if (hero) {
     return (
       <div className={className} {...interaction}>
-        <DisciplePortrait disciple={disciple} variant="plate" />
-
-        <div className="disciple-row-text">
-          <div className="disciple-row-line">
-            <h3>{disciple.name}</h3>
-            {combatPowerReadout}
-          </div>
-
-          {/* Only the two rare grades announce themselves; for Common and Uncommon the
-              plaque's halo says it, and absence becomes the signal for "ordinary". */}
-          {showGrade && (
-            <div className="disciple-row-line">
-              <span className={`disciple-grade grade-${disciple.grade.toLowerCase()}`}>{disciple.grade}</span>
-            </div>
-          )}
-
-          <div className="disciple-row-line disciple-row-sub">
-            <RealmLine disciple={disciple} />
-          </div>
-
+        {/* `DiscipleIdentity` is shared with the detail leaf, so the roster's peak and the
+            leaf's peak are one object rather than two that agree today. It announces only
+            Rare and Genius here — absence is the signal for "ordinary" in a list. */}
+        <DiscipleIdentity disciple={disciple} combatPower={combatPower}>
           {cultivationBar}
           {conditionBar}
           {statusLine}
-        </div>
+        </DiscipleIdentity>
       </div>
     )
   }
