@@ -10,7 +10,7 @@
  * trimmed to a square, quantised). `_alt-*.png` are unused near-duplicates kept
  * on disk for future tiers.
  */
-import type { DiscipleRole, EquipmentSlotId, Resources } from '../../game/types'
+import type { DiscipleRole, EquipmentSlotId, MissionType, Resources } from '../../game/types'
 
 import ironEssenceArt from './resources/ironEssence.png'
 import knowledgeArt from './resources/knowledge.png'
@@ -70,6 +70,14 @@ import tabWorkshopArt from './tabs/workshop.png'
 import tabWorldArt from './tabs/world.png'
 
 import emberArt from './parchment/ember.png'
+import sectHallPlateArt from './buildings/sectHallPlate.png'
+
+import missionGatheringArt from './missions/gathering.png'
+import missionHuntingArt from './missions/hunting.png'
+import missionEscortArt from './missions/escort.png'
+import missionGatheringPlateArt from './missions/gatheringPlate.png'
+import missionHuntingPlateArt from './missions/huntingPlate.png'
+import missionEscortPlateArt from './missions/escortPlate.png'
 
 import emblemArt from './sect/emblem.png'
 import sealArt from './sect/seal.png'
@@ -170,3 +178,48 @@ export const SEAL_ART = sealArt
  * which forces a square box.
  */
 export const EMBER_ART = emberArt
+
+/**
+ * The Sect Hall at plate size (§22 step 19's Buildings screen).
+ *
+ * Deliberately NOT in `BUILDING_ART`: that map is the 48px row/tile tier, and this is the
+ * 153px illustration tier — one asset, because the Buildings plate is permanently the Sect
+ * Hall. Ships square at 480x480 rather than at the portrait plaque's 0.780, because the
+ * plate here is frameless (OMA, 2026-08-16) and the subject's own bbox is square; forcing
+ * the portrait aspect only padded transparent margin and shrank the building.
+ */
+export const SECT_HALL_PLATE_ART = sectHallPlateArt
+
+/**
+ * MISSION TYPE MARKS (SCREEN_MISSIONS, the 48px row tier).
+ *
+ * Keyed on `MissionType`, not on a mission id — a mark names the TYPE, the way `ROLE_ART`
+ * names a role, so both Gathering warrants share one and the set stays at three however many
+ * missions `MISSION_DEFS` grows to. That is why Gathering is a basket rather than herbs:
+ * `prospectIronVein` is a Gathering mission too.
+ */
+export const MISSION_ART: Record<MissionType, string> = {
+  Gathering: missionGatheringArt,
+  Hunting: missionHuntingArt,
+  Escort: missionEscortArt,
+}
+
+/**
+ * The same three types at plate size, 340x436 for the 118x151 plaque at DPR 3.
+ *
+ * Deliberately NOT in `MISSION_ART`, for the reason `SECT_HALL_PLATE_ART` is not in
+ * `BUILDING_ART`: two tiers, two sizes, two drawings. Three are needed rather than Buildings'
+ * one because the Missions plate ROTATES — it carries whichever warrant is boldest, so the
+ * subject changes with the board.
+ *
+ * These are OPAQUE, unlike every other painted asset in the game, which is keyed. They are
+ * ink-and-wash vignettes ON paper: the wash IS the drawing, and removing the paper under it
+ * leaves nothing to unpremultiply against — measured, it drives pale washes to near-black.
+ * They sit inside `plaque-frame.png`'s arch, which is the boundary that makes an opaque
+ * rectangle legitimate here.
+ */
+export const MISSION_PLATE_ART: Record<MissionType, string> = {
+  Gathering: missionGatheringPlateArt,
+  Hunting: missionHuntingPlateArt,
+  Escort: missionEscortPlateArt,
+}

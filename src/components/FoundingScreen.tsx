@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
+import { UiIcon } from './UiIcon'
 import { useGameStore } from '../game/state/store'
 import { getFoundingOptions } from '../game/engine/world/founding'
-import { getProvinceDef } from '../game/data/world/provinceDefs'
-import { getSectSiteDef } from '../game/data/world/sectSiteDefs'
 import { SpiritVeinBadge } from './SpiritVeinBadge'
 import { ModifierBundleList } from './ModifierBundleList'
 import { ProvinceSelectStep } from './ProvinceSelectStep'
@@ -19,7 +18,10 @@ type Step = 'province' | 'site' | 'confirm'
  */
 export function FoundingScreen() {
   const foundSect = useGameStore((s) => s.foundSect)
-  const options = useMemo(() => getFoundingOptions(), [])
+  // The realm is generated from `worldSeed`, rolled once at new game (WORLD_PROCGEN_PLAN Wave 5).
+  // The generated blueprint is memoised, so options/eligibility/commit all read the same world.
+  const worldSeed = useGameStore((s) => s.state.worldSeed)
+  const options = useMemo(() => getFoundingOptions(worldSeed), [worldSeed])
   // The First Realm is a single self-contained province (FIRST_REALM_PLAN §1) —
   // there is nothing to choose between, so the province step collapses away
   // and the player lands straight on site selection (§6).
@@ -88,12 +90,13 @@ export function FoundingScreen() {
         </section>
       )}
 
-      {step === 'confirm' && provinceId && sectSiteId && (
+      {step === 'confirm' && provinceId && sectSiteId && selectedOption && (
         <section className="panel">
           <h2>Confirm Your Founding</h2>
           {(() => {
-            const province = getProvinceDef(provinceId)
-            const site = getSectSiteDef(sectSiteId)
+            const province = selectedOption.province
+            const site = selectedOption.sites.find((s) => s.id === sectSiteId)
+            if (!site) return null
             return (
               <div className="founding-confirm">
                 <p>
@@ -108,7 +111,7 @@ export function FoundingScreen() {
                 </p>
                 <ModifierBundleList bundle={site.modifiers} />
                 <p className="founding-warning">
-                  ⚠ This choice is <strong>permanent</strong> for this save. It cannot be changed once confirmed.
+                  <UiIcon name="warning" size={16} /> This choice is <strong>permanent</strong> for this save. It cannot be changed once confirmed.
                 </p>
                 <div className="founding-nav">
                   <button className="quiet" onClick={() => setStep('site')}>

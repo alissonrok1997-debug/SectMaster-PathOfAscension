@@ -136,7 +136,7 @@ export function DiscipleIdentity({
           <h3>{disciple.name}</h3>
           {/* The ember is 0.699, not square, so it is a plain `img` rather than `GameIcon` —
               which forces a square box and would letterbox the flame. */}
-          <span className={`disciple-row-cp ${cpClassName}`.trim()} title="Combat Power">
+          <span className={`disciple-row-cp ${cpClassName}`.trim()} aria-label="Combat Power">
             <img className="cp-ember" src={EMBER_ART} alt="" aria-hidden="true" draggable={false} />
             {combatPower}
           </span>

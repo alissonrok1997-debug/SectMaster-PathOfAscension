@@ -1,4 +1,4 @@
-import type { DiscipleInstance, GameState, LocationId, LocationRuntime } from '../../types'
+import type { DiscipleInstance, GameState, LocationId, LocationRuntime, WorldState } from '../../types'
 import { getSquadCombatPower, highestGradeLeaderId } from '../combatPower'
 import { getDoctrineModifiers } from '../doctrine'
 import { getGarrisonLocationId } from '../discipleAvailability'
@@ -67,12 +67,52 @@ export function getOutpostDefensePower(state: GameState, locationId: LocationId)
 export function getDefensePower(state: GameState, locationId: LocationId): number {
   const runtime = state.world?.locations[locationId]
   if (!runtime?.ownerId) return 0
-  if (runtime.ownerId === 'player') {
+  if (runtime.ownerId === state.sectId) {
     return locationId === state.sectLocation?.sectSiteId
       ? getSeatDefensePower(state)
       : getOutpostDefensePower(state, locationId)
   }
   return runtime.garrison?.strength ?? 0
+}
+
+/**
+ * Syncs the player seat's cached `garrison.strength` (MULTIPLAYER_PLAN §2) — the same scalar NPC
+ * seats have always carried, now maintained for the player's seat too.
+ *
+ * Why it exists: `getSeatDefensePower` answers a SHARED question ("how strong is this seat?") by
+ * reading PRIVATE state (`state.disciples`). A rival can't do that — they can't see your roster. So
+ * the number is denormalized onto the shared `LocationRuntime`, where anyone may read it, and the
+ * private roster stays behind it as the detail only the owner sees.
+ *
+ * Written, never derived on read (§15.2): a value computed on demand can't be read for a sect that
+ * isn't loaded, which is exactly the case that matters when someone attacks an offline defender.
+ * Wave 4 moves this to per-intent recompute once writes become discrete server-side transactions;
+ * until then the tick is the write boundary.
+ */
+export function recomputeSeatStrength(state: GameState): GameState {
+  const seatId = state.sectLocation?.sectSiteId
+  if (!state.world || !seatId) return state
+  const runtime = state.world.locations[seatId]
+  if (!runtime || runtime.ownerId !== state.sectId) return state
+
+  const strength = getSeatDefensePower(state)
+  if (runtime.garrison?.strength === strength) return state
+  return {
+    ...state,
+    world: {
+      ...state.world,
+      locations: { ...state.world.locations, [seatId]: { ...runtime, garrison: { ...runtime.garrison, strength } } },
+    },
+  }
+}
+
+/**
+ * The publicly-visible strength of any seat, owner-agnostic: the cached scalar, which is all a rival
+ * ever gets to see. Prefer this over `getSeatDefensePower` anywhere the answer is about someone
+ * else's seat — it reads only shared state.
+ */
+export function getPublicSeatStrength(world: WorldState | undefined, seatId: LocationId): number {
+  return world?.locations[seatId]?.garrison?.strength ?? 0
 }
 
 export interface GarrisonEligibility {
@@ -87,7 +127,7 @@ export function getGarrisonEligibility(state: GameState, locationId: LocationId,
     return { canGarrison: false, reason: 'Your seat is defended automatically by every disciple at home.' }
   }
   const runtime = state.world.locations[locationId]
-  if (!runtime || runtime.ownerId !== 'player') {
+  if (!runtime || runtime.ownerId !== state.sectId) {
     return { canGarrison: false, reason: 'You do not hold this location.' }
   }
   if (discipleIds.length === 0) return { canGarrison: false, reason: 'Assign at least one disciple.' }

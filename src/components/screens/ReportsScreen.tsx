@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { UiIcon } from '../UiIcon'
 import { useGameStore } from '../../game/state/store'
 import type { CombatReportSource } from '../../game/types'
 import { BattleReportBody } from '../BattleReportView'
@@ -44,7 +45,7 @@ export function ReportsScreen() {
       <section className="panel reports-screen">
         <div className="world-back-header">
           <button className="world-back-button" onClick={() => setSelectedId(null)} aria-label="Back to inbox">
-            ‹
+            <UiIcon className="ui-chevron back" name="chevron" size={20} />
           </button>
           <h2>{selected.title}</h2>
         </div>

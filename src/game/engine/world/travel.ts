@@ -1,6 +1,6 @@
 import type { ExpeditionPurpose, GameState, LocationId, Resources } from '../../types'
-import { getSectSiteDef } from '../../data/world/sectSiteDefs'
 import { MS_PER_MAP_DISTANCE } from '../../data/world/travelConstants'
+import { getSite } from './worldAccess'
 import { getExpeditionTargetMeta, getLocation } from './worldQueries'
 import { getLocationPosition } from './influence'
 import { getWorldModifiers } from './worldModifiers'
@@ -23,7 +23,7 @@ import { getWorldModifiers } from './worldModifiers'
  */
 export function getTravelTime(state: GameState, locationId: LocationId, _purpose: ExpeditionPurpose = 'gather'): number {
   if (!state.sectLocation) return Infinity
-  const seat = getSectSiteDef(state.sectLocation.sectSiteId).mapPosition
+  const seat = getSite(state.world, state.sectLocation.sectSiteId).mapPosition
   const target = getLocationPosition(state, locationId)
   if (!target) return Infinity
 

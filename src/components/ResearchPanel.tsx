@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { UiIcon } from './UiIcon'
 import { useGameStore } from '../game/state/store'
 import { RESEARCH_PROJECT_DEFS } from '../game/data/researchProjectDefs'
 import { DOCTRINE_DEFS } from '../game/data/doctrineDefs'
@@ -79,7 +80,7 @@ export function ResearchPanel() {
                   </span>
                 </span>
                 <span className="recipe-card-chevron" aria-hidden="true">
-                  {expanded ? '⌃' : '›'}
+                  <UiIcon className={`ui-chevron ${expanded ? 'up' : ''}`} name="chevron" size={20} />
                 </span>
               </button>
 
@@ -136,7 +137,7 @@ export function ResearchPanel() {
                   <span className="recipe-cost-line">{doctrine.effectsSummary}</span>
                 </span>
                 <span className="recipe-card-chevron" aria-hidden="true">
-                  {expanded ? '⌃' : '›'}
+                  <UiIcon className={`ui-chevron ${expanded ? 'up' : ''}`} name="chevron" size={20} />
                 </span>
               </button>
 

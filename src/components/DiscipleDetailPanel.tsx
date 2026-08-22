@@ -226,7 +226,7 @@ export function DiscipleDetailPanel({ discipleId }: { discipleId: string }) {
       ) : (
         isCritical &&
         !isAway && (
-          <p className="disciple-critical-warning">⚠ Critically wounded — dispatching them on a mission or expedition risks their death.</p>
+          <p className="disciple-critical-warning"><UiIcon name="warning" size={16} /> Critically wounded — dispatching them on a mission or expedition risks their death.</p>
         )
       )}
 

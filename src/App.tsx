@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGameLoop } from './game/engine/useGameLoop'
+import { useGameLoop } from './components/useGameLoop'
 import { ResourceBar } from './components/ResourceBar'
 import { TabBar } from './components/TabBar'
 import { SectScreen } from './components/screens/SectScreen'

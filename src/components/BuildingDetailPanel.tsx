@@ -3,56 +3,36 @@ import { useGameStore } from '../game/state/store'
 import { AssignDiscipleModal } from './AssignDiscipleModal'
 import { getBuildingDef, SECT_HALL_ID } from '../game/data/buildingDefs'
 import { getUpgradeEligibility } from '../game/engine/upgradeEligibility'
-import { computeStorageCaps } from '../game/engine/storage'
-import { computeDiscipleCapacity } from '../game/engine/discipleCapacity'
 import { getBuildingSlotCount } from '../game/engine/buildingAssignment'
-import { TRAINING_HALL_RATE_PER_LEVEL } from '../game/engine/cultivation'
-import { BOOST_COST, BOOST_DURATION_MS, BOOST_RATE_PER_SECOND } from '../game/engine/cultivationBoost'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
-import { BUILDING_ART } from '../assets/icons'
+import { BUILDING_ART, RESOURCE_ART } from '../assets/icons'
 import { GameIcon } from './GameIcon'
+import { UiIcon } from './UiIcon'
+// Moved to a shared component-level module so the sheet and the works row cannot drift.
+import { getBuildingEffectRows, getBuildingRatePerSecond } from './buildingRowMeta'
 import { formatCountdown, formatDurationAdaptive } from '../game/utils/formatDuration'
-import type { GameState, Resources } from '../game/types'
+import type { Resources } from '../game/types'
 
-/** Building-specific "Current effects" rows for buildings whose value isn't a resource-per-second production number. */
-function getBuildingEffectRows(buildingId: string, level: number, state: GameState): { label: string; value: string }[] {
-  switch (buildingId) {
-    case 'warehouse': {
-      const caps = computeStorageCaps(state)
-      return [
-        { label: 'Raw material cap', value: Math.round(caps.spiritWood).toLocaleString() },
-        { label: 'Knowledge cap', value: Math.round(caps.knowledge).toLocaleString() },
-      ]
-    }
-    case 'dormitory':
-      return [
-        {
-          label: 'Disciple capacity',
-          value: `${state.disciples.length} / ${computeDiscipleCapacity(state.buildings)}`,
-        },
-      ]
-    case 'trainingHall':
-      return [
-        {
-          label: 'Cultivation, assigned',
-          value: `+${(TRAINING_HALL_RATE_PER_LEVEL * level).toFixed(1)} pts/s each`,
-        },
-      ]
-    case 'trainingGround': {
-      const cost = (Object.entries(BOOST_COST) as [keyof Resources, number][])
-        .map(([key, amount]) => `${amount} ${RESOURCE_LABELS[key]}`)
-        .join(', ')
-      return [
-        { label: 'Boost rate', value: `+${BOOST_RATE_PER_SECOND.toFixed(1)} pts/s` },
-        { label: 'Boost duration', value: `${Math.round(BOOST_DURATION_MS / 1000)}s` },
-        { label: 'Boost cost', value: cost },
-      ]
-    }
-    default:
-      return []
-  }
-}
-
+/**
+ * The building sheet, on paper.
+ *
+ * Converted 2026-08-16, after the Buildings screen migrated: the screen was parchment and the
+ * sheet you tapped into from it was still the old dark `dl`/`ul` stack, which is the most
+ * visible seam a half-migrated screen can have.
+ *
+ * IT REUSES THE LEAF'S VOCABULARY RATHER THAN INVENTING A THIRD SHEET LANGUAGE. `.leaf-stat`
+ * for the figures, `.leaf-row` for anything tappable, `.works-plate-cost-chip` for a cost —
+ * all of it already shipped for the disciple leaf and the Buildings screen. The mount is
+ * `panelClassName="parchment leaf"` from `BuildingList`: `.parchment` carries the token
+ * ladder, `.leaf` carries the material and the dark→paper remap that keeps un-migrated rules
+ * (`.panel-hint`, the buttons) resolving to paper values.
+ *
+ * Two structural changes fall out of that, both deletions:
+ *
+ *   - The `dl`/`ul` stacks are gone. Figures are a `.leaf-standing` strip; costs are chips.
+ *   - The 2-up work-slot tile grid is gone, replaced by `.leaf-row`s. That removes the LAST
+ *     consumer of `.building-tile`, so the class and its CSS go with it.
+ */
 export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   // Subscribing to the whole state so the construction countdown re-renders every tick.
   const state = useGameStore((s) => s.state)
@@ -72,8 +52,7 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   const eligibility = getUpgradeEligibility(state, buildingId)
   const qiPenaltyActive =
     buildingId === 'sacredMountainShrine' && (state.qiStoneProductionPenaltyUntil ?? 0) > Date.now()
-  const rateMultiplier = (isOverLevel ? 0.5 : 1) * (qiPenaltyActive ? 0.5 : 1)
-  const currentRate = def.produces ? def.baseRatePerLevel! * building.level * rateMultiplier : 0
+  const currentRate = getBuildingRatePerSecond(state, buildingId)
   const nextRate = def.produces ? def.baseRatePerLevel! * (building.level + 1) : 0
 
   const assignedDisciples = state.disciples.filter((d) => d.assignedBuildingId === buildingId)
@@ -84,98 +63,110 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
   const effectRows = getBuildingEffectRows(buildingId, building.level, state)
 
   return (
-    <div className={`building-detail ${isOverLevel ? 'over-level' : ''}`}>
-      <div className="building-detail-header">
-        <GameIcon
-          className="building-detail-art"
-          src={BUILDING_ART[buildingId]}
-          fallback="🏯"
-          alt=""
-          size={64}
-        />
-        <h3>{def.name}</h3>
-        <span className="building-category">{def.category}</span>
-      </div>
-      <p className="panel-hint">{def.description}</p>
-
-      <p className="building-detail-section-title">Current effects</p>
-      <dl className="building-detail-list">
-        <div className="building-detail-row">
-          <dt>Level</dt>
-          <dd>{building.level}</dd>
+    <div className={`building-leaf ${isOverLevel ? 'over-level' : ''}`}>
+      {/* The identity block. Not a `.works-plate` — the plate carries a 153px illustration
+          and only the Sect Hall has one; every other building has a 48px mark. So the sheet
+          takes the same type scale at the size the art can actually support. */}
+      <div className="building-leaf-head">
+        <GameIcon className="building-leaf-art" src={BUILDING_ART[buildingId]} fallback="🏯" alt="" size={72} />
+        <div className="building-leaf-ident">
+          <h3>{def.name}</h3>
+          <span className="works-plate-pill">{def.category}</span>
+          <span className="building-leaf-level">Level {building.level}</span>
         </div>
-        {effectRows.map((row) => (
-          <div className="building-detail-row" key={row.label}>
-            <dt>{row.label}</dt>
-            <dd>{row.value}</dd>
+      </div>
+
+      <p className="building-leaf-lore">{def.description}</p>
+
+      {/* WHAT IT DOES — the `dl` becomes a stat strip. Two or three figures side by side read
+          faster than four label/value rows, and it is the leaf's existing shape.
+          A building with neither a rate nor an effect row (Forge, Alchemy Workshop, Research
+          Institute) has no figures, so it gets no strip: the earlier fallback put its work
+          slots here and the Work slots section below then said the same thing again. */}
+      {(def.produces || effectRows.length > 0) && (
+      <div className="leaf-standing">
+        {effectRows.slice(0, 2).map((row) => (
+          <div className="leaf-stat" key={row.label}>
+            <span className="leaf-stat-label">{row.label}</span>
+            <span className="leaf-stat-value">{row.value}</span>
           </div>
         ))}
         {def.produces && (
-          <div className="building-detail-row">
-            <dt>Production</dt>
-            <dd>
-              +{currentRate.toFixed(2)} {RESOURCE_LABELS[def.produces]}/s
-            </dd>
-          </div>
+          <>
+            <div className="leaf-stat">
+              <span className="leaf-stat-label">Production</span>
+              <span className={`leaf-stat-value ${isOverLevel || qiPenaltyActive ? 'bad' : ''}`}>
+                +{currentRate.toFixed(2)}/s
+              </span>
+            </div>
+            <div className="leaf-stat">
+              <span className="leaf-stat-label">At Level {building.level + 1}</span>
+              <span className="leaf-stat-value">+{nextRate.toFixed(2)}/s</span>
+            </div>
+          </>
         )}
-        {def.produces && (
-          <div className="building-detail-row">
-            <dt>At Lv{building.level + 1}</dt>
-            <dd>
-              +{nextRate.toFixed(2)} {RESOURCE_LABELS[def.produces]}/s
-            </dd>
-          </div>
-        )}
-      </dl>
+      </div>
+      )}
+      {def.produces && (
+        <p className="leaf-standing-note">
+          Per second, in {RESOURCE_LABELS[def.produces]}.
+        </p>
+      )}
 
       {isOverLevel && (
-        <p className="over-level-badge">Over-Level Penalty active: -50% output (above Sect Hall level)</p>
+        <p className="building-leaf-warn">Over-Level Penalty active: -50% output (above Sect Hall level)</p>
       )}
       {qiPenaltyActive && (
-        <p className="over-level-badge">
+        <p className="building-leaf-warn">
           Qi Stone output halved &mdash; reserve is feeding an Active Cultivation Boost
         </p>
       )}
 
-      <p className="building-detail-section-title">Upgrade requirements</p>
-      <ul className="building-requirements">
+      {/* WHAT IT COSTS — the `ul` becomes the cost chips the plate already uses, so a price
+          looks the same everywhere in the game. */}
+      <p className="leaf-section-title">To raise it to Level {eligibility.targetLevel}</p>
+      <div className="works-plate-cost building-leaf-cost">
         {costEntries.map(([key, amount]) => (
-          <li key={key}>
-            <span>{RESOURCE_LABELS[key]}</span>
-            <span>{amount}</span>
-          </li>
+          <span className="works-plate-cost-chip" key={key}>
+            <GameIcon src={RESOURCE_ART[key]} alt="" size={14} />
+            {amount} {RESOURCE_LABELS[key]}
+          </span>
         ))}
-        <li>
-          <span>Construction time</span>
-          <span>{formatDurationAdaptive(eligibility.durationMs / 1000)}</span>
-        </li>
-      </ul>
+        <span className="works-plate-cost-chip">{formatDurationAdaptive(eligibility.durationMs / 1000)} of work</span>
+      </div>
 
+      {/* WHO WORKS IT — `.leaf-row`s, the same "tap to change this" shape the disciple leaf
+          uses for Posting and equipment. The 2-up tile grid is gone. */}
       {canAssign && (
-        <div className="building-assignment">
-          <p className="building-detail-section-title">
+        <>
+          <p className="leaf-section-title">
             Work slots ({assignedDisciples.length} / {slotCount})
             {buildingId === 'trainingHall' ? ' — cultivate faster here' : ''}
           </p>
-          <div className="work-slot-grid">
-            {assignedDisciples.map((d) => (
-              <div key={d.id} className="building-tile work-slot-tile filled">
-                <span className="building-tile-name">{d.name}</span>
-                <button onClick={() => assignDisciple(d.id, undefined)}>Unassign</button>
-              </div>
-            ))}
-            {Array.from({ length: emptySlots }).map((_, i) => (
-              <button
-                key={`empty-${i}`}
-                type="button"
-                className="building-tile building-tile-empty work-slot-tile"
-                onClick={() => setAssignPickerOpen(true)}
-              >
-                <span className="building-tile-name">+ Assign disciple</span>
-              </button>
-            ))}
-          </div>
-        </div>
+          {assignedDisciples.map((d) => (
+            <button key={d.id} type="button" className="leaf-row" onClick={() => assignDisciple(d.id, undefined)}>
+              <span className="leaf-row-text">
+                <span className="leaf-row-label">Posted</span>
+                <span className="leaf-row-value">{d.name}</span>
+              </span>
+              <span className="leaf-row-release">Release</span>
+            </button>
+          ))}
+          {Array.from({ length: emptySlots }).map((_, i) => (
+            <button
+              key={`empty-${i}`}
+              type="button"
+              className="leaf-row leaf-row-empty"
+              onClick={() => setAssignPickerOpen(true)}
+            >
+              <span className="leaf-row-text">
+                <span className="leaf-row-label">Empty</span>
+                <span className="leaf-row-value">Assign a disciple</span>
+              </span>
+              <UiIcon className="leaf-row-chevron" name="chevron" size={20} />
+            </button>
+          ))}
+        </>
       )}
 
       {assignPickerOpen && (
@@ -183,9 +174,9 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
       )}
 
       {isConstructing ? (
-        <div className="construction-status">
-          <div className="progress-bar">
-            <div
+        <div className="building-leaf-progress">
+          <span className="progress-bar works-plate-bar">
+            <span
               className="progress-bar-fill construction"
               style={{
                 width: `${Math.min(
@@ -194,27 +185,31 @@ export function BuildingDetailPanel({ buildingId }: { buildingId: string }) {
                 )}%`,
               }}
             />
-          </div>
-          <p className="panel-hint">
-            Upgrading to Lv{building.level + 1} &middot; {formatCountdown(building.constructionEndsAt! - Date.now())}{' '}
+          </span>
+          <p className="leaf-standing-note">
+            Raising to Level {building.level + 1} &middot; {formatCountdown(building.constructionEndsAt! - Date.now())}{' '}
             remaining
           </p>
         </div>
       ) : (
-        <div className="upgrade-controls">
-          <button className="primary" disabled={!eligibility.canUpgrade} onClick={() => startUpgrade(buildingId)}>
+        <>
+          <button
+            className="roster-action primary"
+            disabled={!eligibility.canUpgrade}
+            onClick={() => startUpgrade(buildingId)}
+          >
             Upgrade to Lv{eligibility.targetLevel}
           </button>
           {!eligibility.canUpgrade && eligibility.reason && (
-            <p className="upgrade-blocked-reason">{eligibility.reason}</p>
+            <p className="leaf-standing-note">{eligibility.reason}</p>
           )}
-        </div>
+        </>
       )}
 
       {def.slotType === 'specialization' && !isConstructing && (
         <button
           type="button"
-          className="demolish-button quiet destructive"
+          className="building-leaf-demolish"
           onClick={() => {
             if (window.confirm(`Demolish ${def.name}? Its levels are lost and its slot frees up for a different specialization.`)) {
               demolishSpecializationBuilding(buildingId)

@@ -1,21 +1,20 @@
 import type {
-  GeneratedNodeRecord,
   LocationRuntime,
-  NpcSect,
-  ProvinceId,
   ProvinceRuntime,
+  NpcSect,
+  SectId,
+  ProvinceId,
   RegionId,
   SectLocation,
   SectSiteId,
   WorldState,
 } from '../../types'
-import { WORLD_DEF } from '../../data/world/worldDef'
-import { getProvinceDef, type ProvinceDefinition } from '../../data/world/provinceDefs'
-import { getSectSitesForProvince, type SectSiteDefinition } from '../../data/world/sectSiteDefs'
-import { NPC_SECT_DEFS, getOccupiedPoorSeatIds } from '../../data/world/npcSectDefs'
-import { getNeighbours } from '../../data/world/worldGraph'
-import { generateProvinceNodes } from './worldGeneration'
-import { NPC_BASE_ACTION_INTERVAL_MS, NPC_EMERGENCE_INTERVAL_MS } from './npcSimulation'
+import type { ProvinceDefinition } from '../../data/world/provinceDefs'
+import type { SectSiteDefinition } from '../../data/world/sectSiteDefs'
+import { generateTerritoryNodes } from './worldGeneration'
+import { getBlueprintForSeed } from './worldGen/realmGenerator'
+import { WORLD_GEN_CONFIG } from './worldGen/worldGenConfig'
+import { NPC_BASE_ACTION_INTERVAL_MS } from './npcSimulation'
 import { hashString, mulberry32 } from '../rng'
 
 /**
@@ -71,13 +70,17 @@ export interface FoundingProvinceOption {
   sites: SectSiteDefinition[]
 }
 
-/** The provinces selectable at founding (§1.1), each offering only its free Poor sites. */
-export function getFoundingOptions(): FoundingProvinceOption[] {
-  const occupied = new Set(getOccupiedPoorSeatIds())
-  return WORLD_DEF.foundingProvinceIds.map((id) => ({
-    province: getProvinceDef(id),
-    sites: getSectSitesForProvince(id).filter((s) => s.tier === 'poor' && !occupied.has(s.id)),
-  }))
+/**
+ * The founding options for a given world seed (WORLD_PROCGEN_PLAN Wave 2). The world is now
+ * generated from the seed, so the free-Poor pool comes from that seed's blueprint rather than a
+ * static roster. `getBlueprintForSeed` is memoised, so the options, the eligibility check and the
+ * committed world all read the identical generated blueprint.
+ */
+export function getFoundingOptions(seed: number): FoundingProvinceOption[] {
+  const bp = getBlueprintForSeed(seed)
+  const occupied = new Set(bp.npcSeeds.map((n) => n.seatSiteId))
+  const sites = Object.values(bp.sites).filter((s) => s.tier === 'poor' && !occupied.has(s.id))
+  return [{ province: bp.province, sites }]
 }
 
 export interface FoundingEligibility {
@@ -85,54 +88,40 @@ export interface FoundingEligibility {
   reason?: string
 }
 
-export function getFoundingEligibility(provinceId: ProvinceId, sectSiteId: SectSiteId): FoundingEligibility {
-  if (!WORLD_DEF.foundingProvinceIds.includes(provinceId)) {
+export function getFoundingEligibility(seed: number, provinceId: ProvinceId, sectSiteId: SectSiteId): FoundingEligibility {
+  const bp = getBlueprintForSeed(seed)
+  if (provinceId !== bp.province.id) {
     return { canFound: false, reason: 'This province cannot be chosen at founding.' }
   }
-  const sites = getSectSitesForProvince(provinceId)
-  const site = sites.find((s) => s.id === sectSiteId)
+  const site = bp.sites[sectSiteId]
   if (!site) {
     return { canFound: false, reason: 'That site is not in the chosen province.' }
   }
   if (site.tier !== 'poor') {
     return { canFound: false, reason: 'Only a Poor site can be founded on.' }
   }
-  if (getOccupiedPoorSeatIds().includes(sectSiteId)) {
+  if (bp.npcSeeds.some((n) => n.seatSiteId === sectSiteId)) {
     return { canFound: false, reason: 'That site is already held by another sect.' }
   }
   return { canFound: true }
 }
 
 /**
- * Builds the founding province's world state from a seed. Generates minor nodes
- * for the founding province and its neighbours (for map preview, §5.4) but marks
- * only the founding province `discovered` — ProvinceRuntime stays sparse (§2.2),
- * so neighbours have generated nodes without a runtime entry until visited.
+ * Creates the realm itself from a seed — blueprint, resource nodes, and the NPC roster on their
+ * seats. Knows nothing about any player: a realm exists before anyone joins it (MULTIPLAYER_PLAN
+ * §7.5), which is what lets a server open one on a schedule rather than have the first player
+ * through the door generate it as a side effect of founding.
  *
- * Also seeds the NPC-sect roster (FIRST_REALM_PLAN §4.4): every prestige seat
- * (Normal/Good) and a subset of Poor seats get a live `NpcSect` plus a
- * `LocationRuntime.ownerId`/`garrison` entry on their seat. Free Poor seats get
- * no entry at all — sparse storage already means "no entry" = neutral (§2.2).
- * The founding seat itself is written as player-owned; its defensive strength
- * is derived from the home disciple roster (§4.1), not stored here.
+ * Every prestige seat (Normal/Good) gets a live `NpcSect` plus a `LocationRuntime.ownerId`/`garrison`
+ * entry. Poor seats are never seeded (§0.4) and get no entry at all — sparse storage already means
+ * "no entry" = neutral (§2.2).
  */
-export function buildInitialWorldState(
-  provinceId: ProvinceId,
-  sectSiteId: SectSiteId,
-  seed: number,
-  now: number,
-): { sectLocation: SectLocation; world: WorldState } {
-  const provinces: Record<ProvinceId, ProvinceRuntime> = {
-    [provinceId]: { discovered: true, surveyProgress: 0 },
-  }
-
-  const generatedNodes: Record<ProvinceId, GeneratedNodeRecord[]> = {}
-  for (const pid of [provinceId, ...getNeighbours(provinceId)]) {
-    generatedNodes[pid] = generateProvinceNodes(pid, seed)
-  }
+export function createRealm(provinceId: ProvinceId, seed: number, now: number): WorldState {
+  const blueprint = getBlueprintForSeed(seed)
+  const npcDefs = blueprint.npcSeeds
 
   const locations: Record<string, LocationRuntime> = {}
-  for (const npcDef of NPC_SECT_DEFS) {
+  for (const npcDef of npcDefs) {
     locations[npcDef.seatSiteId] = {
       discovered: false,
       remainingCapacity: Infinity,
@@ -145,19 +134,9 @@ export function buildInitialWorldState(
       garrison: { strength: npcDef.strength },
     }
   }
-  locations[sectSiteId] = {
-    discovered: true,
-    remainingCapacity: Infinity,
-    lastVisitedAt: now,
-    visitCount: 1,
-    ownerId: 'player',
-    outpostLevel: 0,
-    knowledge: 0,
-    flags: [],
-  }
 
   const npcSects: NpcSect[] = assignRivalries(
-    NPC_SECT_DEFS.map((def) => {
+    npcDefs.map((def) => {
       // Jittered per-entity, seeded off the world seed + id so every sect starts on its own rhythm from turn one (§4.3).
       const rng = mulberry32((hashString(def.id) ^ seed) >>> 0)
       return {
@@ -177,16 +156,65 @@ export function buildInitialWorldState(
     seed,
   )
 
-  const world: WorldState = {
+  return {
     seed,
-    provinces,
+    blueprint,
+    // Resource nodes are generated per territory from the blueprint (Wave 3), stored authoritatively.
+    generatedNodes: { [provinceId]: generateTerritoryNodes(blueprint.territories, seed, WORLD_GEN_CONFIG) },
     locations,
-    generatedNodes,
     expeditions: [],
-    expeditionLog: [],
     npcSects,
-    nextNpcEmergenceAt: now + NPC_EMERGENCE_INTERVAL_MS,
   }
+}
 
-  return { sectLocation: { provinceId, sectSiteId, foundedAt: now }, world }
+/**
+ * Settles `sectId` onto a free seat in an existing realm (MULTIPLAYER_PLAN §7.5). Claims the seat in
+ * the SHARED world and returns the joiner's own starting `provinces` alongside it — discovery is
+ * per-player (§1), so it belongs to the sect, not the realm. The seat's defensive strength is derived
+ * from the home roster (§4.1) and synced onto the runtime by `recomputeSeatStrength`, not written here.
+ *
+ * Validation is the caller's job via `getFoundingEligibility` — and once the realm is shared, the
+ * claim has to be atomic server-side, since two players will pick the same free seat (§9).
+ */
+export function joinRealm(
+  world: WorldState,
+  sectId: SectId,
+  provinceId: ProvinceId,
+  sectSiteId: SectSiteId,
+  now: number,
+): { sectLocation: SectLocation; provinces: Record<ProvinceId, ProvinceRuntime>; world: WorldState } {
+  return {
+    sectLocation: { provinceId, sectSiteId, foundedAt: now },
+    provinces: { [provinceId]: { discovered: true, surveyProgress: 0 } },
+    world: {
+      ...world,
+      locations: {
+        ...world.locations,
+        [sectSiteId]: {
+          discovered: true,
+          remainingCapacity: Infinity,
+          lastVisitedAt: now,
+          visitCount: 1,
+          ownerId: sectId,
+          outpostLevel: 0,
+          knowledge: 0,
+          flags: [],
+        },
+      },
+    },
+  }
+}
+
+/**
+ * Back-compat wrapper for the single-player founding path: create the realm, then join it. Wave 3
+ * splits these at the call site (the server creates realms; a player joins one).
+ */
+export function buildInitialWorldState(
+  provinceId: ProvinceId,
+  sectSiteId: SectSiteId,
+  seed: number,
+  now: number,
+  sectId: SectId = 'player',
+): { sectLocation: SectLocation; provinces: Record<ProvinceId, ProvinceRuntime>; world: WorldState } {
+  return joinRealm(createRealm(provinceId, seed, now), sectId, provinceId, sectSiteId, now)
 }

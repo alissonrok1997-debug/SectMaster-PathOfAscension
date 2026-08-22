@@ -2,7 +2,7 @@ import { useGameStore } from '../game/state/store'
 import { computeSectRank } from '../game/engine/sectRank'
 import { SECT_HALL_ID } from '../game/data/buildingDefs'
 import { getProvinceDef } from '../game/data/world/provinceDefs'
-import { getSectSiteDef } from '../game/data/world/sectSiteDefs'
+import { getSite } from '../game/engine/world/worldAccess'
 import { getSpiritVeinDef } from '../game/data/world/spiritVeinDefs'
 import { msToWorldTime } from '../game/engine/worldClock'
 import { UiIcon } from './UiIcon'
@@ -31,13 +31,14 @@ function formatElapsed(ms: number): string {
  */
 export function SectHero() {
   const sectLocation = useGameStore((s) => s.state.sectLocation)
+  const world = useGameStore((s) => s.state.world)
   const hallLevel = useGameStore((s) => s.state.buildings[SECT_HALL_ID]?.level ?? 1)
   const simElapsedMs = useGameStore((s) => s.state.simClock.totalElapsedMs)
   const worldElapsedMs = useGameStore((s) => s.state.worldClock.totalElapsedMs)
 
   if (!sectLocation) return null
 
-  const site = getSectSiteDef(sectLocation.sectSiteId)
+  const site = getSite(world, sectLocation.sectSiteId)
   const province = getProvinceDef(sectLocation.provinceId)
   const vein = getSpiritVeinDef(province.spiritVeinTier)
   const rank = computeSectRank(hallLevel)

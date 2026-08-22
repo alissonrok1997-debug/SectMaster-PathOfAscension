@@ -1,6 +1,6 @@
 import type { ExpeditionPurpose, GameState, GeneratedNodeRecord, LocationId, LocationRuntime, ProvinceId } from '../../types'
 import { getProvinceDef, type ProvinceDefinition } from '../../data/world/provinceDefs'
-import { SECT_SITE_DEFS, getSectSiteDef, getSectSitesForProvince, type SectSiteDefinition } from '../../data/world/sectSiteDefs'
+import { getSites } from './worldAccess'
 import { getSpiritVeinDef, type SpiritVeinDefinition } from '../../data/world/spiritVeinDefs'
 import {
   getLandmarkDef,
@@ -116,19 +116,6 @@ export function getProvince(provinceId: ProvinceId): ProvinceDefinition {
   return getProvinceDef(provinceId)
 }
 
-export function getResolvedSite(sectSiteId: string): SectSiteDefinition {
-  return getSectSiteDef(sectSiteId)
-}
-
-export function getProvinceSites(provinceId: ProvinceId): SectSiteDefinition[] {
-  return getSectSitesForProvince(provinceId)
-}
-
-/** All handcrafted locations in a province, each resolved with pristine defaults (§3.3 Province layer). */
-export function getProvinceLocations(provinceId: ProvinceId): ResolvedLocation[] {
-  return getLandmarksForProvince(provinceId).map((def) => resolveLocation(def))
-}
-
 /** The Spirit Vein definition (name + multipliers) for a province's raw tier (§7). */
 export function getProvinceSpiritVein(provinceId: ProvinceId): SpiritVeinDefinition {
   return getSpiritVeinDef(getProvinceDef(provinceId).spiritVeinTier)
@@ -172,7 +159,7 @@ export function getExpeditionTargetMeta(
   locationId: LocationId,
   purpose: ExpeditionPurpose,
 ): ExpeditionTargetMeta | undefined {
-  const site = SECT_SITE_DEFS.find((s) => s.id === locationId)
+  const site = getSites(state.world).find((s) => s.id === locationId)
   if (site) {
     return {
       name: site.name,

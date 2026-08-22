@@ -27,6 +27,8 @@ export type UiIconName =
   | 'check'
   | 'empty'
   | 'chevron'
+  | 'close'
+  | 'warning'
 
 /** Eight rays at 45° steps, r 5 → 7.2. Written out rather than mapped so the file stays static. */
 const SUN_RAYS =
@@ -125,6 +127,25 @@ const GLYPHS: Record<UiIconName, JSX.Element> = {
   check: <path d="M4 10.5L8.5 15L16 5" />,
   empty: <circle cx="10" cy="10" r="5.5" />,
   chevron: <path d="M8 4.5L13 10L8 15.5" />,
+  /** Close. A stroked cross, not the `✕` character §15 rules out for chrome. */
+  close: (
+    <>
+      <path d="M5.5 5.5L14.5 14.5" />
+      <path d="M14.5 5.5L5.5 14.5" />
+    </>
+  ),
+  /**
+   * Warning. A bare exclamation inside a triangle at 1.5px, matching the monoline set —
+   * deliberately not the filled `⚠` glyph, which arrives as an emoji on several platforms
+   * and would be the only coloured object in a line of text.
+   */
+  warning: (
+    <>
+      <path d="M10 3.2L17.5 16.4H2.5L10 3.2Z" />
+      <path d="M10 8v3.6" />
+      <path d="M10 13.6v0.1" />
+    </>
+  ),
 }
 
 interface UiIconProps {

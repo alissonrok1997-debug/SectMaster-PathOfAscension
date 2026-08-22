@@ -89,7 +89,7 @@ export function DiscipleCard({ discipleId, onSelect, active, hero }: DiscipleCar
   /* The ember is 0.699, not square, so it is a plain `img` rather than `GameIcon` — which
      forces a square box and would letterbox the flame. */
   const combatPowerReadout = (
-    <span className="disciple-row-cp" title="Combat Power">
+    <span className="disciple-row-cp" aria-label="Combat Power">
       <img className="cp-ember" src={EMBER_ART} alt="" aria-hidden="true" draggable={false} />
       {combatPower}
     </span>

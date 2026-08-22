@@ -37,3 +37,9 @@ export interface NumberRange {
 export function rollInt(rng: () => number, range: NumberRange): number {
   return Math.floor(range.min + rng() * (range.max - range.min + 1))
 }
+
+/** Rolls a float in [min, max], rounded to `decimals` places (default 2) so modifier values stay tidy. */
+export function rollFloat(rng: () => number, range: NumberRange, decimals = 2): number {
+  const scale = 10 ** decimals
+  return Math.round((range.min + rng() * (range.max - range.min)) * scale) / scale
+}

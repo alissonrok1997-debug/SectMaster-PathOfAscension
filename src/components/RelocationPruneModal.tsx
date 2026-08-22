@@ -4,7 +4,7 @@ import { BottomSheet } from './BottomSheet'
 const NO_DISMISS = () => {}
 import { useState } from 'react'
 import { useGameStore } from '../game/state/store'
-import { getSectSiteDef } from '../game/data/world/sectSiteDefs'
+import { getSite } from '../game/engine/world/worldAccess'
 import { getBuildingDef } from '../game/data/buildingDefs'
 
 /**
@@ -17,13 +17,14 @@ import { getBuildingDef } from '../game/data/buildingDefs'
  */
 export function RelocationPruneModal() {
   const pending = useGameStore((s) => s.state.pendingRelocation)
+  const world = useGameStore((s) => s.state.world)
   const buildings = useGameStore((s) => s.state.buildings)
   const resolveRelocationPrune = useGameStore((s) => s.resolveRelocationPrune)
   const [toRemove, setToRemove] = useState<string[]>([])
 
   if (!pending) return null
 
-  const newSite = getSectSiteDef(pending.newSiteId)
+  const newSite = getSite(world, pending.newSiteId)
   const specializationBuildings = Object.values(buildings).filter((b) => getBuildingDef(b.id).slotType === 'specialization')
 
   const toggle = (id: string) => {

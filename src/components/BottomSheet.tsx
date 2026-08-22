@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { UiIcon } from './UiIcon'
 import { createPortal } from 'react-dom'
 
 /**
@@ -181,7 +182,7 @@ export function BottomSheet({
           {header ?? (title && <span className="sheet-title">{title}</span>)}
           {dismissible && (
             <button type="button" className="sheet-close" onClick={onClose} aria-label="Close">
-              ✕
+              <UiIcon name="close" size={20} />
             </button>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { UiIcon } from './UiIcon'
 import { useGameStore } from '../game/state/store'
 import { getDisciplePowerRating, getMissionDispatchEligibility, getMissionSuccessChance } from '../game/engine/missions'
 import { getDiscipleCombatPower, getSquadCombatPower } from '../game/engine/combatPower'
@@ -114,7 +115,7 @@ export function MissionOfferCard({
           <span className="mission-reward">{formatReward(def.rewardTable)}</span>
         </span>
         <span className="mission-card-chevron" aria-hidden="true">
-          {expanded ? '⌃' : '›'}
+          <UiIcon className={`ui-chevron ${expanded ? 'up' : ''}`} name="chevron" size={20} />
         </span>
       </button>
 

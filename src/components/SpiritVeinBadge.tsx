@@ -6,12 +6,19 @@ import { getSpiritVeinDef } from '../game/data/world/spiritVeinDefs'
  */
 export function SpiritVeinBadge({ tier }: { tier: number }) {
   const vein = getSpiritVeinDef(tier)
+
+  /*
+   * §14, inline disclosure. `vein.notes` sat in a native `title=` and was therefore
+   * unreadable on a touch device — the badge promised context it could never deliver. It is
+   * one short sentence, so it is simply shown.
+   */
   return (
-    <span className="spirit-vein-badge" title={vein.notes ?? undefined}>
+    <span className="spirit-vein-badge">
       <strong>{vein.name} Spirit Vein</strong>
       <span className="panel-hint">
         {' '}cultivation ×{vein.cultivationMult}, recruit quality ×{vein.recruitQualityMult}
       </span>
+      {vein.notes && <span className="spirit-vein-note">{vein.notes}</span>}
     </span>
   )
 }

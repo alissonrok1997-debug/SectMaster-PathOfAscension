@@ -1,5 +1,5 @@
-import type { GameState, LocationRuntime, NpcSect, PendingRelocationState, SectLocation } from '../../types'
-import { SECT_SITE_DEFS, getSectSiteDef } from '../../data/world/sectSiteDefs'
+import type { GameState, LocationRuntime, NpcSect, PendingRelocationState, SectLocation, WorldState } from '../../types'
+import { getSite, getSites } from './worldAccess'
 
 /** Pristine defaults for a location that has never had a runtime entry (mirrors worldQueries.ts's pristineLocationRuntime for the sect-site case). */
 const EMPTY_SITE_RUNTIME: LocationRuntime = {
@@ -18,19 +18,19 @@ const EMPTY_SITE_RUNTIME: LocationRuntime = {
  * where the emergence mechanic spawns new minor sects (§4.3). All three
  * consumers share this one query so "what counts as free" can never drift.
  */
-export function getFreePoorSeatIds(locations: Record<string, LocationRuntime>): string[] {
-  return SECT_SITE_DEFS.filter((s) => s.tier === 'poor' && !locations[s.id]?.ownerId).map((s) => s.id)
+export function getFreePoorSeatIds(world: WorldState | undefined, locations: Record<string, LocationRuntime>): string[] {
+  return getSites(world).filter((s) => s.tier === 'poor' && !locations[s.id]?.ownerId).map((s) => s.id)
 }
 
 export interface ConquestParams {
   now: number
-  /** 'player' or an NpcSect id — whoever is relocating INTO `targetSeatId`. */
+  /** A sect id (the local player's `state.sectId`, or an NpcSect id) — whoever is relocating INTO `targetSeatId`. */
   attackerId: string
   attackerOldSeatId: string
   targetSeatId: string
-  /** 'player', an NpcSect id, or undefined for an already-neutral (vacated) seat — nothing to destroy/retreat in that case. */
+  /** A sect id, or undefined for an already-neutral (vacated) seat — nothing to destroy/retreat in that case. */
   defenderId?: string
-  /** Required when `defenderId === 'player'` — the free Poor seat they retreat to. Picked by the caller (may need a seeded roll among `getFreePoorSeatIds`), since this function stays a pure, deterministic function of its explicit inputs. */
+  /** Required when the defender is the player — the free Poor seat they retreat to. Picked by the caller (may need a seeded roll among `getFreePoorSeatIds`), since this function stays a pure, deterministic function of its explicit inputs. */
   playerRetreatSiteId?: string
 }
 
@@ -76,16 +76,16 @@ export function applyConquest(state: GameState, params: ConquestParams): Conques
     }
   }
 
-  if (defenderId === 'player' && playerRetreatSiteId) {
+  if (defenderId === state.sectId && playerRetreatSiteId) {
     // The player is the sole exception: retreat to a free Poor seat instead of being destroyed (§4.2).
     for (const [locId, runtime] of Object.entries(locations)) {
-      if (locId !== targetSeatId && runtime.ownerId === 'player') {
+      if (locId !== targetSeatId && runtime.ownerId === state.sectId) {
         locations[locId] = { ...runtime, ownerId: undefined, outpostLevel: 0, garrison: undefined }
       }
     }
     locations[playerRetreatSiteId] = {
       ...(locations[playerRetreatSiteId] ?? EMPTY_SITE_RUNTIME),
-      ownerId: 'player',
+      ownerId: state.sectId,
       garrison: undefined,
       discovered: true,
     }
@@ -104,9 +104,9 @@ export function applyConquest(state: GameState, params: ConquestParams): Conques
   }
 
   let pendingRelocation: PendingRelocationState | undefined
-  if (attackerId === 'player') {
+  if (attackerId === state.sectId) {
     sectLocation = state.sectLocation ? { ...state.sectLocation, sectSiteId: targetSeatId } : sectLocation
-    const newCap = getSectSiteDef(targetSeatId).buildingSlots
+    const newCap = getSite(state.world, targetSeatId).buildingSlots
     const buildingCount = Object.keys(state.buildings).length
     if (buildingCount > newCap) {
       pendingRelocation = {

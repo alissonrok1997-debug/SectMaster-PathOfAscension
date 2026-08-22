@@ -24,4 +24,6 @@ export const REGION_IDENTITY: Record<RegionId, RegionIdentity> = {
   ancientForest: { temperament: 'reclusive groves', aggressionBias: -0.1, growthMult: 0.9, attritionMult: 0.8 },
   desert: { temperament: 'harsh wastes', aggressionBias: 0.1, growthMult: 0.95, attritionMult: 1.3 },
   forgottenRuins: { temperament: 'lawless ruins', aggressionBias: 0.2, growthMult: 1.15, attritionMult: 1.1 },
+  // The heart is where sects go to die: most aggressive, harshest attrition.
+  heavenlyAxis: { temperament: 'the converging heart', aggressionBias: 0.25, growthMult: 1.05, attritionMult: 1.4 },
 }

@@ -6,11 +6,15 @@ import {
   type ExpeditionLogEntry,
   type GameState,
   type MissionLogEntry,
+  type WorldState,
 } from '../types'
 import { createNewGame } from '../state/initialState'
 import { hashString } from '../engine/rng'
 import { MAX_HP } from '../engine/injury'
 import { REPORT_INBOX_LIMIT } from '../engine/combat/reportInbox'
+import { buildLegacyBlueprint } from '../engine/world/worldBlueprint'
+import { generateTerritoryNodes } from '../engine/world/worldGeneration'
+import { WORLD_GEN_CONFIG } from '../engine/world/worldGen/worldGenConfig'
 
 const STORAGE_KEY = 'sect-master-save'
 
@@ -112,6 +116,94 @@ const MIGRATIONS: Record<number, (raw: unknown) => unknown> = {
       .sort((a, b) => b.resolvedAt - a.resolvedAt)
       .slice(0, REPORT_INBOX_LIMIT)
     return { ...s, saveVersion: 24, reports }
+  },
+  // v24 → v25 (World Procgen Wave 1): inject the legacy blueprint into any founded world so
+  // the worldAccess shim reads the same authored values it always had. Pre-founding saves have
+  // no `world` — just bump the version (a fresh founding builds the blueprint itself).
+  24: (raw) => {
+    const s = raw as GameState
+    if (!s.world) return { ...s, saveVersion: 25 }
+    return {
+      ...s,
+      saveVersion: 25,
+      world: { ...s.world, blueprint: s.world.blueprint ?? buildLegacyBlueprint(s.world.seed) },
+    }
+  },
+  // v25 → v26 (World Procgen Wave 3): handcrafted landmarks are retired, so a founded world's
+  // resource nodes must live in `generatedNodes`. Regenerate the per-territory nodes for any
+  // province whose node list is empty (authored/Wave-2 worlds relied on landmarks), from the
+  // stored blueprint — deterministic, so it matches what a fresh founding would produce.
+  25: (raw) => {
+    const s = raw as GameState
+    if (!s.world) return { ...s, saveVersion: 26 }
+    const territories = s.world.blueprint?.territories ?? []
+    const generatedNodes = { ...s.world.generatedNodes }
+    if ((generatedNodes.firstRealm?.length ?? 0) === 0) {
+      generatedNodes.firstRealm = generateTerritoryNodes(territories, s.world.seed, WORLD_GEN_CONFIG)
+    }
+    return { ...s, saveVersion: 26, world: { ...s.world, generatedNodes } }
+  },
+  // v26 → v27 (World Procgen Wave 5): the world seed is now top-level GameState (rolled at new game),
+  // so backfill it for old saves from their founded world's seed (or a fresh roll if never founded).
+  26: (raw) => {
+    const s = raw as GameState
+    return { ...s, saveVersion: 27, worldSeed: s.worldSeed ?? s.world?.seed ?? Math.floor(Math.random() * 0x7fffffff) }
+  },
+  // v27 → v28 (MULTIPLAYER_PLAN Wave 0): NPCs no longer sit on Poor seats, and there is no emergence.
+  // Converge an existing realm on the new rule — evict every NPC whose seat is Poor, free the seats they
+  // held, and drop the retired `nextNpcEmergenceAt`. Seat tier comes from the save's own stored blueprint,
+  // so a sect that had climbed off a Poor seat is correctly left alone. Prestige-seat NPCs are untouched.
+  27: (raw) => {
+    const s = raw as GameState & { world?: WorldState & { nextNpcEmergenceAt?: number } }
+    if (!s.world) return { ...s, saveVersion: 28 }
+    const { nextNpcEmergenceAt: _retired, ...world } = s.world
+    const isPoorSeat = (seatId: string) => world.blueprint?.sites?.[seatId]?.tier === 'poor'
+    const evicted = new Set(world.npcSects.filter((n) => isPoorSeat(n.seatSiteId)).map((n) => n.id))
+    if (evicted.size === 0) return { ...s, saveVersion: 28, world }
+
+    const locations = Object.fromEntries(
+      Object.entries(world.locations).map(([id, runtime]) =>
+        runtime.ownerId && evicted.has(runtime.ownerId) ? [id, { ...runtime, ownerId: undefined, garrison: undefined }] : [id, runtime],
+      ),
+    )
+    return {
+      ...s,
+      saveVersion: 28,
+      world: {
+        ...world,
+        locations,
+        // Drop the evicted sects, and scrub them from every survivor's rivalry list so no id dangles.
+        npcSects: world.npcSects
+          .filter((n) => !evicted.has(n.id))
+          .map((n) => (n.rivalIds?.some((id) => evicted.has(id)) ? { ...n, rivalIds: n.rivalIds.filter((id) => !evicted.has(id)) } : n)),
+      },
+    }
+  },
+  // v28 → v29 (MULTIPLAYER_PLAN Wave 1a): ownership is compared against `state.sectId` instead of the
+  // literal 'player'. Every existing save IS the player's, and every ownerId it stored reads 'player',
+  // so backfilling that exact value keeps the save's seats and outposts owned by it — a rename with no
+  // reshaping. The field only starts varying once a realm holds more than one sect (Wave 3).
+  28: (raw) => {
+    const s = raw as GameState
+    return { ...s, saveVersion: 29, sectId: s.sectId ?? 'player' }
+  },
+  // v29 → v30 (MULTIPLAYER_PLAN Wave 1b): `WorldState` becomes purely SHARED, so the two per-player
+  // fields it was carrying move up onto the sect. Province discovery and a sect's own expedition log
+  // differ between two sects in the same realm, so a server storing one WorldState per realm cannot
+  // hold either. Pure relocation — same values, one level up.
+  29: (raw) => {
+    const s = raw as GameState & {
+      world?: WorldState & { provinces?: GameState['provinces']; expeditionLog?: GameState['expeditionLog'] }
+    }
+    if (!s.world) return { ...s, saveVersion: 30, provinces: s.provinces ?? {}, expeditionLog: s.expeditionLog ?? [] }
+    const { provinces, expeditionLog, ...world } = s.world
+    return {
+      ...s,
+      saveVersion: 30,
+      provinces: s.provinces ?? provinces ?? {},
+      expeditionLog: s.expeditionLog ?? expeditionLog ?? [],
+      world,
+    }
   },
 }
 

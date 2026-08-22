@@ -1,4 +1,4 @@
-import type { DiscipleInstance, LocationRuntime, NpcSect, SectSiteTier } from '../game/types'
+import type { DiscipleInstance, LocationRuntime, NpcSect, SectId, SectSiteTier } from '../game/types'
 import type { SectSiteDefinition } from '../game/data/world/sectSiteDefs'
 import { getDiscipleCombatTrait, TRAIT_EFFECTS } from '../game/engine/combatPower'
 import { ModifierBundleList } from './ModifierBundleList'
@@ -16,8 +16,8 @@ export interface SeatDefenseProps {
 const TIER_LABELS: Record<SectSiteTier, string> = { poor: 'Poor', normal: 'Normal', good: 'Good' }
 
 /** Owner summary from the LIVE npcSects roster — never the static seat→def seed data, which goes stale the instant a seat changes hands (FIRST_REALM_PLAN §4.2). */
-function describeOwner(runtime: LocationRuntime | undefined, isPlayerSeat: boolean, npc: NpcSect | undefined, tier: SectSiteTier): string {
-  if (isPlayerSeat || runtime?.ownerId === 'player') return 'Your Sect'
+function describeOwner(runtime: LocationRuntime | undefined, isPlayerSeat: boolean, npc: NpcSect | undefined, tier: SectSiteTier, sectId: SectId): string {
+  if (isPlayerSeat || runtime?.ownerId === sectId) return 'Your Sect'
   if (runtime?.ownerId) return npc?.name ?? 'An unknown sect'
   return tier === 'poor' ? 'Unclaimed (safe)' : 'Unclaimed'
 }
@@ -39,6 +39,7 @@ export function SectSiteDetailPanel({
   onSurvey,
   onViewResources,
   seatDefense,
+  sectId,
 }: {
   site: SectSiteDefinition
   runtime: LocationRuntime | undefined
@@ -51,9 +52,11 @@ export function SectSiteDetailPanel({
   /** Jump to the province's resource-node & expedition list from this seat. */
   onViewResources?: () => void
   seatDefense?: SeatDefenseProps
+  /** The viewing sect's own id — ownership is relative to it, never to a literal (MULTIPLAYER_PLAN §7.1). */
+  sectId: SectId
 }) {
   const garrisonStrength = isPlayerSeat ? undefined : runtime?.garrison?.strength
-  const isEnemyOwned = runtime?.ownerId !== undefined && runtime.ownerId !== 'player'
+  const isEnemyOwned = runtime?.ownerId !== undefined && runtime.ownerId !== sectId
 
   return (
     <div className="recipe-card location-card site-detail-card">
@@ -63,7 +66,7 @@ export function SectSiteDetailPanel({
       </div>
       <p className="panel-hint">{site.description}</p>
       <p className="recipe-meta">
-        Held by: <strong>{describeOwner(runtime, isPlayerSeat, npc, site.tier)}</strong>
+        Held by: <strong>{describeOwner(runtime, isPlayerSeat, npc, site.tier, sectId)}</strong>
         {npc ? ` (${npc.tier})` : ''}
       </p>
       {garrisonStrength !== undefined && <p className="recipe-meta">Garrison strength: {garrisonStrength}</p>}

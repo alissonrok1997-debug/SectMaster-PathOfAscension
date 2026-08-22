@@ -1,7 +1,8 @@
 import type { NpcSect, NpcSectTier } from '../game/types'
 import { useGameStore } from '../game/state/store'
-import { getSectSiteDef } from '../game/data/world/sectSiteDefs'
+import { getSite } from '../game/engine/world/worldAccess'
 import { getFreePoorSeatIds } from '../game/engine/world/relocation'
+import { getPublicSeatStrength } from '../game/engine/world/territory'
 
 const TIER_LABELS: Record<NpcSectTier, string> = { legendary: 'Legendary', major: 'Major', regional: 'Regional', minor: 'Minor' }
 const TIER_RANK: Record<NpcSectTier, number> = { legendary: 0, major: 1, regional: 2, minor: 3 }
@@ -21,7 +22,7 @@ function sortSects(sects: NpcSect[]): NpcSect[] {
 export function StandingsView() {
   const state = useGameStore((s) => s.state)
   const npcSects = state.world?.npcSects ?? []
-  const freePoorSeats = state.world ? getFreePoorSeatIds(state.world.locations) : []
+  const freePoorSeats = state.world ? getFreePoorSeatIds(state.world, state.world.locations) : []
   const nameById = new Map(npcSects.map((s) => [s.id, s.name]))
 
   return (
@@ -38,9 +39,13 @@ export function StandingsView() {
           <div className="site-row standings-card owner-player">
             <span className="site-row-text">
               <span className="site-row-name">Your Sect</span>
-              <span className="site-row-owner">Seat: {getSectSiteDef(state.sectLocation.sectSiteId).name}</span>
+              <span className="site-row-owner">
+                You &middot; {getSite(state.world, state.sectLocation.sectSiteId).name}
+              </span>
             </span>
-            <span className="site-row-tier-label">You</span>
+            {/* The same scalar every NPC row shows (MULTIPLAYER_PLAN §2) — read from the seat runtime,
+                not recomputed here, so this row reads exactly what a rival would see of you. */}
+            <span className="standings-strength">{getPublicSeatStrength(state.world, state.sectLocation.sectSiteId)}</span>
           </div>
         )}
         {sortSects(npcSects).map((sect) => {
@@ -54,7 +59,7 @@ export function StandingsView() {
                 <span className="site-row-text">
                 <span className="site-row-name">{sect.name}</span>
                 <span className="site-row-owner">
-                  {TIER_LABELS[sect.tier]} &middot; {getSectSiteDef(sect.seatSiteId).name}
+                  {TIER_LABELS[sect.tier]} &middot; {getSite(state.world, sect.seatSiteId).name}
                   {sect.status === 'declining' ? ' · declining' : ''}
                   {rivals.length > 0 ? ` · rivals: ${rivals.join(', ')}` : ''}
                 </span>
