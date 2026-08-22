@@ -55,6 +55,20 @@
   --jade-edge: #2c4a41;
   --jade-wash: rgba(126, 200, 169, 0.08);
 
+  /* Terrain tints (Wave 0 map art): one land colour per biome, each darker than every
+     node fill so the cells never cost seal contrast. Fill = the tint; --*-edge = its inked border. */
+  --terrain-mountain: #29344a;
+  --terrain-mountain-edge: #3d4c69;
+  --terrain-forest: #253825;
+  --terrain-forest-edge: #375038;
+  --terrain-desert: #3b3220;
+  --terrain-desert-edge: #574928;
+  --terrain-ruins: #322a3c;
+  --terrain-ruins-edge: #4a3f59;
+  /* The Heavenly Axis: a luminous celestial indigo, distinct from the muted ruins violet. */
+  --terrain-axis: #332b52;
+  --terrain-axis-edge: #7d68c9;
+
   /* Text ladder */
   --text: #e8e6df; /* primary, warm off-white */
   --text-2: #c7c4d2; /* secondary body */
@@ -146,11 +160,13 @@ textarea {
 h3,
 .sheet-title,
 /* Entity names */
-.building-tile-name,
 .slot-option-name,
 .inventory-name,
 .site-row-name,
 .report-card-title,
+/* A disciple's name in the picker. Buttons are handed --font-ui a few rules above, so the one
+   name in the game that lives inside a <button> was the only entity name in sans. */
+.assign-disciple-name,
 .disciple-realm,
 .world-map-label,
 /* Narration */
@@ -185,6 +201,28 @@ h3,
   padding-top: var(--safe-t);
   background: var(--bg);
   border-bottom: 1px solid var(--line);
+}
+
+/*
+ * §10's ground wash — the piece the audit recorded as missing.
+ *
+ * The hairline alone gives the strip a hard bottom edge, so a scrolling screen looks CUT by
+ * it. A few pixels of `--bg` fading to transparent *below* the edge make the content read as
+ * passing behind the strip instead, which is what §10 asks for and what makes a fixed bar
+ * feel like a layer rather than a lid.
+ *
+ * `pointer-events: none` is load-bearing — this sits over the top of `.app-screen` and would
+ * otherwise swallow taps on whatever is beneath it.
+ */
+.app-hud::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--bg) 0%, rgba(18, 19, 26, 0) 100%);
 }
 
 /*
@@ -716,7 +754,6 @@ button.primary.breakthrough-ready:not(:disabled) {
 .inventory-entry,
 .founding-card,
 .slot-option,
-.specialization-picker-item,
 .assign-disciple-choice {
   --edge: transparent;
   --stripe: var(--line);
@@ -906,8 +943,6 @@ h3 {
 .resource-rate,
 .report-card-meta,
 .dispatch-preview,
-.building-detail-list,
-.over-level-badge,
 .founding-chip,
 .technique-known {
   font-variant-numeric: tabular-nums;
@@ -1003,11 +1038,19 @@ h3 {
   --stripe: var(--danger);
 }
 
+/* A consequence, not a status — the stripe above says "critical", this says what it costs.
+   Inline-flex so the glyph sits on the text baseline rather than hanging above a block. */
 .assign-disciple-warning {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   margin-top: 0.15rem;
   color: var(--danger-soft);
   font-size: 0.72rem;
+}
+
+.assign-disciple-warning svg {
+  flex: none;
 }
 
 .garrison-recall-toggle {
@@ -1581,10 +1624,44 @@ button.danger:hover {
 }
 
 .resource-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   flex: none;
+  /* Room for the cap hairline, which rides on the chip's bottom edge. */
+  padding-bottom: 5px;
+}
+
+/*
+ * §10's per-resource cap, as a hairline rather than a number.
+ *
+ * One element, not two: a hard-stopped gradient at `--fill` is the filled portion and the
+ * track in a single background, so the chip gains no extra node per resource on a surface
+ * that re-renders every tick.
+ *
+ * Gold because a stockpile is a *holding* (§2.3), and `--gold-edge` rather than `--gold`
+ * because six of these are on screen at once and §18 caps gold at ~5% of any screen.
+ */
+.resource-chip-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--gold-edge) 0,
+    var(--gold-edge) var(--fill),
+    var(--line) var(--fill),
+    var(--line) 100%
+  );
+}
+
+/* At cap the hairline says so in the same colour the value does, so the two agree. */
+.resource-chip.at-cap .resource-chip-cap {
+  background: var(--danger);
 }
 
 .resource-chip-value {
@@ -1651,14 +1728,7 @@ button.danger:hover {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
-.building-tile-art {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
-}
 
-/* Only the buildings-list tiles carry artwork; work-slot tiles reuse the class. */
-.building-detail-art {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55));
-}
 
 
 /* Rows in the equipment picker sheet. */
@@ -1735,69 +1805,28 @@ button.danger:hover {
 }
 
 
-/* Buildings */
+/* Buildings — the DARK-GROUND remnant.
+ *
+ * Everything Buildings owns is parchment now — the screen, its detail sheet and its claim
+ * drawer. All three live in the BUILDINGS, BUILDING SHEET and claim-drawer blocks at the end
+ * of this file, and **nothing dark-ground remains for this screen at all.**
+ *
+ * Retired with the components that used them: `.building-tile*`, `.work-slot*`,
+ * `.building-detail*`, `.building-requirements*`, `.building-category`, `.building-assignment`,
+ * `.construction-status*`, `.over-level-badge` and `.specialization-picker-*`.
+ */
 
 .building-list-panel {
   margin-top: 1.5rem;
 }
 
-/* Building tiles + attached detail drawer */
 
-.building-tile-grid {
-  display: grid;
-  /* Two columns is a decision at phone width, not emergent auto-fill behaviour. */
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.55rem;
-}
 
-.building-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.2rem;
-  min-height: 6.5rem;
-  padding: 0.55rem 0.5rem;
-  text-align: center;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
 
-.building-tile:hover {
-  border-color: var(--line-strong);
-  background: var(--surface);
-}
 
-.building-tile-name {
-  font-size: 0.85rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
 
-.building-tile-level {
-  font-size: 0.8rem;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
 
-/* Tiles keep their box (2-up grid, no gutter to separate them), so the ring's job moves
-   to the background channel instead — §6's "selected = edge + fill", not a glow. */
-.building-tile-active,
-.building-tile-active:hover {
-  background: var(--gold-bg);
-  border-color: var(--gold-edge);
-}
 
-/* An inline category label, not a heading: uppercase goes, but it stays UI sans at the
-   micro tier because it sits inside dense rows (§3). Same for .inventory-category. */
-.building-category {
-  font-size: 0.72rem;
-  color: var(--info);
-}
 
 /* Bottom sheet — the single modal primitive (see BottomSheet.tsx). */
 .sheet-overlay {
@@ -1898,128 +1927,45 @@ button.danger:hover {
   background: var(--surface);
 }
 
-/* Lives inside the sheet body now — the sheet supplies the surface and border. */
-.building-detail {
-  padding: 0;
-  background: transparent;
-  border: none;
-}
 
-.building-detail.over-level .building-detail-header {
-  border-bottom: 1px solid var(--danger-edge);
-}
 
-.building-detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-}
 
-.building-detail-header h3 {
-  margin-right: auto;
-}
 
-.building-detail-header h3 {
-  margin: 0;
-  font-size: 1.05rem;
-}
 
-/*
- * §3 retires uppercase + letter-spacing wherever it was standing in for hierarchy — it is
- * the clearest SaaS tell in the stylesheet. This is a real section title, so it becomes
- * one: display face, section-title size. Uppercase survives only in the ≤0.72rem micro
- * tier, where it works as a label device (status pills, tier labels, phase labels).
- */
-.building-detail-section-title {
-  margin: 0.85rem 0 0.35rem;
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-3);
-}
 
-.building-requirements {
-  list-style: none;
-  margin: 0 0 0.5rem;
-  padding: 0.5rem var(--space-2);
-  background: var(--bg);
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
 
-.building-requirements li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 0.2rem 0;
-}
 
-.building-requirements li span:first-child {
-  color: var(--text-4);
-}
 
-.building-requirements li span:last-child {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
 
-.building-detail-list {
-  margin: 0.5rem 0 var(--space-2);
-  padding: 0.5rem var(--space-2);
-  background: var(--surface);
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
 
-.building-detail-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 0.2rem 0;
-}
 
-.building-detail-row dt {
-  color: var(--text-4);
-}
 
-.building-detail-row dd {
-  margin: 0;
-  text-align: right;
-  color: var(--text);
-}
 
-.building-assignment {
-  margin: 0.5rem 0 var(--space-2);
-}
 
-.work-slot-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.55rem;
-  margin: 0 0 0.5rem;
-}
 
-/* Work-slot and empty-specialization tiles carry no art, so they don't need the art height. */
-.work-slot-tile,
-.building-tile-empty {
-  min-height: var(--tap);
-}
 
-.work-slot-tile {
-  min-height: 3.2rem;
-  justify-content: center;
-  gap: 0.35rem;
-}
 
-.work-slot-tile.filled {
-  align-items: center;
-}
 
-.work-slot-tile button {
-  padding: var(--space-1) 0.6rem;
-  font-size: 0.8rem;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 .assign-disciple-choices {
   display: flex;
@@ -2028,6 +1974,12 @@ button.danger:hover {
   margin: 0.6rem 0;
 }
 
+/*
+ * THE PICKER CARD. The box stays the stacked column it has always been, because three other
+ * surfaces render `[name][meta]` straight into it — the expedition leader picker, the seat
+ * defence leader, and the relocation prune (which puts *buildings* in it). The disciple
+ * picker's row anatomy is therefore one level in, on `.assign-disciple-body`.
+ */
 .assign-disciple-choice {
   display: flex;
   flex-direction: column;
@@ -2037,12 +1989,80 @@ button.danger:hover {
   padding: 0.6rem 0.8rem;
 }
 
+/* Kept for the three call sites above: a name over one quiet line is still the right shape for
+   a card whose whole content is `Level 3` or a trait blurb. */
+.assign-disciple-meta {
+  font-size: 0.8rem;
+  color: var(--text-3);
+}
+
+/*
+ * THE DISCIPLE ROW — §8's record anatomy at row scale. Portrait left, a text column right, and
+ * the value at the far end of the first line:
+ *
+ *   [ portrait 48×61 ]  [ name .................. 🔥 CP ]
+ *                       [ realm · 4th ]
+ *                       [ foot line, only when there is something to say ]
+ *
+ * It replaces a name over one run-on grey meta line, which put five facts at one weight and
+ * ranked none of them. Everything below is structure and the dark ladder; the paper values for
+ * the Assignment sheet live in the LEAF section and are the same rules remapped, not a second
+ * design.
+ */
+.assign-disciple-body {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+/* The plaque is a fixed 48px column; everything else has to be allowed to shrink, or a long
+   building name in the foot line pushes the Combat Power off the row. */
+.assign-disciple-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.assign-disciple-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
 .assign-disciple-name {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
 }
 
-.assign-disciple-meta {
-  font-size: 0.8rem;
+/* A surface that supplies its own metric already spells the unit, so this is the plain number
+   tier — same size and colour as the CP readout it stands in for, without the ember. */
+.assign-disciple-metric {
+  flex: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+/* What picking this disciple costs: the post they'd leave, the injury they'd carry. Absent
+   when they are idle and unhurt — the picker's ordinary state is silent. */
+.assign-disciple-foot {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
   color: var(--text-3);
 }
 
@@ -2064,16 +2084,9 @@ button.danger:hover {
   text-align: center;
 }
 
-.over-level-badge {
-  color: var(--danger-soft);
-  font-size: 0.8rem;
-  margin: 0 0 0.5rem;
-}
 
-.construction-status .panel-hint {
-  margin-top: 0.4rem;
-  margin-bottom: 0;
-}
+
+
 
 /*
  * Upgrade is the most common action in the sheet and the detail content is long, so it
@@ -2099,44 +2112,17 @@ button.danger:hover {
   margin: 0.4rem 0 0;
 }
 
-.building-tile-empty {
-  align-items: center;
-  justify-content: center;
-  border-style: dashed;
-  color: var(--text-4);
-}
 
-.building-tile-empty .building-tile-name {
-  font-weight: 500;
-  color: var(--text-4);
-}
 
-.specialization-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
 
-.specialization-picker-item {
-  padding: var(--space-2) 0.9rem;
-  background: var(--bg);
-}
 
-.specialization-picker-info {
-  margin-bottom: 0.5rem;
-}
 
-.specialization-picker-name {
-  font-weight: 600;
-  margin-right: 0.5rem;
-}
 
-.specialization-picker-item button {
-  width: 100%;
-}
+
+
+
+
+
 
 .demolish-button {
   width: 100%;
@@ -3612,18 +3598,122 @@ button.danger:hover {
 
 .world-map-svg-wrap {
   width: 100%;
-  overflow-x: auto;
+  /* 64 seats: render the map larger than the column and let the player pan it (DOUBLE_SEATS_PLAN
+     §Phase 2). --world-map-scale is the render width vs the column; dial it for spacing vs scroll. */
+  --world-map-scale: 135%;
+  overflow: auto;
+  max-height: 70vh;
+  position: relative; /* anchors the zoom-out control */
+  overscroll-behavior: contain; /* finger-drag pans the map, never chains to the page */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Click-to-zoom camera: one transformed group scaled to a territory's bbox, eased. */
+.world-map-camera {
+  transition: transform 450ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Floating "back to realm" control, shown only while zoomed into a territory. */
+.world-map-zoom-out {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  min-height: var(--tap);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.95rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text);
 }
 
 /* The ground moved into the SVG itself as layered ink (§16.5): paper, wash, two ridges,
    grain and a vignette. A single CSS radial-gradient can't do ridges or grain. */
 .world-map-svg {
-  width: 100%;
-  max-width: 100%;
+  /* Larger than the column so the 64 seats keep their spacing; the wrap scrolls/pans to reach them. */
+  width: var(--world-map-scale, 135%);
   height: auto;
   border-radius: 8px;
 }
 
+
+/*
+ * TERRITORY CELLS (Wave 0): Voronoi land tinted per biome, with a hand-inked border shared
+ * watertight between neighbours. Biome rides the fill; ownership stays on the seal, so the two
+ * never fight. Fills sit under the grain/vignette, so the map reads as claimed land, not pips
+ * on a void. The whole group carries one opacity — land is present but never louder than a node.
+ */
+.world-map-cells {
+  opacity: 0.55;
+}
+
+.world-map-cell {
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  cursor: pointer;
+  transition: fill var(--t-fast) var(--ease);
+}
+
+.world-map-cell.region-spiritMountain {
+  fill: var(--terrain-mountain);
+  stroke: var(--terrain-mountain-edge);
+}
+
+.world-map-cell.region-ancientForest {
+  fill: var(--terrain-forest);
+  stroke: var(--terrain-forest-edge);
+}
+
+.world-map-cell.region-desert {
+  fill: var(--terrain-desert);
+  stroke: var(--terrain-desert-edge);
+}
+
+.world-map-cell.region-forgottenRuins {
+  fill: var(--terrain-ruins);
+  stroke: var(--terrain-ruins-edge);
+}
+
+.world-map-cell.region-heavenlyAxis {
+  fill: var(--terrain-axis);
+  stroke: var(--terrain-axis-edge);
+}
+
+/* The selected territory lifts a touch and takes a gold rim, echoing its seal. */
+.world-map-cell.selected,
+.world-map-cell.zoomed {
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  filter: brightness(1.35);
+}
+
+/*
+ * Biome silhouettes: flat ink glyphs tinted with each biome's edge colour, kept low so they
+ * read as terrain texture beneath the seals, never as interactive marks (pointer-events off).
+ */
+.world-map-silhouette {
+  opacity: 0.5;
+}
+
+.world-map-silhouette.region-spiritMountain {
+  fill: var(--terrain-mountain-edge);
+}
+
+.world-map-silhouette.region-ancientForest {
+  fill: var(--terrain-forest-edge);
+}
+
+.world-map-silhouette.region-desert {
+  fill: var(--terrain-desert-edge);
+}
+
+.world-map-silhouette.region-forgottenRuins {
+  fill: var(--terrain-ruins-edge);
+}
+
+.world-map-silhouette.region-heavenlyAxis {
+  fill: var(--terrain-axis-edge);
+}
 
 /*
  * SEAL NODES (§16.5): a filled disc inside a thin outer ring. Site *state* rides the disc and
@@ -4297,6 +4387,15 @@ button.danger:hover {
    * Worst case across all three is now 5.53:1.
    */
   --bar-pct-ink: #3a3011;
+
+  /*
+   * Work in progress, on paper. `.progress-bar-fill.construction` is `--text-3` (#9a97a8),
+   * which measures about 2.3:1 against the --track cream — the same failure --hp-paper
+   * exists to fix, found the same way and on the same surface. Aliased to --ink-3 rather
+   * than given a fourth hex: §11 asks for "one honest grey for all work-in-progress", and
+   * the paper ladder already has exactly one honest grey.
+   */
+  --build-paper: var(--ink-3);
 }
 
 .disciples-parchment {
@@ -4514,7 +4613,17 @@ button.danger:hover {
   gap: 8px;
 }
 
-.parchment .disciple-card {
+/*
+ * THE CARD MATERIAL, now shared (§22 step 19).
+ *
+ * `.works-row` and `.works-plate` are the Buildings screen's two shapes. They join this
+ * selector rather than re-declaring the material, so there is one definition of what a
+ * parchment card IS — face, tooth, outer rule, inner gold hairline — and the second plate
+ * screen proves it generalises before step 20 graduates the tokens to `:root`.
+ */
+.parchment .disciple-card,
+.parchment .works-row,
+.parchment .works-plate {
   position: relative;
   isolation: isolate; /* contains the plate's z-index:-1 wash */
   border: 1px solid var(--edge);
@@ -5281,6 +5390,142 @@ button.danger:hover {
   color: var(--ink);
 }
 
+/* --- The disciple picker, on paper ---------------------------------------- */
+/*
+ * `AssignDiscipleModal` mounts `parchment leaf`, so the row you tap to fill a work slot is on
+ * the same paper as the building sheet that opened it. It is the SAME markup the three dark
+ * pickers render — this block changes the surface, never the anatomy.
+ *
+ * Most of it arrives free. The remap at the top of this section already turns `--text-3` into
+ * `--ink-3` and `--danger` into `--danger-ink`, so the foot line and the critical stripe are
+ * paper values with no rule here; `.parchment .disciple-row-cp` and `.parchment .disciple-realm`
+ * are the roster's own paper type and the panel carries `.parchment` for exactly that reason.
+ * What is left is the box.
+ *
+ * A `<button>` is a filled, bordered, 6px-radius object by default (§7). On the leaf that is a
+ * box inside a box, which is what `.leaf .slot-option` already refused — so the picker row
+ * takes the same answer: no fill, one hairline between rows, and the gold inset ring for
+ * state. The stripe channel survives it: §6's two channels are `--stripe` for entity status
+ * and `--edge` for interaction, and dropping the fill costs neither.
+ */
+.leaf .assign-disciple-choices {
+  gap: 0;
+}
+
+.leaf .assign-disciple-choice {
+  /* Silent by default. On the dark ground the stripe doubles as the thing that separates one
+     card from the next; here the hairline does that, so a 3px rule on every row would be
+     decoration on ten of ten rows and mean nothing on any of them. It is kept for the one
+     state that is genuinely a warning. */
+  --stripe: transparent;
+  border: 1px solid transparent;
+  border-left: 3px solid var(--stripe);
+  border-bottom-color: var(--rule);
+  border-radius: 0;
+  background: none;
+  padding: 0.5rem 0.4rem;
+}
+
+.leaf .assign-disciple-choice.critical {
+  --stripe: var(--danger);
+}
+
+/* The pagination already rules itself off, so the last row's hairline landed 14px above an
+   identical one. The list ends on the rule that means "end of list", not on both. */
+.leaf .assign-disciple-choice:last-child {
+  border-bottom-color: transparent;
+}
+
+/* Selected is the gold ring the roster and the equipment picker already use for "this one",
+   not the dark ladder's green fill — `--positive-bg` on cream is a stain, not a state. */
+.leaf .assign-disciple-choice.selected {
+  border-radius: 8px;
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--edge-gold);
+  border-bottom-color: transparent;
+}
+
+/* Disabled is `opacity: .45` globally, which on paper fades the ink below its own floor while
+   the artwork stays legible — the row reads as a broken image rather than an unavailable
+   person. On cream the away disciples recede by ink alone; the portrait desaturates so the
+   face doesn't outrank the names above it. */
+.leaf .assign-disciple-choice:disabled {
+  opacity: 1;
+  color: var(--ink-3);
+}
+
+.leaf .assign-disciple-choice:disabled .assign-disciple-name,
+.leaf .assign-disciple-choice:disabled .disciple-realm,
+.leaf .assign-disciple-choice:disabled .disciple-row-cp {
+  color: var(--ink-3);
+}
+
+.leaf .assign-disciple-choice:disabled .disciple-portrait {
+  filter: grayscale(0.7);
+  opacity: 0.75;
+}
+
+/*
+ * The plaque on paper. It needs its ground back — the base rule fills it with `--bg` and rules
+ * it with `--line`, and the remap has turned both transparent, so the bust would float with no
+ * plaque at all.
+ *
+ * `background` ONLY. The first pass also set `border-color` here, which reads as a tasteful
+ * gold frame and is wrong: §16.2 makes the frame the carrier of grade, and one declaration at
+ * (0,3,0) beat all four `.grade-*` rules at (0,2,0) — Genius and Common came out identical.
+ * The grade rules already resolve to paper values through the remap (`--rare` → `--rare-ink`,
+ * `--gold-edge` → `--edge-gold`, `--line-strong` → ink at .26), so the correct amount of CSS
+ * here is one declaration. `box-shadow` is left alone for the same reason: the base plaque's
+ * dark inner shadow is painted under the portrait that covers the whole box and never shows,
+ * while Genius's outer ring is the top of the grade ladder and cancelling it would flatten
+ * the one plaque that is allowed to be loud.
+ */
+.leaf .assign-disciple-choice .disciple-portrait {
+  background: rgba(42, 37, 33, 0.06);
+}
+
+/* §15 and SCREEN_DISCIPLES: a two-ground glyph gets a light chip to stand on, never a
+   knock-out at small sizes. The base nameplate is a gradient into `--bg`, which is
+   transparent here, so the white-knocked glyph would sit on bare paper and vanish. Same cream
+   disc the roll cards use, at the size this plaque can hold. */
+.leaf .assign-disciple-choice .disciple-portrait-role {
+  inset: auto 1px 1px auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: rgba(245, 239, 226, 0.92);
+  box-shadow: 0 0 0 1px rgba(176, 141, 58, 0.5);
+}
+
+.leaf .assign-disciple-choice .disciple-portrait-role img {
+  width: 11px;
+  height: 11px;
+  opacity: 1;
+  filter: none;
+}
+
+.leaf .assign-disciple-metric {
+  color: var(--cp-gold);
+}
+
+.leaf .assign-disciple-foot {
+  color: var(--ink-3);
+}
+
+/* The pagination is chrome, not content: on paper it loses the button fill for the same
+   reason the rows did, and the row of three keeps its 44px tap targets. */
+.leaf .assign-disciple-pagination {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rule);
+}
+
+.leaf .assign-disciple-pagination button {
+  background: none;
+  border-color: rgba(42, 37, 33, 0.22);
+  color: var(--ink-2);
+}
+
 /* --- Sub-navigation (§9) -------------------------------------------------- */
 /* The one segmented control, in paper values. The dark original is an inset --bg track with a
    --surface-raised active segment and --gold text, none of which mean anything here. */
@@ -5635,4 +5880,506 @@ button.danger:hover {
    cannot be the signal. Opacity plus the word is. */
 .leaf .leaf-slot-art.empty {
   opacity: 0.38;
+}
+
+
+/* =========================================================================================
+ * BUILDINGS — the works ledger (§22 step 19, the second plate screen)
+ *
+ * Scoped under `.parchment` exactly as the Disciples rules are. Nothing here is global and
+ * nothing here touches the roster: the two screens share the card material above, the
+ * register lines, the section rule and the action button, and diverge below that.
+ * ========================================================================================= */
+
+/* Layout only — the token ladder is `.parchment`, mounted alongside this class.
+   NO `::before`: §19 rules the misted peaks Disciples-only scenery, and with opaque cream
+   rows filling the column there is no hole for a ground to show through. */
+.buildings-parchment {
+  position: relative;
+  z-index: 0;
+  margin: calc(var(--space-2) * -1);
+  padding: var(--space-2);
+  background: var(--pg);
+}
+
+/* --- The row -------------------------------------------------------------- */
+/*
+ * `[art 48] [name + one metadata line] [level]`, §8's card-header anatomy, which the design
+ * system already assigns to this family. It is a <button>, so it needs the type reset the
+ * roster's cards get.
+ */
+.parchment .works-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  margin-bottom: 8px;
+  padding: 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.parchment .works-row-art {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  /* The ink-and-wash marks are drawn for paper; the dark screens' knock-out must not reach
+     them here (§15's two-ground rule — this set needs no treatment on either ground). */
+  filter: none;
+}
+
+/* THE LOAD-BEARING LINE. Without `min-width: 0` a flex child refuses to shrink below its
+   content, so a long name pushes the level number off the card instead of ellipsising.
+   Test case is `Sacred Mountain Shrine` at 22 characters. */
+.parchment .works-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.parchment .works-row-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parchment .works-row-meta {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Only shown when there is something to say — §11's rule for the condition bar, generalised.
+   A row in its ordinary state carries no foot line at all. */
+.parchment .works-row-foot {
+  margin-top: 2px;
+  font-size: 0.63rem;
+  color: var(--ready);
+}
+
+.parchment .works-row-level {
+  flex: none;
+  align-self: flex-start;
+  font-size: 0.95rem;
+  color: var(--cp-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* State rides the inner gold ring — §6's channel, the same one the roster uses for away and
+   injured. No badge, no second layer. */
+.parchment .works-row.held {
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+
+.parchment .works-row.raising {
+  box-shadow: inset 0 0 0 1px var(--build-paper);
+}
+
+.parchment .works-row.over-level {
+  box-shadow: inset 0 0 0 1px var(--danger-ink);
+}
+
+.parchment .works-row.over-level .works-row-foot {
+  color: var(--danger-ink);
+}
+
+/*
+ * `display: block` is LOAD-BEARING on both the track and the fill.
+ *
+ * These bars are `<span>`s because they live inside a `<button>`, which may only contain
+ * phrasing content — a `<div>` would be invalid markup. An inline element ignores `height`
+ * and percentage `width`, so the fill painted nothing and the bar rendered as an empty
+ * track. The track itself looked right only by accident: it is a flex item of
+ * `.works-row-text`, which blockifies it. The fill is not.
+ */
+.parchment .works-row-bar {
+  display: block;
+  height: 8px;
+  margin-top: 6px;
+  background: var(--track);
+}
+
+.parchment .works-row-bar .progress-bar-fill,
+.parchment .works-plate-bar .progress-bar-fill {
+  display: block;
+}
+
+/*
+ * The construction bar carries NO inline percentage, unlike every other bar on paper.
+ * `--bar-pct-ink` rides at the right of the track, so on a nearly-finished build it would
+ * land on the fill itself at about 1.4:1 — and the foot line already says `0:12 remaining`,
+ * which is the more useful of the two numbers. One statement, not two.
+ */
+.parchment .works-row-bar .progress-bar-fill.construction {
+  background: var(--build-paper);
+}
+
+/* The unclaimed-slot row: present, but plainly not yet a building. */
+.parchment .works-row-claim {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.parchment .works-row-claim .works-row-name,
+.parchment .works-row-claim .works-row-level {
+  color: var(--ink-3);
+}
+
+/* --- The plate ------------------------------------------------------------ */
+/*
+ * FRAMELESS (OMA, 2026-08-16). The hall stands on the paper behind the wash — the roll
+ * card's treatment (§16.2), not the plate's own. The arch clipped the upswept eaves at every
+ * size worth using, and removing it let the illustration grow 118x151 -> 153x153.
+ */
+.parchment .works-plate {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  margin-bottom: var(--space-2);
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.parchment .works-plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* above the card's own background, below its content */
+  border-radius: inherit;
+  pointer-events: none;
+  /* §8's one licensed fill, fed from sect gold rather than a grade colour: the plate is the
+     sect's seat, and §2.3 makes gold the sect's own. Same alpha band as the roster's washes. */
+  background: radial-gradient(75% 90% at 24% 46%, rgba(217, 180, 92, 0.2) 0%, transparent 70%);
+}
+
+.parchment .works-plate-art {
+  flex: none;
+  width: 153px;
+  height: 153px;
+  align-self: center;
+  filter: drop-shadow(0 1px 2px rgba(42, 37, 33, 0.18));
+}
+
+.parchment .works-plate-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.parchment .works-plate-name {
+  font-family: var(--font-display);
+  font-size: 1.95rem;
+  font-weight: 600;
+  line-height: 1.12;
+  color: var(--ink);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parchment .works-plate-pill {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(42, 37, 33, 0.07);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ready);
+}
+
+.parchment .works-plate-effect {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  color: var(--qi-ink);
+}
+
+.parchment .works-plate-cost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 2px;
+}
+
+.parchment .works-plate-cost-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.parchment .works-plate-bar {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin-top: 6px;
+  background: var(--track);
+}
+
+.parchment .works-plate-bar .progress-bar-fill.construction {
+  background: var(--build-paper);
+}
+
+/*
+ * The hairline spans THE TEXT COLUMN ONLY, not the full card. Full width cuts straight
+ * through the hall's terrace steps now that the illustration fills the plate's height —
+ * and §8's plate diagram always showed the rule inside the right-hand stack.
+ */
+.parchment .works-plate-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+
+.parchment .works-plate-rank {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  color: var(--ready);
+}
+
+.parchment .works-plate-time {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The blocked reason under the primary action. It is a register line, not a card, because
+   it is a fact about the sect rather than about any one building. */
+.parchment .works-blocked {
+  margin-top: 0.35rem;
+}
+
+
+/* =========================================================================================
+ * THE BUILDING SHEET, on paper (2026-08-16)
+ *
+ * Mounted by `BuildingList` as `panelClassName="parchment leaf"` — `.parchment` is the token
+ * ladder, `.leaf` is the material plus the dark→paper remap that keeps un-migrated rules
+ * inside a sheet resolving to paper values.
+ *
+ * IT REUSES THE DISCIPLE LEAF'S VOCABULARY. `.leaf-standing` / `.leaf-stat` for figures,
+ * `.leaf-row` for anything tappable, `.works-plate-cost-chip` for a price. Only the rules
+ * below are new, and every one of them is a shape the leaf did not already have.
+ * ========================================================================================= */
+
+.leaf .building-leaf-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.leaf .building-leaf-art {
+  flex: none;
+  filter: none; /* the ink-and-wash marks are drawn for paper; no knock-out here (§15) */
+}
+
+.leaf .building-leaf-ident {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.leaf .building-leaf-ident h3 {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.12;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaf .building-leaf-level {
+  font-size: 0.78rem;
+  color: var(--cp-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaf .building-leaf-lore {
+  margin: var(--space-2) 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* The section title the sheet had as `.building-detail-section-title`, in paper terms. */
+.leaf .leaf-section-title {
+  margin: var(--space-3) 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.leaf .building-leaf-warn {
+  margin: var(--space-2) 0 0;
+  font-size: 0.78rem;
+  color: var(--danger-ink);
+}
+
+.leaf .building-leaf-cost {
+  gap: 6px 14px;
+}
+
+/* A posted disciple's row ends in a word, not a chevron: the row's action is to release
+   them, and a chevron would promise a picker that does not open. */
+.leaf .leaf-row-release {
+  flex: none;
+  font-size: 0.7rem;
+  color: var(--ink-3);
+}
+
+.leaf .leaf-row-empty .leaf-row-value {
+  color: var(--ink-3);
+}
+
+.leaf .building-leaf-progress {
+  margin-top: var(--space-3);
+}
+
+/* Destructive, and quiet about it — §7's quiet tier in paper ink. It is the last thing in the
+   sheet and it must never compete with the upgrade button above it. */
+.leaf .building-leaf-demolish {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--danger-ink);
+}
+
+.leaf .building-leaf-demolish:active {
+  text-decoration: underline;
+}
+
+
+/* --- The claim drawer ------------------------------------------------------ */
+/*
+ * One row per candidate building, and the row IS the button — the same shape as the works
+ * rows the player tapped to open this drawer. The old markup nested a `<ul>` of costs and a
+ * separate `Claim` control inside an `<li>`, so a disabled button and the reason it was
+ * disabled were two objects with a gap between them.
+ */
+.leaf .claim-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+}
+
+/* Disabled is opacity ONLY (§7) — but the blocker line inside must stay legible, or the row
+   hides the one sentence that explains why it cannot be tapped. */
+.leaf .claim-option:disabled {
+  opacity: 1;
+}
+
+.leaf .claim-option.blocked .works-row-art,
+.leaf .claim-option.blocked .works-row-name,
+.leaf .claim-option.blocked .claim-option-lore,
+.leaf .claim-option.blocked .claim-option-cost {
+  opacity: 0.45;
+}
+
+.leaf .claim-option-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leaf .claim-option-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.leaf .claim-option-lore {
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.leaf .claim-option-cost {
+  margin-top: 2px;
+}
+
+
+/* §14's inline disclosure: the vein's own note, previously stranded in a `title=` attribute
+   that a touch device can never fire. Its own line, below the multipliers it qualifies. */
+.spirit-vein-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-4);
+}
+
+
+/* §15's chrome tier: chevrons are ONE glyph turned, never four characters.
+   `›` `‹` `⌃` `▾` were text; a rotation is cheaper than four SVG paths and it guarantees the
+   four directions have identical stroke weight, which four glyph designs would not. */
+.ui-chevron {
+  transition: transform var(--t-fast, 0.15s) var(--ease-out, ease);
+}
+
+.ui-chevron.up {
+  transform: rotate(-90deg);
+}
+
+.ui-chevron.down {
+  transform: rotate(90deg);
+}
+
+.ui-chevron.back {
+  transform: rotate(180deg);
 }

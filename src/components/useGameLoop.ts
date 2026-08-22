@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react'
-import { useGameStore } from '../state/store'
+import { useGameStore } from '../game/state/store'
 
 const TICK_INTERVAL_MS = 250
 const AUTOSAVE_INTERVAL_MS = 10_000
 
 /**
+ * Lives in `components/`, not `engine/`: this is a React hook that DRIVES the engine, not engine
+ * code itself. `engine/` and `data/` must stay importable by a Node server (MULTIPLAYER_PLAN §4),
+ * and `npm run engine-purity` fails the moment anything in there reaches for React or the DOM.
+ *
  * Drives the Simulation Clock forward using real elapsed time (Date.now()
  * deltas, not a fixed step count), autosaves periodically, and saves once
  * more on unload so closing the tab never loses progress.

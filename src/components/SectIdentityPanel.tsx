@@ -1,5 +1,5 @@
 import { useGameStore } from '../game/state/store'
-import { getSectSiteDef } from '../game/data/world/sectSiteDefs'
+import { getSite } from '../game/engine/world/worldAccess'
 import { ModifierBundleList } from './ModifierBundleList'
 
 /**
@@ -14,9 +14,10 @@ import { ModifierBundleList } from './ModifierBundleList'
  */
 export function SectIdentityPanel() {
   const sectLocation = useGameStore((s) => s.state.sectLocation)
+  const world = useGameStore((s) => s.state.world)
   if (!sectLocation) return null
 
-  const site = getSectSiteDef(sectLocation.sectSiteId)
+  const site = getSite(world, sectLocation.sectSiteId)
 
   return (
     <section className="panel">

@@ -8,6 +8,8 @@ dist-ssr
 # project docs kept local-only, not pushed to GitHub
 PROJECT.md
 CLAUDE.md
+GAME_BRIEFING.md
+TECHNICAL_BRIEFING.md
 FIRST_REALM_PLAN.md
 WORLD_MAP_DESIGN.md
 BATTLE_NARRATION_PLAN.md
@@ -32,6 +34,9 @@ DesignMDFiles/
 # Vite drops these beside the config whenever it loads a TS vite.config; transient, and
 # they only linger when the temp cleanup can't unlink them.
 vite.config.ts.timestamp-*.mjs
+
+# scratch folder for files pulled out of src/ before deleting them
+_to_delete/
 
 # build output
 *.apk

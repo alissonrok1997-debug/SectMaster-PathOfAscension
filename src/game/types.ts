@@ -8,6 +8,13 @@
  * round-trips through the simulation loop and save/load.
  */
 
+// Type-only imports of the world def shapes the Blueprint packages (WORLD_PROCGEN_PLAN Wave 1).
+// Erased at compile time, so this stays a runtime leaf — no import cycle with the data files.
+import type { SectSiteDefinition } from './data/world/sectSiteDefs'
+import type { NpcSectDefinition } from './data/world/npcSectDefs'
+import type { ResourceLocationDefinition } from './data/world/landmarkDefs'
+import type { ProvinceDefinition } from './data/world/provinceDefs'
+
 // --- Resources (Economy System, doc 01) ---------------------------------
 
 export interface Resources {
@@ -408,12 +415,32 @@ export interface LoginStreakState {
 // default, so it's the first bump to use the migration seam (backfill in save.ts) rather
 // than discard — a v19 save keeps all its progress and just backfills each disciple's
 // temperament from its name (the value it was already displaying).
-export const SAVE_VERSION = 24
+export const SAVE_VERSION = 30
 
-export interface GameState {
+/**
+ * One sect's PRIVATE state (MULTIPLAYER_PLAN §1) — everything only its own owner may read. On a
+ * server this is one row per player; the shared realm they all play in is `WorldState`, stored once.
+ *
+ * The rule that keeps the two apart: a function may read private state in order to WRITE shared state
+ * (that is how a seat's public `garrison.strength` is derived, §2), but nothing may ever read another
+ * sect's `SectState`. Anything a rival is allowed to see about you has to live in `WorldState`.
+ */
+export interface SectState {
   saveVersion: number
+  /**
+   * This save's own sect id. `'player'` for every save that predates MULTIPLAYER_PLAN §7.1 and for
+   * every single-player game since — the point is not the value but that ownership is compared
+   * against a *field* rather than a literal, so a second sect can exist without touching call sites.
+   */
+  sectId: SectId
   createdAt: number
   lastSavedAt: number
+  /**
+   * The 32-bit seed the realm is generated from (WORLD_PROCGEN_PLAN Wave 5). Rolled once at
+   * new-game (hidden; no reroll per the locked config) and copied into `world.seed` at founding,
+   * so the founding options and the committed world are generated from the same seed.
+   */
+  worldSeed: number
   simClock: SimClockState
   worldClock: WorldClockState
   resources: Resources
@@ -477,11 +504,12 @@ export interface GameState {
    */
   sectLocation?: SectLocation
   /**
-   * All mutable world-map runtime state (§9), created at founding alongside
-   * sectLocation. Undefined pre-founding. Namespaced so the diff against the flat
-   * GameState stays legible and future world systems have a home.
+   * Which provinces THIS sect has discovered. Sparse, and per-player — two sects in one realm have
+   * explored different amounts of it, so this cannot live on the shared `WorldState` (§1).
    */
-  world?: WorldState
+  provinces: Record<ProvinceId, ProvinceRuntime>
+  /** Newest-first arrival reports for this sect's own expeditions, capped. Per-player, same reason. */
+  expeditionLog: ExpeditionLogEntry[]
   /**
    * Set the instant a winning seat-claim relocates the sect but the new seat's
    * `buildingSlots` can't fit every current building (FIRST_REALM_PLAN §4.2/§7).
@@ -491,6 +519,22 @@ export interface GameState {
    * anything else renders, mirroring the FoundingScreen app-gate.
    */
   pendingRelocation?: PendingRelocationState
+}
+
+/**
+ * A sect's private state composed with the realm it is playing in — the shape essentially every engine
+ * function still takes, so the split cost no call sites.
+ *
+ * `world` is a REFERENCE to shared state, not a copy the sect owns. In single-player there is one of
+ * each and the store holds them composed; on a server the composition happens per request
+ * (`composeState`/`splitState` in `state/composition.ts`) and the world half is written back once.
+ */
+export type GameState = SectState & {
+  /**
+   * All mutable SHARED world state (§9), created at realm creation. Undefined pre-founding — its
+   * presence together with `sectLocation` is the "has this save been founded?" flag the app boots on.
+   */
+  world?: WorldState
 }
 
 /** FIRST_REALM_PLAN §4.2/§7/§9 — the "must prune buildings after a relocation" gate. */
@@ -508,6 +552,13 @@ export interface PendingRelocationState {
 // archetype defs) live in their data/world/ file, mirroring how factionDefs.ts
 // owns FactionDefinition. GameState.sectLocation / GameState.world and the
 // Expedition model arrive with founding (Phase 2) and travel (Phase 4).
+
+/**
+ * Identifies a sect that can own territory — the local player's sect today, any player's or NPC's
+ * once the world is shared (MULTIPLAYER_PLAN §7.1). Ownership comparisons must be made against a
+ * specific id (`runtime.ownerId === state.sectId`), never against a hardcoded literal.
+ */
+export type SectId = string
 
 export type ProvinceId = string
 export type SectSiteId = string
@@ -537,7 +588,7 @@ export type SectSiteTier = 'poor' | 'normal' | 'good'
  * NOT a navigational unit like ProvinceId; the whole world is one province.
  * Used for identity and for region-partitioned NPC decision-making (§4.3).
  */
-export type RegionId = 'spiritMountain' | 'ancientForest' | 'desert' | 'forgottenRuins'
+export type RegionId = 'spiritMountain' | 'ancientForest' | 'desert' | 'forgottenRuins' | 'heavenlyAxis'
 
 export type ResourceArchetypeId =
   | 'spiritIronMine'
@@ -651,7 +702,7 @@ export interface Garrison {
  * (name, yields) — that is the single most important save-safety rule (§13.2).
  *
  * Also used for sect sites (FIRST_REALM_PLAN §2.2): `ownerId` on a sect site is
- * `'player' | <npcSectId> | undefined` (neutral), and `garrison` carries its
+ * `GameState.sectId | <npcSectId> | undefined` (neutral), and `garrison` carries its
  * defensive strength. `outpostLevel`/`knowledge` stay meaningless for sites and
  * simply go unused there, same as they do for exploration locations today.
  */
@@ -685,6 +736,8 @@ export interface GeneratedNodeRecord {
   id: LocationId
   kind: 'resource'
   provinceId: ProvinceId
+  /** The territory (seat site) whose cell this node sits in (WORLD_PROCGEN_PLAN Wave 3). */
+  territoryId?: SectSiteId
   archetypeId: ResourceArchetypeId
   name: string
   yieldPerVisit: Partial<Resources>
@@ -695,6 +748,8 @@ export interface GeneratedNodeRecord {
   mapPosition: MapPosition
   maxParty: number
   onSiteDurationMs: number
+  /** Present on the claimable subset — turns the node into a passive-yield outpost (§5.3). */
+  upgradePath?: OutpostUpgradePath
 }
 
 // The Expedition model (§8). Shapes are defined here in Phase 2 so the whole
@@ -864,23 +919,68 @@ export interface NpcSect {
 }
 
 /** All mutable world-map runtime state (§9). Every collection is sparse or empty at founding. */
+/**
+ * One generated territory (WORLD_PROCGEN_PLAN Wave 1). In this single-realm world a
+ * territory is 1:1 with its seat site, so `id` is the SectSiteId. Wave 2 replaces the
+ * legacy builder with a real generator and fills `polygon`; until then the map art
+ * recomputes its inked path from the seat points.
+ */
+export interface GeneratedTerritory {
+  id: SectSiteId
+  name: string
+  regionId: RegionId
+  tier: SectSiteTier
+  /** Normalised seat point (0..1), mirroring the site def's mapPosition. */
+  seat: MapPosition
+  /** Voronoi-adjacent territory ids (the Delaunay dual). */
+  neighbours: SectSiteId[]
+  spiritVeinTier: number
+  /** Raw Voronoi cell polygon in normalised units; undefined in the legacy blueprint. */
+  polygon?: Array<[number, number]>
+}
+
+/**
+ * The generated static shape of a realm (WORLD_PROCGEN_PLAN Wave 1), serialized into the
+ * save at founding and authoritative thereafter — runtime ownership/capacity/NPC strength
+ * mutate away from it. The `worldAccess` shim reads sites/province/nodes from here. Wave 1
+ * fills it with today's authored values (`buildLegacyBlueprint`), so nothing changes yet.
+ */
+export interface WorldBlueprint {
+  seed: number
+  genVersion: number
+  territories: GeneratedTerritory[]
+  /** Replaces the module SECT_SITE_DEFS, keyed by id (insertion order = SECT_SITE_DEFS order). */
+  sites: Record<SectSiteId, SectSiteDefinition>
+  /** Replaces LANDMARK_DEFS (fully generated in Wave 3), keyed by id. */
+  nodes: Record<LocationId, ResourceLocationDefinition>
+  /** Replaces NPC_SECT_DEFS. */
+  npcSeeds: NpcSectDefinition[]
+  /** The realm's single province def. */
+  province: ProvinceDefinition
+}
+
+/**
+ * The SHARED realm (MULTIPLAYER_PLAN §1) — one copy per world, read by every sect in it and written
+ * only through the rules in `engine/world/`. Nothing per-player belongs here: discovery and a sect's
+ * own expedition log live on `SectState`, because two sects in the same realm disagree about both.
+ */
 export interface WorldState {
   /** Seed for the node generator — kept for debugging + lazy province generation (§5.4). */
   seed: number
-  /** Sparse. Only provinces the player has discovered. */
-  provinces: Record<ProvinceId, ProvinceRuntime>
-  /** Sparse. Only locations the player has touched; absent = pristine defaults. */
+  /** Generated static realm shape (WORLD_PROCGEN_PLAN Wave 1); read through the `worldAccess` shim. */
+  blueprint: WorldBlueprint
+  /** Sparse. Only locations someone has touched; absent = pristine defaults. */
   locations: Record<LocationId, LocationRuntime>
   /** Generated minor nodes, authoritative once written, keyed by province. */
   generatedNodes: Record<ProvinceId, GeneratedNodeRecord[]>
-  /** Active expeditions. Multi-slot by design (§8.1). */
+  /** Active expeditions. Multi-slot by design (§8.1). In-flight squads occupy the map, so they are shared. */
   expeditions: Expedition[]
-  /** Newest-first arrival reports, capped. */
-  expeditionLog: ExpeditionLogEntry[]
-  /** Every living NPC sect (FIRST_REALM_PLAN §2.3), one per occupied prestige/minor seat. */
+  /**
+   * Every living NPC sect (FIRST_REALM_PLAN §2.3), one per occupied prestige seat. Seeded once at
+   * founding onto the Good/Normal seats only and never added to again — NPCs are defenders that are
+   * destroyed permanently on conquest, so this list only ever shrinks (MULTIPLAYER_PLAN §0.4-§0.7).
+   */
   npcSects: NpcSect[]
-  /** Epoch ms the emergence mechanic next tries to spawn a minor sect onto a free Poor seat (§4.3), gated on ≥4 free seats. */
-  nextNpcEmergenceAt: number
 }
 
 /** Empty-shell state with no buildings and zeroed resources. `createNewGame` (state/initialState.ts) builds the real Wave 1 starting state on top of this. */
@@ -888,8 +988,12 @@ export function createInitialGameState(): GameState {
   const now = Date.now()
   return {
     saveVersion: SAVE_VERSION,
+    sectId: 'player',
+    provinces: {},
+    expeditionLog: [],
     createdAt: now,
     lastSavedAt: now,
+    worldSeed: Math.floor(Math.random() * 0x7fffffff),
     simClock: { totalElapsedMs: 0 },
     worldClock: { totalElapsedMs: 0 },
     resources: createEmptyResources(),

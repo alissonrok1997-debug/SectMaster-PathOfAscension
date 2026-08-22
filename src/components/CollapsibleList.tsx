@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { UiIcon } from './UiIcon'
 
 const COLLAPSE_THRESHOLD = 5
 
@@ -25,7 +26,7 @@ export function CollapsibleList({ items }: CollapsibleListProps) {
         onClick={() => setExpanded((v) => !v)}
       >
         <span className={expanded ? 'collapse-arrow collapse-arrow-open' : 'collapse-arrow'} aria-hidden="true">
-          ▾
+          <UiIcon className="ui-chevron down" name="chevron" size={20} />
         </span>
         {expanded ? 'See less' : `See ${hiddenCount} more`}
       </button>

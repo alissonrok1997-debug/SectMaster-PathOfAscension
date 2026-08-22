@@ -1,65 +1,95 @@
-import type { MapPosition, RegionId, SectSiteId } from '../../types'
-import { SECT_SITE_DEFS } from '../../data/world/sectSiteDefs'
+import type { MapPosition, RegionId, SectSiteId, WorldState } from '../../types'
 
 /**
- * Region-partitioned decision indices (FIRST_REALM_PLAN §4.3) — precomputed
- * once from the static site defs, never touched again. An acting NPC sect
- * evaluates targets only within its own region + adjacent regions, so a
- * climb/raid/claim decision costs O(local neighbourhood) instead of O(all 32
- * sites), which is what keeps the sim off the O(N²) cliff as the sect count
- * grows (§4.3's core scaling constraint).
+ * Region-partitioned decision indices (FIRST_REALM_PLAN §4.3). An acting NPC sect evaluates
+ * targets only within its own region + adjacent regions, so a climb/raid/claim decision costs
+ * O(local neighbourhood) instead of O(all 64 sites) — what keeps the sim off the O(N²) cliff.
  *
- * The four regions sit in a west-to-east belt (Wave A's mapPosition layout:
- * Spirit Mountain → Ancient Forest → Desert → Forgotten Ruins), so adjacency
- * is a simple linear chain — each region borders only its immediate neighbour(s).
+ * Region adjacency is derived per seed from the actual Voronoi/Delaunay territory-neighbour
+ * crossings (two regions are adjacent iff a territory in one borders a territory in the other), not
+ * a hardcoded ring — so it stays correct however the corners are shuffled, yields the ring+hub for
+ * the quadrant layout, and recovers the old west→east chain for legacy belt saves. From
+ * WORLD_PROCGEN_PLAN Wave 2 the site→region mapping is generated per seed, so the whole index is
+ * built from `world.blueprint.territories` and cached by seed (recomputed on load, the worldGraph
+ * "compute once at init" discipline keyed off the seed).
  */
-const REGION_ADJACENCY: Record<RegionId, RegionId[]> = {
-  spiritMountain: ['ancientForest'],
-  ancientForest: ['spiritMountain', 'desert'],
-  desert: ['ancientForest', 'forgottenRuins'],
-  forgottenRuins: ['desert'],
+interface RegionIndexData {
+  siteToRegion: Record<SectSiteId, RegionId>
+  regionToSites: Record<RegionId, SectSiteId[]>
+  /** Region → adjacent regions, derived from the Delaunay territory-neighbour crossings for this seed. */
+  regionAdjacency: Record<RegionId, RegionId[]>
+  seats: Array<{ id: SectSiteId; regionId: RegionId; pos: MapPosition }>
 }
 
-const siteToRegion: Record<SectSiteId, RegionId> = {}
-for (const site of SECT_SITE_DEFS) {
-  siteToRegion[site.id] = site.regionId
+function buildIndex(world: WorldState | undefined): RegionIndexData {
+  const siteToRegion: Record<SectSiteId, RegionId> = {}
+  const regionToSites: Record<RegionId, SectSiteId[]> = { spiritMountain: [], ancientForest: [], desert: [], forgottenRuins: [], heavenlyAxis: [] }
+  const seats: RegionIndexData['seats'] = []
+  const territories = world?.blueprint?.territories ?? []
+  for (const t of territories) {
+    siteToRegion[t.id] = t.regionId
+    regionToSites[t.regionId].push(t.id)
+    seats.push({ id: t.id, regionId: t.regionId, pos: t.seat })
+  }
+  // Region adjacency from territory-neighbour crossings — a second pass, so neighbours that appear
+  // later in the list resolve. Undirected: an A→B crossing records B on A and A on B.
+  const adjSets = new Map<RegionId, Set<RegionId>>()
+  const bucket = (r: RegionId) => {
+    let set = adjSets.get(r)
+    if (!set) adjSets.set(r, (set = new Set()))
+    return set
+  }
+  for (const t of territories) {
+    bucket(t.regionId) // ensure every region has an entry, even one with no cross-region border
+    for (const nId of t.neighbours) {
+      const to = siteToRegion[nId]
+      if (to && to !== t.regionId) {
+        bucket(t.regionId).add(to)
+        bucket(to).add(t.regionId)
+      }
+    }
+  }
+  const regionAdjacency = {} as Record<RegionId, RegionId[]>
+  for (const [region, set] of adjSets) regionAdjacency[region] = [...set]
+  return { siteToRegion, regionToSites, regionAdjacency, seats }
 }
 
-const regionToSites: Record<RegionId, SectSiteId[]> = {
-  spiritMountain: [],
-  ancientForest: [],
-  desert: [],
-  forgottenRuins: [],
-}
-for (const site of SECT_SITE_DEFS) {
-  regionToSites[site.regionId].push(site.id)
+// Cache the index by world seed — the territories are fixed for a given world, so this recomputes
+// only when a different world is loaded.
+let cache: { seed: number; data: RegionIndexData } | null = null
+function getIndex(world: WorldState | undefined): RegionIndexData {
+  const seed = world?.seed ?? -1
+  if (cache && cache.seed === seed) return cache.data
+  const data = buildIndex(world)
+  cache = { seed, data }
+  return data
 }
 
-export function getRegionForSite(siteId: SectSiteId): RegionId | undefined {
-  return siteToRegion[siteId]
+export function getRegionForSite(world: WorldState | undefined, siteId: SectSiteId): RegionId | undefined {
+  return getIndex(world).siteToRegion[siteId]
 }
 
 /**
- * The region a map position belongs to — the region of its nearest sect site.
- * Resource nodes carry no region field of their own (they're authored in region
- * clusters but only as `mapPosition`), so this reconstructs the grouping from the
- * site anchors, working uniformly for handcrafted landmarks and generated nodes.
+ * The region a map position belongs to — the region of its nearest seat. Resource nodes carry no
+ * region of their own, so this reconstructs the grouping from the seat anchors, working uniformly
+ * for handcrafted landmarks and generated nodes.
  */
-export function getRegionForPosition(pos: MapPosition): RegionId {
-  let best: RegionId = SECT_SITE_DEFS[0].regionId
+export function getRegionForPosition(world: WorldState | undefined, pos: MapPosition): RegionId {
+  const { seats } = getIndex(world)
+  let best: RegionId = seats[0]?.regionId ?? 'spiritMountain'
   let bestDist = Infinity
-  for (const site of SECT_SITE_DEFS) {
-    const dist = Math.hypot(site.mapPosition.x - pos.x, site.mapPosition.y - pos.y)
+  for (const seat of seats) {
+    const dist = Math.hypot(seat.pos.x - pos.x, seat.pos.y - pos.y)
     if (dist < bestDist) {
       bestDist = dist
-      best = site.regionId
+      best = seat.regionId
     }
   }
   return best
 }
 
 /** Every sect site in `regionId` plus every adjacent region — the scope an acting sect evaluates (§4.3). */
-export function getSitesInScope(regionId: RegionId): SectSiteId[] {
-  const regions = [regionId, ...REGION_ADJACENCY[regionId]]
-  return regions.flatMap((r) => regionToSites[r])
+export function getSitesInScope(world: WorldState | undefined, regionId: RegionId): SectSiteId[] {
+  const { regionToSites, regionAdjacency } = getIndex(world)
+  return [regionId, ...(regionAdjacency[regionId] ?? [])].flatMap((r) => regionToSites[r] ?? [])
 }

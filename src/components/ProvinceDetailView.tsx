@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import type { ExpeditionPurpose, RegionId, Resources } from '../game/types'
+import { UiIcon } from './UiIcon'
+import type { ExpeditionPurpose, Resources } from '../game/types'
 import { useGameStore } from '../game/state/store'
 import { getProvinceDef } from '../game/data/world/provinceDefs'
 import { getNeighbours } from '../game/data/world/worldGraph'
+import { getSite } from '../game/engine/world/worldAccess'
 import { getProvinceSpiritVein } from '../game/engine/world/worldQueries'
 import { getTravelTime } from '../game/engine/world/travel'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
@@ -18,13 +20,6 @@ import { LocationDetailPanel } from './LocationDetailPanel'
 import { DispatchExpeditionModal } from './DispatchExpeditionModal'
 import { GarrisonPanel } from './GarrisonPanel'
 
-const REGION_LABELS: Record<RegionId, string> = {
-  spiritMountain: 'Spirit Mountain',
-  ancientForest: 'Ancient Forest',
-  desert: 'Desert',
-  forgottenRuins: 'Forgotten Ruins',
-}
-
 const OWNERSHIP_OPTIONS: { value: NodeOwnership; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'mine', label: 'Mine' },
@@ -36,27 +31,28 @@ const OWNERSHIP_OPTIONS: { value: NodeOwnership; label: string }[] = [
  * The Province layer (WORLD_MAP_DESIGN §3.3 / §12.3): the locations within one
  * province, each with its live travel time and a dispatch entry point. Subscribes
  * to the whole state so location runtime (remaining capacity) stays current. An
- * optional `regionId` narrows the list to one region's nodes — how a sect site's
- * "Show this location's resource nodes" button scopes to its own area.
+ * optional `territoryId` narrows the list to one territory's own nodes (Wave 3) — how a sect
+ * site's "Show this location's resource nodes" button scopes to its own cell.
  */
 export function ProvinceDetailView({
   provinceId,
-  regionId,
+  territoryId,
   onBack,
 }: {
   provinceId: string
-  regionId?: RegionId
+  territoryId?: string
   onBack: () => void
 }) {
   const state = useGameStore((s) => s.state)
   const [dispatch, setDispatch] = useState<{ locationId: string; purpose: ExpeditionPurpose } | null>(null)
   const [garrisonLocationId, setGarrisonLocationId] = useState<string | null>(null)
   // Local, reset on every visit — never lifted or saved (NODE_FILTER_SORT_PLAN §2).
-  const [filter, setFilter] = useState(() => createNodeBrowseFilter(regionId))
+  const [filter, setFilter] = useState(() => createNodeBrowseFilter(territoryId))
 
   const province = getProvinceDef(provinceId)
   const vein = getProvinceSpiritVein(provinceId)
-  const resourceKeys = availableResourceKeys(state, provinceId, regionId)
+  const territoryName = territoryId ? getSite(state.world, territoryId).name : undefined
+  const resourceKeys = availableResourceKeys(state, provinceId, territoryId)
   const { locations, totalInScope, hiddenDepletedCount } = browseNodes(state, provinceId, filter)
 
   return (
@@ -64,15 +60,15 @@ export function ProvinceDetailView({
       {/* Full-screen sub-view: a persistent back header, not a silent inline swap. */}
       <div className="world-back-header">
         <button className="world-back-button" onClick={onBack} aria-label="Back to map">
-          ‹
+          <UiIcon className="ui-chevron back" name="chevron" size={20} />
         </button>
         <h2>
           {province.name}
-          {regionId ? ` — ${REGION_LABELS[regionId]}` : ''}
+          {territoryName ? ` — ${territoryName}` : ''}
         </h2>
       </div>
       <p className="panel-hint">
-        {regionId ? `Resource nodes in the ${REGION_LABELS[regionId]} region.` : province.description}
+        {territoryName ? `Resource nodes in ${territoryName}'s territory.` : province.description}
       </p>
       <p className="recipe-meta">
         Spirit Vein: <strong>{vein.name}</strong> &middot; Difficulty {province.difficultyTier} &middot; Neighbours:{' '}
@@ -136,7 +132,7 @@ export function ProvinceDetailView({
         </div>
       )}
 
-      {totalInScope === 0 && <p className="panel-hint">No resource nodes in this region.</p>}
+      {totalInScope === 0 && <p className="panel-hint">No resource nodes in {territoryName ? 'this territory' : 'this province'}.</p>}
       {totalInScope > 0 && locations.length === 0 && hiddenDepletedCount > 0 && (
         <p className="panel-hint">
           Only depleted nodes match — turn on <strong>Show depleted</strong> to see them.
@@ -145,7 +141,7 @@ export function ProvinceDetailView({
       {totalInScope > 0 && locations.length === 0 && hiddenDepletedCount === 0 && (
         <p className="panel-hint">
           No nodes match these filters.{' '}
-          <button className="link-button" onClick={() => setFilter(createNodeBrowseFilter(regionId))}>
+          <button className="link-button" onClick={() => setFilter(createNodeBrowseFilter(territoryId))}>
             Clear filters
           </button>
         </p>
@@ -154,7 +150,7 @@ export function ProvinceDetailView({
       <div className="recipe-grid">
         {locations.map((loc) => {
           const ownerId = loc.runtime.ownerId
-          const isEnemyOwned = ownerId !== undefined && ownerId !== 'player'
+          const isEnemyOwned = ownerId !== undefined && ownerId !== state.sectId
           const claim = loc.kind === 'resource' ? getOutpostClaimEligibility(state, loc.id) : undefined
           return (
             <LocationDetailPanel
@@ -166,8 +162,9 @@ export function ProvinceDetailView({
               onDispatch={loc.kind === 'resource' ? () => setDispatch({ locationId: loc.id, purpose: 'gather' }) : undefined}
               onClaim={loc.kind === 'resource' ? () => setDispatch({ locationId: loc.id, purpose: 'claim' }) : undefined}
               onRaid={isEnemyOwned ? () => setDispatch({ locationId: loc.id, purpose: 'raid' }) : undefined}
-              onGarrison={ownerId === 'player' ? () => setGarrisonLocationId(loc.id) : undefined}
-              onSurvey={ownerId !== 'player' ? () => setDispatch({ locationId: loc.id, purpose: 'survey' }) : undefined}
+              onGarrison={ownerId === state.sectId ? () => setGarrisonLocationId(loc.id) : undefined}
+              onSurvey={ownerId !== state.sectId ? () => setDispatch({ locationId: loc.id, purpose: 'survey' }) : undefined}
+              sectId={state.sectId}
             />
           )
         })}

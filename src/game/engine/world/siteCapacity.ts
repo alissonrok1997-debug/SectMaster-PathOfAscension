@@ -1,5 +1,5 @@
 import type { GameState } from '../../types'
-import { getSectSiteDef } from '../../data/world/sectSiteDefs'
+import { getSite } from './worldAccess'
 
 /**
  * The founded sect site's building-slot cap (WORLD_MAP_DESIGN §4.3). Derived, not
@@ -15,6 +15,6 @@ export interface BuildingSlotUsage {
 
 export function getBuildingSlotUsage(state: GameState): BuildingSlotUsage {
   const used = Object.keys(state.buildings).length
-  const total = state.sectLocation ? getSectSiteDef(state.sectLocation.sectSiteId).buildingSlots : Infinity
+  const total = state.sectLocation ? getSite(state.world, state.sectLocation.sectSiteId).buildingSlots : Infinity
   return { used, total }
 }

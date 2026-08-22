@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { UiIcon } from './UiIcon'
 import type { Resources } from '../game/types'
 import { useGameStore } from '../game/state/store'
 import { CRAFTING_RECIPES, type CraftingRecipe } from '../game/data/craftingRecipes'
@@ -59,7 +60,7 @@ function RecipeCraftCard({
           <span className="recipe-cost-line">{unitCost}</span>
         </span>
         <span className="recipe-card-chevron" aria-hidden="true">
-          {expanded ? '⌃' : '›'}
+          <UiIcon className={`ui-chevron ${expanded ? 'up' : ''}`} name="chevron" size={20} />
         </span>
       </button>
 

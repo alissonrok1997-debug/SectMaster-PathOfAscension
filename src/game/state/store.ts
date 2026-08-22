@@ -58,7 +58,7 @@ import { applyDiplomaticAction } from '../engine/diplomacy'
 import { resolveWorldEventLifecycle } from '../engine/worldEvents'
 import { resolveEventChoice as applyEventChoice, resolveEventLifecycle } from '../engine/events'
 import { buildInitialWorldState, getFoundingEligibility } from '../engine/world/founding'
-import { getSectSiteDef } from '../data/world/sectSiteDefs'
+import { getSite } from '../engine/world/worldAccess'
 import { getExpeditionTargetMeta, getLocation, getSectSpiritVein } from '../engine/world/worldQueries'
 import {
   emptyPayload,
@@ -72,6 +72,7 @@ import { generateProvinceNodes } from '../engine/world/worldGeneration'
 import {
   garrisonSite as garrisonSitePure,
   getGarrisonEligibility,
+  recomputeSeatStrength,
   setGarrisonReturnWhenWounded as setGarrisonReturnWhenWoundedPure,
   ungarrisonSite as ungarrisonSitePure,
 } from '../engine/world/territory'
@@ -216,14 +217,17 @@ export const useGameStore = create<GameStore>((set) => ({
       const stateAfterProduction = { ...stateAfterUpkeep, resources: resourcesAfterProduction }
       const { disciples, resources } = applyCultivationTick(stateAfterProduction, deltaMs)
 
+      // The tick is the write boundary for the seat's public defence scalar (MULTIPLAYER_PLAN §2):
+      // every resolver that can move the roster — missions, expeditions, downed, upkeep, cultivation —
+      // has run by here, so one sync at the end can't observe a half-updated roster.
       return {
-        state: {
+        state: recomputeSeatStrength({
           ...stateAfterUpkeep,
           resources,
           disciples,
           simClock: { totalElapsedMs: store.state.simClock.totalElapsedMs + deltaMs },
           worldClock: { totalElapsedMs: store.state.worldClock.totalElapsedMs + deltaMs },
-        },
+        }),
       }
     }),
 
@@ -231,15 +235,17 @@ export const useGameStore = create<GameStore>((set) => ({
     set((store) => {
       // Read-only forever: once founded, this choice can never be re-made (§4.4).
       if (store.state.sectLocation) return {}
-      if (!getFoundingEligibility(provinceId, sectSiteId).canFound) return {}
+      // The realm was generated from the seed rolled at new game (Wave 5) — the same seed the
+      // founding options were drawn from, so the committed world matches what was offered.
+      const seed = store.state.worldSeed
+      if (!getFoundingEligibility(seed, provinceId, sectSiteId).canFound) return {}
 
       const now = Date.now()
-      const seed = Math.floor(Math.random() * 0x7fffffff)
-      const { sectLocation, world } = buildInitialWorldState(provinceId, sectSiteId, seed, now)
+      const { sectLocation, provinces, world } = buildInitialWorldState(provinceId, sectSiteId, seed, now, store.state.sectId)
 
       // Apply the site's one-time founding grant, clamped to storage caps like any resource grant (§4.1).
       let resources = store.state.resources
-      const startingBonus = getSectSiteDef(sectSiteId).startingBonus
+      const startingBonus = getSite(world, sectSiteId).startingBonus
       if (startingBonus) {
         const caps = computeStorageCaps(store.state)
         resources = { ...resources }
@@ -248,7 +254,7 @@ export const useGameStore = create<GameStore>((set) => ({
         }
       }
 
-      const state: GameState = { ...store.state, sectLocation, world, resources }
+      const state: GameState = recomputeSeatStrength({ ...store.state, sectLocation, provinces, world, resources })
       saveGame(state)
       return { state }
     }),
@@ -345,7 +351,7 @@ export const useGameStore = create<GameStore>((set) => ({
       const state = store.state
       const pending = state.pendingRelocation
       if (!pending) return {}
-      const newCap = getSectSiteDef(pending.newSiteId).buildingSlots
+      const newCap = getSite(state.world, pending.newSiteId).buildingSlots
       const remainingCount = Object.keys(state.buildings).length - buildingIdsToRemove.length
       if (remainingCount > newCap) return {} // must remove enough to fit
 
@@ -378,19 +384,20 @@ export const useGameStore = create<GameStore>((set) => ({
   discoverProvince: (provinceId) =>
     set((store) => {
       const world = store.state.world
-      if (!world || world.provinces[provinceId]?.discovered) return {}
+      if (!world || store.state.provinces[provinceId]?.discovered) return {}
       const generatedNodes = world.generatedNodes[provinceId]
         ? world.generatedNodes
         : { ...world.generatedNodes, [provinceId]: generateProvinceNodes(provinceId, world.seed) }
       return {
         state: {
           ...store.state,
+          // Discovery is this sect's, not the realm's (MULTIPLAYER_PLAN §1).
+          provinces: {
+            ...store.state.provinces,
+            [provinceId]: { discovered: true, surveyProgress: store.state.provinces[provinceId]?.surveyProgress ?? 0 },
+          },
           world: {
             ...world,
-            provinces: {
-              ...world.provinces,
-              [provinceId]: { discovered: true, surveyProgress: world.provinces[provinceId]?.surveyProgress ?? 0 },
-            },
             generatedNodes,
           },
         },

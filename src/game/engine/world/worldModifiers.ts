@@ -1,8 +1,7 @@
 import type { GameState, Resources, SiteModifierBundle } from '../../types'
-import { getSectSiteDef } from '../../data/world/sectSiteDefs'
-import { getLandmarkDef } from '../../data/world/landmarkDefs'
+import { getSite } from './worldAccess'
 import { getWorldEventModifiers } from '../worldEvents'
-import { getSectSpiritVein } from './worldQueries'
+import { getSectSpiritVein, getLocationDefFromState } from './worldQueries'
 
 /**
  * The single seam that aggregates every world-map modifier into one bundle
@@ -49,7 +48,7 @@ export function getWorldModifiers(state: GameState): SiteModifierBundle {
   const bundle = identityBundle()
 
   if (state.sectLocation) {
-    const site = getSectSiteDef(state.sectLocation.sectSiteId).modifiers
+    const site = getSite(state.world, state.sectLocation.sectSiteId).modifiers
     bundle.cultivationSpeedMult *= site.cultivationSpeedMult
     bundle.defenceMult *= site.defenceMult
     bundle.travelTimeMult *= site.travelTimeMult
@@ -76,7 +75,7 @@ export function getWorldModifiers(state: GameState): SiteModifierBundle {
   if (state.world) {
     for (const [locationId, runtime] of Object.entries(state.world.locations)) {
       if (runtime.outpostLevel < 1) continue
-      const def = getLandmarkDef(locationId)
+      const def = getLocationDefFromState(state, locationId)
       if (def && def.kind === 'resource' && def.upgradePath) {
         mergeBundle(bundle, def.upgradePath.level1.bonus)
       }

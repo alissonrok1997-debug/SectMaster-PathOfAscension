@@ -1,5 +1,5 @@
-import type { GameState, LocationId, MapPosition, NpcSect, SectSiteTier } from '../../types'
-import { SECT_SITE_DEFS, getSectSiteDef } from '../../data/world/sectSiteDefs'
+import type { GameState, LocationId, MapPosition, NpcSect, SectSiteTier, WorldState } from '../../types'
+import { getSite, getSites } from './worldAccess'
 import { getLocationDefFromState } from './worldQueries'
 import { getSeatDefensePower } from './territory'
 
@@ -26,13 +26,13 @@ function computeInfluenceRadius(tier: SectSiteTier, defensePower: number): numbe
 
 export function getInfluenceRadius(state: GameState): number {
   if (!state.sectLocation) return 0
-  const tier = getSectSiteDef(state.sectLocation.sectSiteId).tier
+  const tier = getSite(state.world, state.sectLocation.sectSiteId).tier
   return computeInfluenceRadius(tier, getSeatDefensePower(state))
 }
 
 /** An NPC's influence radiates from its one seat, scaled by its abstract `strength` in place of a live home-roster reading (§4.3's NPCs are a scalar, not a real roster). */
-export function getNpcInfluenceRadius(npc: NpcSect): number {
-  return computeInfluenceRadius(getSectSiteDef(npc.seatSiteId).tier, npc.strength)
+export function getNpcInfluenceRadius(world: WorldState | undefined, npc: NpcSect): number {
+  return computeInfluenceRadius(getSite(world, npc.seatSiteId).tier, npc.strength)
 }
 
 export interface InfluenceField {
@@ -43,11 +43,11 @@ export interface InfluenceField {
 /** Because the anchor is the single seat (§1), the whole bubble picks up and moves on relocation — climbing to a Normal/Good seat expands reach directly. */
 export function getInfluenceField(state: GameState): InfluenceField {
   if (!state.sectLocation) return { center: { x: 0, y: 0 }, radius: 0 }
-  return { center: getSectSiteDef(state.sectLocation.sectSiteId).mapPosition, radius: getInfluenceRadius(state) }
+  return { center: getSite(state.world, state.sectLocation.sectSiteId).mapPosition, radius: getInfluenceRadius(state) }
 }
 
 export function getLocationPosition(state: GameState, locationId: LocationId): MapPosition | undefined {
-  const site = SECT_SITE_DEFS.find((s) => s.id === locationId)
+  const site = getSites(state.world).find((s) => s.id === locationId)
   if (site) return site.mapPosition
   return getLocationDefFromState(state, locationId)?.mapPosition
 }
@@ -66,7 +66,7 @@ export function isWithinInfluence(state: GameState, locationId: LocationId): boo
 export function isWithinNpcInfluence(state: GameState, npc: NpcSect, locationId: LocationId): boolean {
   const target = getLocationPosition(state, locationId)
   if (!target) return false
-  const anchor = getSectSiteDef(npc.seatSiteId).mapPosition
+  const anchor = getSite(state.world, npc.seatSiteId).mapPosition
   const dist = Math.hypot(target.x - anchor.x, target.y - anchor.y)
-  return dist <= getNpcInfluenceRadius(npc)
+  return dist <= getNpcInfluenceRadius(state.world, npc)
 }

@@ -18,5 +18,5 @@ export const WORLD_DEF: WorldDefinition = {
   name: 'The First Realm',
   provinceIds: PROVINCE_DEFS.map((p) => p.id),
   foundingProvinceIds: PROVINCE_DEFS.filter((p) => p.unlockRule.kind === 'starter').map((p) => p.id),
-  map: { viewBoxWidth: 1000, viewBoxHeight: 700 },
+  map: { viewBoxWidth: 1000, viewBoxHeight: 900 },
 }

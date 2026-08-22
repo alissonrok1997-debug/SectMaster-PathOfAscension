@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useGameStore } from '../game/state/store'
 import { computeStorageCaps } from '../game/engine/storage'
 import { computeProductionRatesPerSecond } from '../game/engine/production'
@@ -43,18 +43,28 @@ export function ResourceBar() {
         aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
       >
-        {RESOURCE_KEYS.map((key) => (
-          <span className="resource-chip" key={key}>
-            <GameIcon src={RESOURCE_ART[key]} fallback={RESOURCE_ICONS[key]} alt="" size={20} />
-            <span
-              className={`resource-chip-value ${state.resources[key] >= caps[key] ? 'at-cap' : ''} ${
-                flash[key] ?? ''
-              }`}
-            >
-              {formatCompact(state.resources[key])}
+        {RESOURCE_KEYS.map((key) => {
+          const atCap = state.resources[key] >= caps[key]
+          /*
+           * §10's cap-as-hairline. The strip has always shown a bare number, so "how full is
+           * my Spirit Wood" needed a tap into the expanded panel; a 2px rule under each chip
+           * answers it at a glance and costs no vertical space the strip wasn't already using.
+           */
+          const fullness = caps[key] > 0 ? Math.min(1, state.resources[key] / caps[key]) : 0
+          return (
+            <span className={`resource-chip ${atCap ? 'at-cap' : ''}`} key={key}>
+              <GameIcon src={RESOURCE_ART[key]} fallback={RESOURCE_ICONS[key]} alt="" size={20} />
+              <span className={`resource-chip-value ${atCap ? 'at-cap' : ''} ${flash[key] ?? ''}`}>
+                {formatCompact(state.resources[key])}
+              </span>
+              <span
+                className="resource-chip-cap"
+                style={{ '--fill': `${(fullness * 100).toFixed(1)}%` } as CSSProperties}
+                aria-hidden="true"
+              />
             </span>
-          </span>
-        ))}
+          )
+        })}
       </button>
 
       {expanded && (

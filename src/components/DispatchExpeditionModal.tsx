@@ -13,7 +13,6 @@ import { getDiscipleCombatTrait, getSquadCombatPower, TRAIT_EFFECTS } from '../g
 import { getDefensePower } from '../game/engine/world/territory'
 import { getLocationTerrain } from '../game/engine/world/terrain'
 import { getAdvantageBand, TERRAIN_EFFECTS } from '../game/engine/combat/battleSimulator'
-import { NPC_SECT_DEFS } from '../game/data/world/npcSectDefs'
 import { getDoctrineModifiers } from '../game/engine/doctrine'
 import { formatDurationAdaptive } from '../game/utils/formatDuration'
 import { formatResourceCost } from '../game/utils/formatResources'
@@ -109,7 +108,7 @@ export function DispatchExpeditionModal({
   const band = isCombat && party.length > 0 ? getAdvantageBand(attackerPower, defenderPower) : undefined
   const ownerId = location?.runtime.ownerId
   const defenderName =
-    (ownerId && ownerId !== 'player' ? NPC_SECT_DEFS.find((s) => s.id === ownerId)?.name : undefined) ?? 'Defenders'
+    (ownerId && ownerId !== state.sectId ? state.world?.npcSects.find((s) => s.id === ownerId)?.name : undefined) ?? 'Defenders'
 
   // Same ladder `.mission-card.risk-*` uses, clamped so a generated tier above 3 degrades
   // into the top band rather than falling through to no stripe.

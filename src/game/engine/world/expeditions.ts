@@ -23,7 +23,7 @@ import { getDiscipleAvailability } from '../discipleAvailability'
 import { getSquadCombatPower, getDiscipleCombatTrait, nextMoraleAfterBattle, TRAIT_EFFECTS } from '../combatPower'
 import { getDoctrineModifiers } from '../doctrine'
 import { BASE_MAX_CONCURRENT_EXPEDITIONS, EXPEDITION_LOG_LIMIT } from '../../data/world/travelConstants'
-import { SECT_SITE_DEFS } from '../../data/world/sectSiteDefs'
+import { getSites } from './worldAccess'
 import { getExpeditionTargetMeta, getLocation, getLocationDefFromState, pristineLocationRuntime } from './worldQueries'
 import { resolveGatherCycle } from './expeditionRewards'
 import { isWithinInfluence } from './influence'
@@ -70,13 +70,13 @@ export interface DispatchEligibility {
 export type ClaimKind = 'buildOutpost' | 'seizeOutpost' | 'claimSeat'
 
 export function getClaimKind(state: GameState, locationId: LocationId): ClaimKind | undefined {
-  const site = SECT_SITE_DEFS.find((s) => s.id === locationId)
+  const site = getSites(state.world).find((s) => s.id === locationId)
   if (site) return site.conquerable ? 'claimSeat' : undefined
   const location = getLocation(state, locationId)
   if (!location || location.kind !== 'resource' || !location.upgradePath) return undefined
   const ownerId = location.runtime.ownerId
   if (!ownerId) return 'buildOutpost'
-  if (ownerId === 'player') return undefined
+  if (ownerId === state.sectId) return undefined
   return 'seizeOutpost'
 }
 
@@ -112,11 +112,11 @@ export function getOutpostClaimEligibility(state: GameState, locationId: Locatio
 
 /** A raid needs an owned, non-player target — nothing to steal from a neutral site or your own holdings. */
 function getRaidTarget(state: GameState, locationId: LocationId): boolean {
-  const site = SECT_SITE_DEFS.find((s) => s.id === locationId)
+  const site = getSites(state.world).find((s) => s.id === locationId)
   const ownerId = site
     ? state.world?.locations[locationId]?.ownerId
     : getLocation(state, locationId)?.runtime.ownerId
-  return ownerId !== undefined && ownerId !== 'player'
+  return ownerId !== undefined && ownerId !== state.sectId
 }
 
 /**
@@ -263,7 +263,7 @@ export function resolveCompletedExpeditions(
       incidents: [...original.incidents],
     }
 
-    const siteDef = SECT_SITE_DEFS.find((s) => s.id === exp.targetLocationId)
+    const siteDef = getSites(state.world).find((s) => s.id === exp.targetLocationId)
     const def = getLocationDefFromState(state, exp.targetLocationId)
     // Unknown target (e.g. a data id retired mid-save): abort home immediately,
     // banking nothing and freeing the party rather than stranding them.
@@ -330,7 +330,7 @@ export function resolveCompletedExpeditions(
 
           const needsCombat =
             (exp.purpose === 'claim' && (kind === 'seizeOutpost' || kind === 'claimSeat')) ||
-            (exp.purpose === 'raid' && targetOwnerId !== undefined && targetOwnerId !== 'player')
+            (exp.purpose === 'raid' && targetOwnerId !== undefined && targetOwnerId !== state.sectId)
 
           if (needsCombat) {
             const doctrineMult = getDoctrineModifiers(snapshot()).combatPowerMult
@@ -347,7 +347,7 @@ export function resolveCompletedExpeditions(
             const attackerParticipants: BattleParticipant[] = party.map((d) => ({ id: d.id, name: d.name, temperament: d.temperament }))
             const facadeName = defenderNpc
               ? generateNpcFacadeName(defenderNpc.id, defenderNpc.name, defenderNpc.tier, seed)
-              : targetOwnerId === 'player'
+              : targetOwnerId === state.sectId
                 ? 'your own forces'
                 : 'the defenders'
 
@@ -381,7 +381,7 @@ export function resolveCompletedExpeditions(
 
             if (outcome.won) {
               if (exp.purpose === 'claim' && kind === 'seizeOutpost') {
-                runtime = { ...runtime, ownerId: 'player' }
+                runtime = { ...runtime, ownerId: state.sectId }
                 runtimeTouched = true
                 if (defenderNpc) {
                   npcSects = npcSects.map((n) =>
@@ -392,7 +392,7 @@ export function resolveCompletedExpeditions(
               } else if (exp.purpose === 'claim' && kind === 'claimSeat' && defenderNpc && sectLocation) {
                 const rel = applyConquest(snapshot(), {
                   now,
-                  attackerId: 'player',
+                  attackerId: state.sectId,
                   attackerOldSeatId: sectLocation.sectSiteId,
                   targetSeatId: exp.targetLocationId,
                   defenderId: defenderNpc.id,
@@ -494,7 +494,7 @@ export function resolveCompletedExpeditions(
       arrivedHome = true
       if (exp.purpose === 'claim' && claimBuildKind === 'buildOutpost') {
         // Establish the outpost (§5.3); its bonus then flows passively through getWorldModifiers.
-        runtime = { ...runtime, discovered: true, outpostLevel: Math.max(runtime.outpostLevel, 1), ownerId: 'player' }
+        runtime = { ...runtime, discovered: true, outpostLevel: Math.max(runtime.outpostLevel, 1), ownerId: state.sectId }
         runtimeTouched = true
       }
       // Always bank whatever accrued in the payload — gather hauls, raid loot; empty for survey/seizeOutpost/claimSeat/buildOutpost.
@@ -539,7 +539,8 @@ export function resolveCompletedExpeditions(
     if (!arrivedHome) stillActive.push(exp)
   }
 
-  const expeditionLog = [...logEntries, ...world.expeditionLog].slice(0, EXPEDITION_LOG_LIMIT)
+  // Per-player (MULTIPLAYER_PLAN §1): this sect's own arrival reports, not the realm's.
+  const expeditionLog = [...logEntries, ...state.expeditionLog].slice(0, EXPEDITION_LOG_LIMIT)
 
   let nextState: GameState = {
     ...state,
@@ -549,7 +550,8 @@ export function resolveCompletedExpeditions(
     sectLocation,
     pendingRelocation,
     reputation,
-    world: { ...world, locations, npcSects, expeditions: stillActive, expeditionLog },
+    expeditionLog,
+    world: { ...world, locations, npcSects, expeditions: stillActive },
   }
   // Resolve downed party members (Phase 5) on the assembled state, per battle — deaths carry won/lost framing + squad-scoped morale, and the arrival report shows a last-stand line.
   for (const down of combatDowns) {

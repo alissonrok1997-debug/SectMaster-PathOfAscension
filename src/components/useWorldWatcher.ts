@@ -13,7 +13,7 @@ import { publishCatchUp, publishToasts, type ToastEvent } from './toastChannel'
  * It subscribes to the store rather than running as a render effect: zustand hands the
  * listener both the next and previous snapshots, so there is no ref juggling, it fires
  * once per *store update* rather than once per render, and nothing re-renders because of
- * it. It lives in `components/` and not in `useGameLoop` because the loop is engine code.
+ * it. It is kept apart from `useGameLoop`, which only advances the clock.
  */
 
 /** Only `tick` advances the sim clock, so anything else is a player action resolving now. */
@@ -80,8 +80,8 @@ function diff(next: GameState, prev: GameState): ToastEvent[] {
 
   // Expeditions. `reports` growing is deliberately NOT its own event — missions.ts and
   // expeditions.ts are its only writers, so it always doubles something already firing.
-  const prevExpeditionIds = new Set((prev.world?.expeditionLog ?? []).map((e) => e.id))
-  const newExpeditions = (next.world?.expeditionLog ?? []).filter((e) => !prevExpeditionIds.has(e.id))
+  const prevExpeditionIds = new Set((prev.expeditionLog ?? []).map((e) => e.id))
+  const newExpeditions = (next.expeditionLog ?? []).filter((e) => !prevExpeditionIds.has(e.id))
   if (newExpeditions.length === 1) {
     const e = newExpeditions[0]
     // `won` is player-centric regardless of which side they fought on (types.ts:759).

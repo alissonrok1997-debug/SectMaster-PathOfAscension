@@ -283,7 +283,6 @@ export function rewindStateClock(state: GameState, offsetMs: number): GameState 
         dispatchedAt: e.dispatchedAt - offsetMs,
       })),
       npcSects: state.world.npcSects.map((n) => ({ ...n, nextActionAt: n.nextActionAt - offsetMs })),
-      nextNpcEmergenceAt: state.world.nextNpcEmergenceAt - offsetMs,
     },
     diplomaticActionCooldowns: Object.fromEntries(
       Object.entries(state.diplomaticActionCooldowns).map(([key, ts]) => [key, ts - offsetMs]),

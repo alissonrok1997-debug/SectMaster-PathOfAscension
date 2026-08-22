@@ -1,4 +1,4 @@
-import type { NpcSect, Resources, SiteModifierBundle } from '../game/types'
+import type { NpcSect, Resources, SectId, SiteModifierBundle } from '../game/types'
 import type { ResolvedLocation } from '../game/engine/world/worldQueries'
 import { RESOURCE_LABELS } from '../game/data/resourceLabels'
 import { getResourceArchetype } from '../game/data/world/resourceArchetypeDefs'
@@ -37,6 +37,7 @@ export function LocationDetailPanel({
   onRaid,
   onGarrison,
   onSurvey,
+  sectId,
 }: {
   location: ResolvedLocation
   travelMs: number
@@ -49,13 +50,15 @@ export function LocationDetailPanel({
   onRaid?: () => void
   onGarrison?: () => void
   onSurvey?: () => void
+  /** The viewing sect's own id — ownership is relative to it, never to a literal (MULTIPLAYER_PLAN §7.1). */
+  sectId: SectId
 }) {
   const depleted = location.kind === 'resource' && location.runtime.remainingCapacity <= 0
   const upgradePath = location.kind === 'resource' ? location.upgradePath : undefined
   const hasOutpost = location.runtime.outpostLevel >= 1
   const ownerId = location.runtime.ownerId
-  const isPlayerOwned = ownerId === 'player'
-  const isEnemyOwned = ownerId !== undefined && ownerId !== 'player'
+  const isPlayerOwned = ownerId === sectId
+  const isEnemyOwned = ownerId !== undefined && ownerId !== sectId
 
   return (
     <div className="recipe-card location-card">
@@ -108,12 +111,12 @@ export function LocationDetailPanel({
             {depleted ? 'Depleted' : 'Send Expedition'}
           </button>
           {upgradePath && !hasOutpost && !isEnemyOwned && (
-            <button disabled={!onClaim || !!claimBlocked} title={claimBlocked} onClick={onClaim}>
+            <button disabled={!onClaim || !!claimBlocked} onClick={onClaim}>
               Claim Outpost
             </button>
           )}
           {upgradePath && isEnemyOwned && (
-            <button disabled={!onClaim || !!claimBlocked} title={claimBlocked} onClick={onClaim}>
+            <button disabled={!onClaim || !!claimBlocked} onClick={onClaim}>
               Seize Outpost
             </button>
           )}
@@ -134,9 +137,22 @@ export function LocationDetailPanel({
           )}
         </div>
       ) : (
-        <button disabled title="Exploration expeditions arrive in a later phase.">
-          Explore (coming soon)
-        </button>
+        <button disabled>Explore (coming soon)</button>
+      )}
+
+      {/*
+       * §14, inline disclosure. Both of these used to live in a native `title=` attribute on
+       * a disabled button — which on a portrait-phone-only game means **no player has ever
+       * read them**: there is no hover, so the tooltip never fires. The reason a claim is
+       * blocked is the single most useful sentence on this panel, and it was the one sentence
+       * that could not be seen. `.upgrade-blocked-reason` is the pattern seven other
+       * components already use for exactly this.
+       */}
+      {claimBlocked && location.kind === 'resource' && upgradePath && !hasOutpost && (
+        <p className="upgrade-blocked-reason">{claimBlocked}</p>
+      )}
+      {location.kind !== 'resource' && (
+        <p className="upgrade-blocked-reason">Exploration expeditions arrive in a later phase.</p>
       )}
     </div>
   )

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { RegionId } from '../../game/types'
 import { WorldMapView } from '../WorldMapView'
 import { ProvinceDetailView } from '../ProvinceDetailView'
 import { StandingsView } from '../StandingsView'
@@ -23,7 +22,7 @@ const WORLD_TABS: { id: WorldTab; label: string }[] = [
 
 export function WorldScreen() {
   const [tab, setTab] = useState<WorldTab>('map')
-  const [selection, setSelection] = useState<{ provinceId: string; regionId?: RegionId } | null>(null)
+  const [selection, setSelection] = useState<{ provinceId: string; territoryId?: string } | null>(null)
 
   return (
     <div className="world-screen">
@@ -49,13 +48,13 @@ export function WorldScreen() {
         (selection ? (
           <ProvinceDetailView
             provinceId={selection.provinceId}
-            regionId={selection.regionId}
+            territoryId={selection.territoryId}
             onBack={() => setSelection(null)}
           />
         ) : (
           <WorldMapView
             view={tab === 'sites' ? 'list' : 'map'}
-            onSelectProvince={(provinceId, regionId) => setSelection({ provinceId, regionId })}
+            onSelectProvince={(provinceId, territoryId) => setSelection({ provinceId, territoryId })}
           />
         ))}
 
